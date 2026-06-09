@@ -5,6 +5,11 @@
     "paths": [".opencode/skills"]
   },
   "agent": {
+    "orchestrator": {
+      "description": "影视制作管线主控 agent。当需要管理影视项目全流程（创建项目、处理剧本、生成视觉资产、制作剧集视频）时使用。负责识别用户意图、匹配阶段、将任务分发给响应的子 agent（coordinator/producer/character-director/prop-maker/set-designer/art-director/storyboard-director/video-director）。",
+      "mode": "primary",
+      "prompt": "{file:.opencode/rules/orchestrator.md}"
+    },
     "coordinator": {
       "description": "项目统筹、项目创建、项目注销、项目打包、阶段推进、进度查看、产物追踪、stage、milestone、归档。当需要管理项目全生命周期时使用。",
       "mode": "subagent",
