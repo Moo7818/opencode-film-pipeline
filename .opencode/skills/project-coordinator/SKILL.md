@@ -187,22 +187,45 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
    - 按分类移动到 `前期采样/{分类}/{文件名}`
    - 计算 SHA-256，注册到 `manifest.json`（type: `reference`）
    - 追加事件：`artifact.created`
-7. 创建 `project_config.json`（项目运行时配置，记录用户选择的参数）：
-   > **⚠️ 值来源于主 Agent**：以下参数值由主 Agent 在 spawn 时通过 query 传入（详见 `workflow.md`「项目启动询问表单 - 值传递规范」）。
-   > Coordinator **禁止使用硬编码默认值**，必须使用传入的变量。
+ 7. 创建 `project_config.json`（项目运行时配置，记录用户选择的参数）：
+    > **⚠️ 由你逐项询问用户填写**：Coordinator 负责向用户依次确认以下配置项。如用户不指定，使用默认值。
+    > 记录用户选择后，用变量构建 JSON 写入。
 
-   字段定义以 `.opencode/schemas/project-config.json` 为唯一来源。
+    字段定义以 `.opencode/schemas/project-config.json` 为唯一来源。
 
-   用传入的变量构建 JSON 并写入（`canvas_uuid` 在创建时为空，由 video-director 首次绑定时写入）：
+    **询问配置项**：
+
+    | 字段 | 说明 | 默认值 |
+    |------|------|--------|
+    | `aspect_ratio` | 画幅比例 | `16:9` |
+    | `resolution` | 分辨率 | `480p` |
+    | `model` | 视频生成模型（见下方模型表） | — |
+    | `use_storyboard_images` | 是否使用分镜图作为视频参考 | `false` |
+    | `mode` | 生成模式 | `mixed2video` |
+    | `enable_sound` | 是否生成音效 | `true` |
+
+    **模型选择列表**（如 `libtv node -t model -o json` 查询失败，回退到手动输入模型名，值写入 `project_config.json` 的 `model` 字段）：
+
+    | modelKey | modelName | 说明 | VIP |
+    |----------|-----------|------|-----|
+    | `star-video2` | Seedance 2.0 VIP | 最强视频模型，15s音画同步 | ✅ |
+    | `star-video2-fast` | Seedance 2.0 Fast VIP | 最强视频模型快速版，15s音画同步 | ✅ |
+    | `happy-horse-1` | Happy Horse 1.0 | 阿里最新视频模型，支持多参生成 | |
+    | `kling-v3-omni` | **可灵 3.0 Omni** | 视频编辑模型，参考一致性，音画同出，多镜头 | ✅ |
+    | `kling-video-o3` | **可灵 3.0** | 视频生成模型，高质感，支持多镜头 | ✅ |
+
+    `canvas_uuid` 在创建时为空，由 video-director 首次绑定时写入。
+
+    用用户确认的变量构建 JSON 并写入：
    ```powershell
    $config = @{
      canvas_uuid = ""                         # 创建时为空，video-director 首次运行时写入
-     aspect_ratio = "$aspectRatio"           # 主 Agent 传入，如 "16:9"
-     resolution = "$resolution"              # 主 Agent 传入，如 "720p"
-     model = "$model"                        # 主 Agent 传入，如 "star-video2"
-     use_storyboard_images = $useStoryboard  # 主 Agent 传入，如 $false
-     mode = "$mode"                          # 主 Agent 传入，如 "mixed2video"
-     enable_sound = $enableSound             # 主 Agent 传入，如 $true
+     aspect_ratio = "$aspectRatio"           # 用户确认，如 "16:9"
+     resolution = "$resolution"              # 用户确认，如 "720p"
+     model = "$model"                        # 用户确认，如 "star-video2"
+     use_storyboard_images = $useStoryboard  # 用户确认，如 $false
+     mode = "$mode"                          # 用户确认，如 "mixed2video"
+     enable_sound = $enableSound             # 用户确认，如 $true
    } | ConvertTo-Json -Depth 10
    Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/project_config.json" -Value $config
    ```
