@@ -1,0 +1,20 @@
+{
+  "skill_name": "producer",
+  "description": "验证 Producer 场景提取时按物理空间合并子区域的能力",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "多场景标签合并",
+      "prompt": "请处理剧本 `evals/files/test_banquet_multiple_labels.md`，提取场景设定。注意：奢华婚礼现场、宾客席、婚礼舞台中心、舞台中央、婚礼大厅是同一个宴会厅的不同焦段/区域，应按物理空间合并为一个场景「奢华婚礼宴会厅」。最终输出到 temp/test_outputs/scenes/ 目录。",
+      "expected_output": "只生成1个宴会厅场景文件（奢华婚礼宴会厅），不拆分出宾客席/婚礼舞台中心/舞台中央",
+      "files": ["evals/files/test_banquet_multiple_labels.md"]
+    },
+    {
+      "id": 1,
+      "eval_name": "独立空间不做合并",
+      "prompt": "请处理剧本 `evals/files/test_banquet_multiple_labels.md`，提取场景设定。确认奢高端卧室和直播间背景是独立物理空间，不应合并到宴会厅场景中。最终输出到 temp/test_outputs/scenes/ 目录。",
+      "expected_output": "至少保留3个独立场景：奢华婚礼宴会厅、高端卧室、直播间背景",
+      "files": ["evals/files/test_banquet_multiple_labels.md"]
+    }
+  ]
+}

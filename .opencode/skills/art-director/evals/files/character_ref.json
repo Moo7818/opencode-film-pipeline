@@ -1,0 +1,20 @@
+{
+  "tasks": [
+    {
+      "prompt": "一个穿着红色汉服的年轻女子，站在樱花树下，正面全身照，温柔微笑，古风插画风格",
+      "model": "gpt-image-2-vip",
+      "aspectRatio": "9:16",
+      "imageSize": "4K",
+      "filename": "character_01.png"
+    },
+    {
+      "prompt": "一个穿着白色西装的年轻男子，站在现代城市天台，侧身远眺，电影感光影",
+      "model": "gpt-image-2-vip",
+      "aspectRatio": "9:16",
+      "imageSize": "4K",
+      "filename": "character_02.png"
+    }
+  ],
+  "model": "gpt-image-2-vip",
+  "output_path": "./generated/角色参考图"
+}

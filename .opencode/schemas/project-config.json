@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://solo.trae.cn/schemas/project-config.json",
+  "title": "项目全局视频/图像生成配置",
+  "description": "项目级别的全局参数配置。由 Coordinator 在项目初始化时创建，主 Agent 维护，下游 Skill（video-director、storyboard-director 等）读取。",
+  "type": "object",
+  "required": [
+    "aspect_ratio",
+    "model",
+    "use_storyboard_images"
+  ],
+  "properties": {
+    "canvas_uuid": {
+      "type": "string",
+      "description": "画布项目 UUID。项目创建时为空字符串，由 video-director 首次绑定时从 .libtv/project.json 读取并写入。"
+    },
+    "aspect_ratio": {
+      "type": "string",
+      "description": "画面比例",
+      "examples": ["16:9", "9:16", "1:1", "4:3", "21:9"]
+    },
+    "resolution": {
+      "type": "string",
+      "description": "视频分辨率。video-director 映射规则见其 references/storyboard-to-libtv.md",
+      "default": "720p",
+      "examples": ["480p", "720p"]
+    },
+    "model": {
+      "type": "string",
+      "description": "视频生成模型 modelKey",
+      "examples": [
+        "star-video2",
+        "star-video2-fast",
+        "kling-v3-omni",
+        "kling-video-o3",
+        "kling-video-o1",
+        "happy-horse-1",
+        "wanx2.7-video",
+        "MiniMax-Hailuo-2.3",
+        "seedance-1.5-pro",
+        "midjourney-video",
+        "viduq3-pro"
+      ]
+    },
+    "use_storyboard_images": {
+      "type": "boolean",
+      "description": "是否启用分镜图分支。为 true 时 storyboard-director 生成分镜图并传入 video 节点作为参考"
+    },
+    "mode": {
+      "type": "string",
+      "description": "视频生成模式，对应 libtv --set modeType。可枚举值以 libtv model <modelKey> 输出为准",
+      "default": "mixed2video",
+      "examples": ["text2video", "mixed2video", "singleImage2video", "image2video", "frames2video", "video2video"]
+    },
+    "enable_sound": {
+      "type": "boolean",
+      "description": "是否开启视频音频生成。video-director 映射为 libtv --set enableSound=on/off",
+      "default": true
+    }
+  },
+  "additionalProperties": true
+}

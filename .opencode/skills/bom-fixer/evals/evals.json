@@ -1,0 +1,69 @@
+{
+  "skill_name": "bom-fixer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我读 project/ 下的 JSON 文件时总是遇到 json.JSONDecodeError: Unexpected UTF-8 BOM 错误，帮我修复这些 BOM 编码问题。",
+      "expected_output": "扫描 project/ 目录并修复所有 BOM 文件，报告修复结果和摘要",
+      "files": ["evals/files/bom_test.json", "evals/files/bom_test.md", "evals/files/clean_test.json", "evals/files/clean_test.md"],
+      "assertions": [
+        {
+          "name": "正确发现 BOM 文件",
+          "expect": "扫描报告显示发现 2 个 BOM 文件（bom_test.json 和 bom_test.md）"
+        },
+        {
+          "name": "正确跳过无 BOM 文件",
+          "expect": "不修改 clean_test.json 和 clean_test.md（无 BOM 的文件）"
+        },
+        {
+          "name": "修复后 JSON 可通过语法校验",
+          "expect": "修复后 JSON 文件可以通过 json.load() 正常解析"
+        },
+        {
+          "name": "输出修复摘要",
+          "expect": "最终输出包含修复摘要（扫描数、修复数、失败数）"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "这个文件 temp/unknown.txt 是从 Windows 机器上传来的，我打不开它，帮我看看是什么编码。",
+      "expected_output": "检测文件编码类型，返回 BOM 状态和编码猜测",
+      "files": ["evals/files/bom_test.json"],
+      "assertions": [
+        {
+          "name": "正确检测 BOM",
+          "expect": "输出包含 bom 字段，值为检测到的 BOM 类型或 'none'"
+        },
+        {
+          "name": "正确检测编码",
+          "expect": "输出包含 encoding_guess 字段，值为编码猜测"
+        },
+        {
+          "name": "输出格式为 NAME=VALUE",
+          "expect": "输出使用 path= xxx 格式，易于机器解析"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "我在做项目文件迁移，从 Windows 复制了一批文件到 project/ 目录，帮我全量检查一下 BOM 编码问题。",
+      "expected_output": "批量扫描指定目录，修复所有 BOM 文件，输出清晰的统计报告",
+      "files": [],
+      "assertions": [
+        {
+          "name": "批量扫描能力",
+          "expect": "能够递归扫描整个目录树并识别 BOM 文件"
+        },
+        {
+          "name": "区分 BOM 和无 BOM",
+          "expect": "不误报无 BOM 的文件"
+        },
+        {
+          "name": "修复后校验 JSON",
+          "expect": "修复后自动对 JSON 文件运行语法校验"
+        }
+      ]
+    }
+  ]
+}

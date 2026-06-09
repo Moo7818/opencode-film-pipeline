@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://grsai.dakka.com.cn/schemas/image-generation.json",
+  "title": "GRSAI 图像生成任务列表",
+  "description": "新媒体内容生成技能的输入格式规范。上游 Agent 按此 Schema 生成 tasks.json，主 Agent 路由，生图 Agent 执行。",
+  "type": "object",
+  "required": ["tasks"],
+  "properties": {
+    "tasks": {
+      "type": "array",
+      "description": "任务列表，每个任务可独立设置参数",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "生成提示词（必填），原样传递给 API，不做修改"
+          },
+          "model": {
+            "type": "string",
+            "description": "模型名称，覆盖全局 model。可选值：gpt-image-2-vip, gpt-image-2, nano-banana-2, nano-banana-pro, nano-banana-pro-vip",
+            "examples": ["gpt-image-2-vip", "nano-banana-2"]
+          },
+          "aspectRatio": {
+            "type": "string",
+            "description": "画面比例。gpt-image 系列使用像素格式如 1024x1024；nano-banana 系列使用比例格式如 1:1、16:9、9:16",
+            "examples": ["1:1", "16:9", "9:16", "1024x1024"]
+          },
+          "imageSize": {
+            "type": "string",
+            "enum": ["1K", "2K", "4K"],
+            "description": "分辨率等级。仅 gpt-image-2-vip 支持 2K/4K；nano-banana 系列通过此字段控制分辨率"
+          },
+          "filename": {
+            "type": "string",
+            "description": "输出文件名，如 product_01.png。不指定则由 API 自动命名"
+          },
+          "images": {
+            "type": "array",
+            "description": "参考图列表，支持 URL 或本地文件路径。本地路径会自动上传到 COS",
+            "items": {
+              "type": "string",
+              "description": "参考图 URL 或本地绝对路径"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "model": {
+      "type": "string",
+      "description": "全局默认模型。model 有两层：任务列表声明 > 配置文件默认。task.model > JSON顶层.model > ~/.trae-cn/media_gen_config.json GRSAI_MODEL",
+      "default": "gpt-image-2",
+      "examples": ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"]
+    },
+    "output_path": {
+      "type": "string",
+      "description": "全局输出目录。批次是功能性单元，所有产物归到同一文件夹",
+      "default": "./generated"
+    },
+    "oss_id": {
+      "type": "string",
+      "description": "全局云存储 ID。缺失时仅 warning，不使用云存储"
+    },
+    "oss_path": {
+      "type": "string",
+      "description": "全局云存储路径。缺失时仅 warning，不使用云存储"
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "tasks": [
+        {
+          "prompt": "生成全局角色参考图，左侧为角色正面面部特写，右侧为角色正面全身三视图······",
+          "model": "gpt-image-2-vip",
+          "aspectRatio": "2048x1152",
+          "imageSize": "4K",
+          "filename": "character_01.png"
+        },
+        {
+          "prompt": "······",
+          "model": "nano-banana-2",
+          "aspectRatio": "16:9",
+          "imageSize": "4K",
+          "filename": "storyboard_01.png"
+        }
+      ],
+      "model": "gpt-image-2-vip",
+      "output_path": "./generated/角色参考图"
+    }
+  ]
+}

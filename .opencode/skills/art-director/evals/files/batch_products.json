@@ -1,0 +1,27 @@
+{
+  "tasks": [
+    {
+      "prompt": "一款简约风格的陶瓷咖啡杯套装，白色釉面，放在木质桌面上，自然光，产品摄影风格",
+      "model": "gpt-image-2-vip",
+      "aspectRatio": "1:1",
+      "imageSize": "4K",
+      "filename": "product_01.png"
+    },
+    {
+      "prompt": "一款真皮棕色手提包，金属扣件，放在大理石台面上，侧光拍摄，高端质感",
+      "model": "gpt-image-2-vip",
+      "aspectRatio": "1:1",
+      "imageSize": "4K",
+      "filename": "product_02.png"
+    },
+    {
+      "prompt": "一款极简设计的无线蓝牙耳机，白色，充电盒打开状态，深色背景，科技感打光",
+      "model": "gpt-image-2-vip",
+      "aspectRatio": "1:1",
+      "imageSize": "4K",
+      "filename": "product_03.png"
+    }
+  ],
+  "model": "gpt-image-2-vip",
+  "output_path": "./generated/商品展示图"
+}

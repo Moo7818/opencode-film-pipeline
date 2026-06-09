@@ -1,0 +1,13 @@
+{
+  "tasks": [
+    {
+      "prompt": "主角在夕阳下走向远方的城堡，暖色调，电影感构图，宽银幕视角",
+      "model": "nano-banana-2",
+      "aspectRatio": "16:9",
+      "imageSize": "4K",
+      "filename": "storyboard_01.png"
+    }
+  ],
+  "model": "nano-banana-2",
+  "output_path": "./generated/分镜图"
+}
