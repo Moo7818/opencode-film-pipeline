@@ -1,0 +1,13 @@
+# 白名单模式：忽略一切，仅放行白名单
+*
+
+!.gitignore
+!AGENTS.md
+!opencode.json
+!.opencode/
+!.opencode/**
+
+# 白名单下的排除项
+.opencode/credentials/**
+.opencode/**/__pycache__/**
+.opencode/**/*.pyc
