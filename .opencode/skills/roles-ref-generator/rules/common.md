@@ -21,6 +21,7 @@ AI 图像模型对某些视觉属性有统计偏见——如果 prompt 不明确
 | 发型 | 历史角色易被默认古装发型 | 显式描述发型，不依赖模型默认 |
 | 体态 | 男性角色易被默认壮硕 | 按角色设定描述（清瘦/健壮/魁梧等）|
 | 质感类型 | string1 易被默认使用"超写实真人摄影写真" | 必须根据角色视觉风格从「string1 质感类型选择表」中选择对应值 |
+| 服装文字 | 模型可能自动在服装上生成文字/logo | 必须在 prompt 末尾显式写"服装上没有任何文字、logos、标签或文字标识，no text，no logo" |
 
 ## string1 质感类型选择表
 
@@ -31,10 +32,8 @@ AI 图像模型对某些视觉属性有统计偏见——如果 prompt 不明确
 | `photo_realistic` | 真人摄影、写真、真人实拍、照片级真实 | 超写实真人摄影写真 |
 | `game_cg` | 游戏CG、游戏建模、CG建模、游戏角色渲染、次世代、3A级 | AAA级游戏CG角色渲染 |
 | `cartoon_2d` | 2D动画、动漫、二次元、日漫、国漫、插画 | 动画电影级精绘插画 |
-| `cartoon_3d` | 3D卡通、皮克斯、迪士尼3D、三维动画 | 皮克斯3D卡通渲染 |
+| `3d_cartoon` | 3D卡通、皮克斯、迪士尼、Pixar、Pixar/Disney-inspired、modern feature-animation、3D stylized character、三维动画、软萌3D | 3D卡通渲染 |
 | `hand_drawn` | 手绘、水墨、工笔、素描、水彩 | 手绘艺术精描 |
-| `pixar_3d` | 皮克斯、Pixar、玩具总动员、超人总动员 | 皮克斯3D卡通渲染 |
-| `disney_3d` | 迪士尼3D、迪士尼动画、冰雪奇缘、魔发奇缘 | 皮克斯3D卡通渲染 |
 | `gta_v` | GTA V、Rockstar、侠盗猎车手、洛圣都 | AAA级游戏CG角色渲染 |
 | `ghibli` | 吉卜力、宫崎骏、龙猫、千与千寻 | 动画电影级精绘插画 |
 
@@ -97,9 +96,9 @@ AI 图像模型对某些视觉属性有统计偏见——如果 prompt 不明确
 {角色特征详细描述}。{视觉风格类型名}风格化造型：{从 reference 文件 string8_style_injection 字段提取的关键词}
 ```
 
-示例（Pixar3D）：
+示例（3DCartoon）：
 ```
-...气质沉稳专注温和睿智理性冷静偶尔幽默极客暖男。Pixar风格化造型：expressive oversized face五官比例略偏大，expressive big eyes大眼睛带上高光闪烁，squash-and-stretch proportions圆润弹性形变体态，cartoonish proportions卡通化比例
+...气质沉稳干练有安全感。3DCartoon风格化造型：soft rounded facial features柔和圆润五官，big expressive eyes大而有神眼睛，smooth porcelain skin光滑瓷肌，playful proportions俏皮卡通比例，adorable and wholesome aesthetic可爱健康美学
 ```
 
 ### 风格关键词成组使用规则
@@ -120,7 +119,8 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 {string9}，
 {string10}，
 {string11}，
-{string12}.
+{string12}，
+服装上没有任何文字、logos、标签或文字标识，no text，no logo.
 ```
 
 ## 参数说明
@@ -137,7 +137,7 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 | string7 | 性别+年龄 | 如"年轻女性"、"45岁男性" |
 | string8 | 角色特征 | 皮肤、五官、脸型、发型、胡须状态（有/无及类型）、身材、气质、性格等，≥80字。末尾追加风格化造型描述（从 reference 文件 `string8_style_injection` 字段提取） |
 | string9 | 头饰详述 | ≥80字详细描述 |
-| string10 | 服装详述 | ≥80字详细描述 |
+| string10 | 服装详述 | ≥80字详细描述。推荐按结构化三段式编写：品类（如 oversized knitted sweaters, fluffy jackets, cropped tops, wide-leg jeans）+ 材质（wool, fleece, knit 等纹理面料）+ 色彩（显式指定色板，如 warm color palette with pastel and vibrant tones: orange, teal, purple, yellow），可选追加配件（backpack, sling bag, headphones, goggles）和同伴（cute animal companion on shoulder） |
 | string11 | 背景+光影 | 摄影棚氛围、光线方向、质感描述。必须使用中英双语并列格式，从 reference 文件 `string11` 章节提取 |
 | string12 | 整体质感 | 如"照片级真实质感"、"彩色铅笔画质感"。必须使用中英双语并列格式，从 reference 文件 `string12` 章节提取 |
 
