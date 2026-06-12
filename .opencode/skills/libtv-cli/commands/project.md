@@ -1,5 +1,7 @@
 # `libtv project` — 画布项目
 
+> 💡 **引导用户**：涉及某个项目时，主动把该画布的网页链接告诉用户，方便其在浏览器里打开查看：`https://www.liblib.tv/canvas?projectId=<项目UUID>`（把 `<项目UUID>` 换成实际的 `projectUuid`）。
+
 创建、查询远程画布项目，以及**把当前工作目录绑定到某个项目**（写入 `.libtv/project.json`）。多数子命令（[`libtv node`](./node.md)、[`libtv upload`](./upload.md)、[`libtv group`](./group.md)）在未传 `-p/--project` 时会读取该文件里的 **`projectUuid`**；未绑定且未传 `-p` 时会报错并提示执行 `libtv project use`。
 
 `.libtv/project.json` 写在当前工作目录；stdout/stderr 与管道嵌套 case 见 [../examples/pipes/README.md](../examples/pipes/README.md)。

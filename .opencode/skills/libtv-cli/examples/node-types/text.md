@@ -7,12 +7,12 @@
 ```bash
 # 1) 建节点 + 设置提示词 / 模型 / 条数
 libtv node "旁白" -t text --prompt "写一段自嘲的独白" \
-  --set model=aurora-3-prime \
+  --set "model=GVLM 3.1" \
   --set count=1
 
 # 2) 把生成结果回写到节点自身内容（不会触发模型重跑；走 -u）
 libtv node "旁白" -u content='["你好世界","第二段"]'
 
-# 3) 改展示名（展示名永远走 --name，等价 -u name=…）
+# 3) 改展示名（展示名永远走 --name，不要用 -u 改名）
 libtv node "旁白" --name "主角独白"
 ```

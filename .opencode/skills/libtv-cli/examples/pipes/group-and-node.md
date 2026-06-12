@@ -1,22 +1,23 @@
 # 管道：`group` 与 `node` 的嵌套
 
-**覆盖**：把 `libtv group create` 的 NDJSON 直接喂给 `libtv group use -r`，一条管道绑好 `groupNodeKey`；然后在组内串 `libtv node create`，用管道把多个上游节点挂进下游，并用 `libtv group … --run` 整组触发。
+**覆盖**：用 `libtv group create` + `libtv group use` 绑好 `groupNodeKey`；然后在组内串 `libtv node create`，用管道把多个上游节点挂进下游，并用 `libtv group … --run` 整组触发。
 
 **前置条件**：同 [examples/README.md 的通用前置条件](../README.md#通用前置条件)；已 `libtv project use <项目UUID>`。
 
-## 建组 + 绑定（管道一条命令搞定）
+## 建组 + 绑定
 
 ```bash
 set -euo pipefail
 
 # case A: 建组 → 绑定当前目录到该组（省去后续 -g）
-libtv group create 首集分镜 | libtv group use -r
+libtv group create 首集分镜
+libtv group use 首集分镜
 ```
 
 要点：
 
-- `libtv group create` 的 stdout 接到管道时吐 NDJSON（含 `newNodeKey`）。
-- `libtv group use -r` 的 `-r` 语义是**从 stdin 读取 key**（不是 `--run`）；它把该 key 写入当前目录 `.libtv/project.json` 的 `groupNodeKey`。
+- `libtv group create` 的 stdout 接到管道时吐 NDJSON（含 `newNodeKey`）；不接管道时为普通 JSON。
+- `libtv group use <组>` 需要传**分组名 / id**（无 stdin / `-r` 形式），把对应 `groupNodeKey` 写入当前目录 `.libtv/project.json`。
 - 绑定后，后续 `libtv node` 未显式传 `-g` / `-p` 时**默认落在该组内**。
 - 解除绑定：`libtv group unuse`。完整 `group` 子命令见 [../../commands/group.md](../../commands/group.md)。
 
@@ -25,21 +26,22 @@ libtv group create 首集分镜 | libtv group use -r
 绑定分组后，直接在组内串管道，一次把「大纲 → 资产板 → 汇总」这种链路建完：
 
 ```bash
-libtv group create 首集分镜 | libtv group use -r
+libtv group create 首集分镜
+libtv group use 首集分镜
 
 (
   libtv node create "大纲" -t text \
     --prompt "12 集网剧 bible：双主角、主线副线、视觉关键词。" \
-    --set model=aurora-3-prime --set count=1 &&
+    --set "model=GVLM 3.1" --set count=1 &&
   libtv node create "角-三视图" -t image \
     --prompt "女主三视图 T-pose：正/侧/背，灰蓝套裙。" \
-    --set model=nebula-ultra --set ratio=16:9 --set quality=2K &&
+    --set "model=LibNano Pro" --set ratio=16:9 --set quality=2K &&
   libtv node create "角-服饰" -t image \
     --prompt "灰蓝风衣+衬衫+直筒西裤+帆布鞋，布料厚度单独标注。" \
-    --set model=nebula-ultra --set ratio=16:9 --set quality=2K
+    --set "model=LibNano Pro" --set ratio=16:9 --set quality=2K
 ) | libtv node create "角-汇总" -t image \
     --prompt "角色资产蒙太奇：拼合三视图/服饰，附比例尺与色条。" \
-    --set model=nebula-ultra --set modeType=image2image --set ratio=16:9 --set quality=2K
+    --set "model=LibNano Pro" --set modeType=image2image --set ratio=16:9 --set quality=2K
 ```
 
 要点：
@@ -56,8 +58,8 @@ libtv group create 首集分镜 | libtv group use -r
 # case A: 把已有的 3 个镜头节点挂进分组
 libtv group 首集分镜 --node 镜头A --node 镜头B --node 镜头C
 
-# case B: 查看组里当前有哪些子节点
-libtv group 首集分镜 --list
+# case B: 查看组里当前有哪些子节点（默认子命令、无 --node 即查询）
+libtv group 首集分镜
 
 # case C: 整组触发生成（组内所有子节点各跑一次）
 libtv group 首集分镜 --run
@@ -75,7 +77,7 @@ libtv group 首集分镜 --run
   libtv node "镜-03"
   libtv node create "BGM" -t audio \
     --prompt "轻弦乐+单音钢琴，为终剪铺底，不进副歌。" \
-    --set model=mureka-8 --set scene=Music --set instrumental=1
+    --set "model=Mureka V8" --set scene=Music --set instrumental=1
 } | libtv node create "终剪" -t video-clip \
     --prompt "硬切对齐镜 01/02/03；BGM duck 在口播位；尾 0.5s 淡出。" \
     >/dev/null
@@ -85,4 +87,4 @@ libtv group 首集分镜 --run
 
 - `{ …; …; } | 下游` 与 `( … && … ) | 下游` 的区别：**`{}` 不要求前面那条成功再执行下一条**——适合"都是已存在节点的查询"（只读场景失败概率低）；涉及 `create` 这种有副作用的写操作时**用 `&&`**。
 - `终剪` 的 `>/dev/null` 把它自己的 NDJSON 丢掉，因为没有后续下游再消费它了。
-- 上面这段骨架来自真实脚本 [`tests/e2e/pipe-use/case-03-pipeline-outline-assets-storyboard-clip.sh`](../../../../tests/e2e/pipe-use/case-03-pipeline-outline-assets-storyboard-clip.sh) 的 `剧·终剪` 段。
+- 上面这段是「组内素材 + 新建节点一起汇入终剪」的典型骨架，可按需替换节点名 / 提示词。

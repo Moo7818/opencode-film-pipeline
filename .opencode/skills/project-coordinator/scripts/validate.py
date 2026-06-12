@@ -12,6 +12,8 @@
 此脚本应内嵌在统筹 agent 的操作流程中，每次写 JSON 后自动调用。
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path

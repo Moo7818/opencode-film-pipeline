@@ -130,7 +130,7 @@ libtv node create "组1" -t video \
 画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1}" \
-  --set model=star-video2 --set modeType=mixed2video \
+  --set model=Seedance 2.0 VIP --set modeType=mixed2video \
   --left 分镜图_组1 --left 场景参考_01
 ```
 
@@ -142,7 +142,7 @@ libtv node create "组1" -t video \
 画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1}" \
-  --set model=star-video2 --set modeType=mixed2video \
+  --set model=Seedance 2.0 VIP --set modeType=mixed2video \
   --left 角色参考_01 --left 场景参考_01
 ```
 
@@ -174,7 +174,7 @@ libtv node create "组1" -t video \
 画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1,\"组叙事概述\":\"火焰测试\"}" \
-  --set model=star-video2 \
+  --set model=Seedance 2.0 VIP \
   --set modeType=mixed2video \
   --set count=1 \
   --set ratio=16:9 \

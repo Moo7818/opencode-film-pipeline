@@ -6,7 +6,7 @@
 
 以下三条所有 case 默认满足，不在每个文件里重复：
 
-1. 已完成登录（[`libtv login web` / `login phone`](../commands/login.md)）；若用独立凭据目录见 [auth/config-dir.md](./auth/config-dir.md)。
+1. 已完成登录（[`libtv login web` / `login phone`](../commands/login.md)）；独立凭据目录（`LIBTV_CONFIG_DIR`）用法同见 [commands/login.md](../commands/login.md)。
 2. 在**画布所在工作目录**执行过 [`libtv project use <项目UUID>`](../commands/project.md)；`libtv project list` 可查 UUID。未绑定时每条命令可显式加 `-p <UUID>`。
 3. 需要限定普通分组时执行 [`libtv group use <分组>`](../commands/group.md)；临时覆盖用 `-g/--group`。
 
@@ -35,14 +35,7 @@
 | `storyboard` | [node-types/storyboard.md](./node-types/storyboard.md) |
 | `video-clip` | [node-types/video-clip.md](./node-types/video-clip.md) |
 
-## auth/ — 账号 / 登录
-
-| 场景                           | 文件                                         |
-| ------------------------------ | -------------------------------------------- |
-| 浏览器登录（可自动打开登录页） | [auth/login-web.md](./auth/login-web.md)     |
-| 手机号两步登录                 | [auth/login-phone.md](./auth/login-phone.md) |
-| 切换到独立凭据目录再登录       | [auth/config-dir.md](./auth/config-dir.md)   |
-| 退出登录                       | [auth/logout.md](./auth/logout.md)           |
+> 登录 / 退出 / 切换凭据目录等账号操作直接看 [commands/login.md](../commands/login.md)、[commands/logout.md](../commands/logout.md)，那里已带可复制示例，本目录不再单列。
 
 ## pipes/ — 管道与嵌套用法
 

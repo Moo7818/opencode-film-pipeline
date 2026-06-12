@@ -79,7 +79,7 @@ libtv node create "组1" -t video \
 画面严禁出现任何字幕，无配乐
 ---
 {完整的组 JSON 内容}" \
-  --set model=star-video2 \
+  --set model=Seedance 2.0 VIP \
   --set modeType=mixed2video \
   --set count=1 \
   --set ratio=16:9 \
@@ -99,7 +99,7 @@ libtv node create "组1" -t video \
   --prompt "画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1}" \
-  --set model=star-video2 \
+  --set model=Seedance 2.0 VIP \
   --set modeType=mixed2video \
   --set count=1 \
   --set ratio=16:9 \

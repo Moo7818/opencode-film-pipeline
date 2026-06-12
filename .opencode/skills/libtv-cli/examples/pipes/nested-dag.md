@@ -12,11 +12,11 @@
 
 # case B: 新建上游并立刻把 NDJSON 接给下游（create 默认往 stdout 吐一行）
 (
-  libtv node create "选题" -t text --prompt "一段旁白" --set model=aurora-3-prime &&
-  libtv node create "主KV" -t image --prompt "9:16 竖版主 KV" --set model=nebula-ultra --set ratio=9:16
+  libtv node create "选题" -t text --prompt "一段旁白" --set "model=GVLM 3.1" &&
+  libtv node create "主KV" -t image --prompt "9:16 竖版主 KV" --set "model=LibNano Pro" --set ratio=9:16
 ) | libtv node create "拼图" -t image \
     --prompt "拼合选题与主 KV" \
-    --set model=nebula-ultra --set ratio=9:16 --set modeType=image2image
+    --set "model=LibNano Pro" --set ratio=9:16 --set modeType=image2image
 ```
 
 关键行为：
@@ -29,7 +29,7 @@
 
 真实链路常见长这样：**多张图汇成 D → 旁路一条 audio → 用已有节点再接一条 video → 全部汇进 F**。
 
-下面的骨架照搬自 [`tests/e2e/pipe-use/case-02-dag-nested-kling-seedance-mureka.sh`](../../../../tests/e2e/pipe-use/case-02-dag-nested-kling-seedance-mureka.sh) 的 26–57 行，去掉了时间戳后缀，保留全部管道结构：
+下面的骨架保留了全部管道结构，可按需替换节点名 / 提示词 / 模型：
 
 ```bash
 set -euo pipefail
@@ -39,36 +39,36 @@ set -euo pipefail
     (
       libtv node create "选题" -t text \
         --prompt "60s 都市情感短视频：口播+回音梗+结尾 CTA。" \
-        --set model=aurora-3-prime --set count=1 &&
+        --set "model=GVLM 3.1" --set count=1 &&
       libtv node create "辅视" -t image \
         --prompt "窄幅横条抽象色带：霓虹粉过渡到电蓝。" \
-        --set model=nebula-ultra --set ratio=16:9 --set quality=1K &&
+        --set "model=LibNano Pro" --set ratio=16:9 --set quality=1K &&
       libtv node create "主KV" -t image \
         --prompt "9:16 竖版主 KV：逆光发丝+地铁玻璃雾面。" \
-        --set model=nebula-ultra --set ratio=9:16 --set quality=2K
+        --set "model=LibNano Pro" --set ratio=9:16 --set quality=2K
     ) | libtv node create "拼图D" -t image \
         --prompt "拼合选题、辅视色带与主 KV。" \
-        --set model=nebula-ultra --set ratio=9:16 --set quality=2K --set modeType=image2image
+        --set "model=LibNano Pro" --set ratio=9:16 --set quality=2K --set modeType=image2image
   ) && libtv node create "氛围乐" -t audio \
       --prompt "日系钢琴 Loft 感。" \
-      --set model=mureka-8 --set scene=Music --set instrumental=1 &&
+      --set "model=Mureka V8" --set scene=Music --set instrumental=1 &&
   (
     ( libtv node "选题" && libtv node "主KV" ) |
       libtv node create "Kling段" -t video \
         --prompt "0–5s：地铁闸机跟拍+口播气口。" \
-        --set model=kling-video-o1 --set modeType=mixed2video \
+        --set "model=Kling O1" --set modeType=mixed2video \
         --set ratio=9:16 --set duration=5 --set quality=high --set count=1
   ) && (
     libtv node "主KV" |
       libtv node create "Seed段" -t video \
         --prompt "由主 KV 静帧单图起幅，轻推轨进站台。" \
-        --set model=doubao-seedance-pro --set modeType=singleImage2video \
+        --set "model=Seedance 1.0 Pro" --set modeType=singleImage2video \
         --set ratio=9:16 --set resolution=1080P --set duration=5 --set count=1 \
         >/dev/null
   ) && libtv node "主KV"
 ) | libtv node create "完片F" -t video \
     --prompt "收束 Kling 段、拼图 D 与主 KV 的光色；10s 一体化落版。" \
-    --set model="star-video2" --set modeType=mixed2video \
+    --set "model=Seedance 2.0" --set modeType=mixed2video \
     --set ratio=9:16 --set duration=10 --set resolution=720p --set count=1 \
     >/dev/null
 ```
@@ -77,7 +77,7 @@ set -euo pipefail
 
 | 手法                                        | 表现                                                                                                                                                                                                       |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **多上游 `&&` 串联 + 外层管道汇入**        | `(a && b && c) \| d`—— 三个 `create` 依次成功后，各自 NDJSON 一并进入下游 `d` 的 stdin；`d` 把它们都当 `--left`。                                   |
+| **多上游 `&&` 串联 + 外层管道汇入**         | `(a && b && c) \| d`—— 三个 `create` 依次成功后，各自 NDJSON 一并进入下游 `d` 的 stdin；`d` 把它们都当 `--left`。                                                                                          |
 | **旁路节点（不进下游管道）**                | 氛围乐 `audio` 用 `&&` 接在主管道之后、但 **不** 出现在外层 `(` 括号里，所以它的 NDJSON 不会流到 `完片F`。适合"建了要留在画布上、但不挂给此下游"的资源节点。                                               |
 | **对已有节点做 `libtv node "<名>"` 回放**   | `libtv node "选题"` / `libtv node "主KV"` 不传写参数时**只查询**并吐一行 NDJSON，等价于"在管道里再次引用该节点的 key"，用来把早先层级的节点接到后续下游。                                                  |
 | **stdout 抑制：`>/dev/null`**               | `Seed段` 与 `完片F` 的 `create` 结尾加 `>/dev/null`，把它自己的 NDJSON 丢掉；此处用来**不让 Seed 段混进最外层 `完片F` 的 stdin**（否则 F 会误把 Seed 段也当左侧输入）。`完片F` 本身是终点，stdout 也无用。 |

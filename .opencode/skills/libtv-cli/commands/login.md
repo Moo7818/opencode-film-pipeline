@@ -1,6 +1,6 @@
 # `libtv login` — 登录
 
-把有效凭据写入本机，后续 `libtv` 子命令（凡调远端接口者）会自动携带。凭据目录由 **`LIBTV_CONFIG_DIR`** 控制，默认为 **`~/.libtv`**，内含 **`credentials.json`**；与浏览器 Cookie **`usertoken`** 同源。切换到独立凭据目录见 [`../examples/auth/config-dir.md`](../examples/auth/config-dir.md)。
+把有效凭据写入本机，后续 `libtv` 子命令（凡调远端接口者）会自动携带。凭据目录由 **`LIBTV_CONFIG_DIR`** 控制（默认 **`~/.libtv`**，内含 **`credentials.json`**）；它**只影响本机状态写入位置**（凭据 + 项目 / 分组绑定），不改变网络请求目标。默认目录的身份与浏览器 Cookie **`usertoken`** 同源；多账号 / 测试隔离时把它指向独立目录即可（见下方示例）。
 
 ## 子命令
 
@@ -66,9 +66,13 @@ libtv login web
 libtv login phone -p 13800138000
 libtv login phone -p 13800138000 -c 123456
 
-# case 4: 把凭据存到自定义目录（下同一 shell 内所有 libtv 子命令也会读这里）
+# case 4: 只为这一次命令切换凭据目录
 LIBTV_CONFIG_DIR="$HOME/.libtv-dev" libtv login web
 
-# case 5: 覆盖登录页前缀（仅 web 登录）
+# case 5: 整个 shell 都切到自定义目录（写进 ~/.zshrc / ~/.bashrc 可常驻，unset 还原）
+export LIBTV_CONFIG_DIR="$HOME/.libtv-dev"
+libtv login web
+
+# case 6: 覆盖登录页前缀（仅 web 登录）
 LIBTV_LOGIN_WEB_URL='https://www.liblib.art/tv/zh' libtv login web
 ```

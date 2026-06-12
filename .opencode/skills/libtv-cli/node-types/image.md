@@ -17,7 +17,7 @@
 | 字段                   | 说明                                                                         |
 | ---------------------- | ---------------------------------------------------------------------------- |
 | **`prompt`**           | 提示词。                                                                     |
-| **`model`**            | 图片模型 **`modelKey`**。                                                    |
+| **`model`**            | 图片模型 **名字（`modelName`）**，如 `-s "model=LibNano Pro"`（用 `libtv model search --type image` 查看；CLI 内部解析为 `modelKey`）。 |
 | **`count`**            | 出图张数；允许值由 schema 的 `properties.count` 决定。                       |
 | **`settings`**         | 表单「基础设置」的键集合，见 `libtv model <modelKey>` 的 `config.settings`。 |
 | **`advancedSettings`** | 「高级设置」的键集合，见 `config.advancedSettings`。                         |
@@ -44,7 +44,7 @@
 | **`url`** / **`originalUrl`** | `string[]` | 图片 URL / 原始 URL（一般由生成 / 上传写入，手工改谨慎）。 |
 | **`scriptRowHiddenUuid`**     | `string`   | 与脚本 / 分镜行的关联 UUID。                               |
 
-> 生成参数（`prompt` / `model` / `ratio` / `quality` 等）请用 `-s`；展示名用 `--name`——`-u name=…` 会被拒绝，见 [README.md](./README.md) 的「`-u` 明确拒写的键」。
+> 生成参数（`prompt` / `model` / `ratio` / `quality` 等）请用 `-s`；展示名用 `--name`，不要用 `-u` 改名，见 [README.md](./README.md) 的「`-u` 明确拒写的键」。
 
 ## 特殊用法
 

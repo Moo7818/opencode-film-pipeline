@@ -11,7 +11,7 @@
 libtv upload "参考图" -t image --resource ./refs/scene.png
 
 # 2) 新建一个文本节点并写好提示词与模型
-libtv node "剧情" -t text --prompt "根据参考图写一段分镜旁白" --set model=aurora-3-prime
+libtv node "剧情" -t text --prompt "根据参考图写一段分镜旁白" --set "model=GVLM 3.1"
 
 # 3) 把「参考图」连到「剧情」左侧——两种等价写法
 libtv node "剧情" --left 参考图          # 方法 A：按显示名

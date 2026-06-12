@@ -18,6 +18,6 @@ libtv node "视频合成" --run
 
 关键点：
 
-- `video-clip` **没有 `data.params`**，`-s/--set` 在此节点上会被拒绝（只允许 `-u`）。
+- `video-clip` 的核心编辑对象在 `data` 顶层，请走 `-u`；`-s/--set` 虽会浅合并写入 `data.params`（不做生成器 schema 校验），但本类型日常用不到。
 - `clipTimelineData` 为单字段 JSON；深层结构如 `clips` 需整块替换。
 - `cropRange` 是两元素数组 `[起, 止]`，单位为秒，需满足 `起 < 止 ≤ totalDuration`。

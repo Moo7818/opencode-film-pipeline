@@ -4,9 +4,9 @@
 
 ## Python 环境
 - 虚拟环境路径：`.venv/`（项目根目录下）
-- Python 版本：3.13.13（uv 管理）
-- 激活：`source .venv/bin/activate`
-- 运行 Python 脚本时务必使用 `.venv/bin/python` 或在已激活的 venv 内执行
+- Python 版本：3.13.11（uv 管理）
+- 激活：`.venv\Scripts\activate`（Windows） / `source .venv/bin/activate`（Unix）
+- 运行 Python 脚本时务必使用 `.venv\Scripts\python.exe`（Windows）或在已激活的 venv 内执行
 - 依赖管理：`uv sync` 同步，`uv add <包>` 新增
 
 ## 文件操作规则

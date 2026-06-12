@@ -31,14 +31,21 @@
 | `-g, --group <group>`                      | 否     | 父级**普通分组**的节点 id 或展示名。限定 `<node>` 与 `--left/--right` 端点解析范围；未传时若已 `libtv group use` 则自动套用；带分组新建时 `--x/--y` 为**组内相对坐标**。                                                                                                                                                                                                                                             |
 | `-t, --type <type>`                        | 否     | 节点类型枚举，与画布 `NodeType` 对齐：`text` / `image` / `video` / `audio` / `script` / `storyboard` / `video-clip`（完整列表以 `--help` 为准；用途见 [../node-types/README.md](../node-types/README.md)）。**不能**用于 `group` / `custom`。                                                                                                                                                                        |
 | `--name <text>`                            | 否     | 改展示名。**仅**默认子命令可用；`node create` 的展示名由位置参数 `<node>` 承载。**禁止**用 `-u` 写 `name` / `label`。                                                                                                                                                                                                                                                                                                |
-| `--prompt <text>`                          | 否     | 写 `data.params.prompt`；与 `-s prompt=…` 同用时 `--prompt` **后写入**并覆盖。文案中可用 **`{{Image 1}}` / `{{Image 2}}` …** 与 **`{{Video 1}}` / `{{Video 2}}` …** 引用**已连线到该节点**的图片 / 视频，编号代表该类型在连线中的**第 N 个**输入（与画布连线顺序一致），同样适用于 `-s prompt=…` 与 `libtv node create`。例：`--prompt "把 {{Image 1}} 中的小狗替换成 {{Image 2}} 中的小猫，动作参考 {{Video 1}}"`。 |
-| `-s, --set <key=value>`                    | 是     | 改「**生成器参数**」，写 `data.params`；按**第一个** `=` 拆键值；值可为 `true` / `false` / 数字 / JSON 片段。字段集以 [`libtv model <modelKey>`](./model.md) 为准；schema 见 [../model-schema/schema.md](../model-schema/schema.md)。                                                                                                                                                                                |
+| `--prompt <text>`                          | 否     | 写 `data.params.prompt`；与 `-s prompt=…` 同用时 `--prompt` **后写入**并覆盖。文案里可用占位符引用已连线的图片 / 视频，详见表格下方「prompt 占位符」。                                                                                                                                                                                              |
+| `-s, --set <key=value>`                    | 是     | 改「**生成器参数**」，写 `data.params`；按**第一个** `=` 拆键值；值可为 `true` / `false` / 数字 / JSON 片段。**`model` 只接受模型名字（`modelName`）**，含空格须引号（如 `-s "model=GVLM 3.1"`；用 [`libtv model search`](./model.md) 查名字，CLI 内部解析为 `modelKey`，传 key 会报错）。其余字段集以 [`libtv model <model>`](./model.md) 为准；schema 见 [../model-schema/schema.md](../model-schema/schema.md)。                                                                                                                                                                                |
 | `-u, --update <key=value>`                 | 是     | 改「**节点自身属性**」，写 `data` 顶层（**不含** `params`），不经生成器 schema 校验。`-s` / `-u` 对比与 `-u` 拒写键见 [../node-types/README.md](../node-types/README.md)。                                                                                                                                                                                                                                           |
 | `--left <node>` / `--right <node>`         | 是     | **确保模式**入边 / 出边：无则建边、已有则不变；**不会**删除未在列表中的已有边。**不可**与 `--left-add/--left-rm`（同侧）或 `--right-add/--right-rm`（同侧）**同时**使用。                                                                                                                                                                                                                                            |
 | `--left-add <node>` / `--left-rm <node>`   | 是     | **增量**追加 / 移除左侧入边。                                                                                                                                                                                                                                                                                                                                                                                        |
 | `--right-add <node>` / `--right-rm <node>` | 是     | **增量**追加 / 移除右侧出边。                                                                                                                                                                                                                                                                                                                                                                                        |
 | `--x <n>` / `--y <n>`                      | 否     | 与 `-t` 新建或建边联用的画布坐标（像素），默认 `0`。有分组时为**组内相对坐标**。                                                                                                                                                                                                                                                                                                                                     |
 | `-r, --run`                                | 否     | 写操作成功后，对 `<node>` 解析到的节点再触发一次生成。**仅**在节点已存在、无 `-t`、无改边、无 `--prompt`/`-s` 时允许「只触发生成」。                                                                                                                                                                                                                                                                                 |
+
+**prompt 占位符（`{{Image n}}` / `{{Video n}}`）**：文案里可用 **`{{Image 1}}` / `{{Image 2}}` …** 与 **`{{Video 1}}` / `{{Video 2}}` …** 引用**已连线到该节点**的图片 / 视频，编号代表该类型在连线中的**第 N 个**输入（与画布连线顺序一致）。`--prompt`、`-s prompt=…`、`libtv node create` 均适用。例：
+
+```bash
+libtv node "改图" --left 原图 --left 参考猫 --left 参考动作 \
+  --prompt "把 {{Image 1}} 中的小狗替换成 {{Image 2}} 中的小猫，动作参考 {{Video 1}}"
+```
 
 **Seedance 2.0 合规校验**：`--run` 触发视频生成时，若当前模型 schema 满足 `properties.portrait=true` 且 `properties.autoCompliance.enable=true`，CLI 会按网页端同一规则在提交 `generation/create` 前校验未带 `assetId`、未标记 `portraitCompliantExempt` 的上游图片。校验通过后，本次请求会把对应图片转换为 `asset://<assetId>`；未检测到真人且后端不签发 `assetId` 的图片会写入 `portraitCompliantExempt` 并继续使用真实 URL；任一图片未通过时，本次生成会中止。
 
@@ -116,10 +123,10 @@ libtv node list
 libtv node list -g "本镜资源组"
 
 # case 3: 新建文本节点并一次性写好提示词与模型
-libtv node create "剧情" -t text --prompt "写一段分镜旁白" -s model=aurora-3-prime
+libtv node create "剧情" -t text --prompt "写一段分镜旁白" -s "model=GVLM 3.1"
 
 # case 4: 改节点参数（已存在时可省略 -t，类型从画布推断）
-libtv node "剧情" --set prompt="改后的提示全文" --set model=aurora-3-prime
+libtv node "剧情" --set prompt="改后的提示全文" --set "model=GVLM 3.1"
 
 # case 5: --prompt 会覆盖 -s prompt=…，最终 params.prompt=「最终版」
 libtv node "剧情" -s prompt="旧版" --prompt "最终版"

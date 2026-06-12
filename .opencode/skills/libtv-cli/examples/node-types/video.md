@@ -11,7 +11,7 @@ libtv upload "参考图2" -t image --resource ./refs/b.png
 
 # 2) 建一个视频节点（mixed2video 需要至少 1 张参考图）
 libtv node "镜头A" -t video --prompt "无人机掠过海面" \
-  --set model=star-video2 \
+  --set "model=Seedance 2.0" \
   --set modeType=mixed2video \
   --set count=1 \
   --set ratio=16:9 \

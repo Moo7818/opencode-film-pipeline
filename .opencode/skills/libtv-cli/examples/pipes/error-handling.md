@@ -6,7 +6,7 @@
 
 ## 推荐默认：`set -euo pipefail` + `&&`
 
-脚本放最前面这行（[案例](../../../../tests/e2e/pipe-use/case-02-dag-nested-kling-seedance-mureka.sh) 里就是这么开场的）：
+脚本放最前面这行：
 
 ```bash
 set -euo pipefail
@@ -23,15 +23,15 @@ set -euo pipefail
 ```bash
 # ✅ 左侧失败则立刻停，不会把错误 stdout 喂给下游
 (
-  libtv node create "选题" -t text --prompt "…" --set model=aurora-3-prime &&
-  libtv node create "主KV" -t image --prompt "…" --set model=nebula-ultra --set ratio=9:16
-) | libtv node create "拼图" -t image --prompt "…" --set model=nebula-ultra --set modeType=image2image
+  libtv node create "选题" -t text --prompt "…" --set "model=GVLM 3.1" &&
+  libtv node create "主KV" -t image --prompt "…" --set "model=LibNano Pro" --set ratio=9:16
+) | libtv node create "拼图" -t image --prompt "…" --set "model=LibNano Pro" --set modeType=image2image
 
 # ❌ 用 ;：前者失败后者照跑，管道里塞进半残的 NDJSON，下游报解析错误
 (
-  libtv node create "选题" -t text --prompt "…" --set model=aurora-3-prime ;
-  libtv node create "主KV" -t image --prompt "…" --set model=nebula-ultra --set ratio=9:16
-) | libtv node create "拼图" -t image --prompt "…" --set model=nebula-ultra --set modeType=image2image
+  libtv node create "选题" -t text --prompt "…" --set "model=GVLM 3.1" ;
+  libtv node create "主KV" -t image --prompt "…" --set "model=LibNano Pro" --set ratio=9:16
+) | libtv node create "拼图" -t image --prompt "…" --set "model=LibNano Pro" --set modeType=image2image
 ```
 
 ## 并行 `&` 和管道互斥——别用
@@ -87,4 +87,4 @@ libtv node list | jq -r '.nodes[] | select(.name | startswith("剧·")) | .nodeK
 | 管道下游报 `invalid json on line N`               | 上游里混了并行 `&`，或上游把非 JSON 文本误打到 stdout。改串行；并检查上游是否被 `;` 串错。                              |
 | `set -e` 下整条脚本静默跑完，但画布只有前几个节点 | 少写了 `-o pipefail`；管道某段失败被右端成功掩盖。补 `set -o pipefail`。                                                |
 | 偶发"成功但下游说找不到上游"                      | 上游用 `>/dev/null` 把 NDJSON 丢了，下游自然读不到 key。去掉那处 `>/dev/null`。                                         |
-| 401 / AUTH\_\* / PROJECT_NOT_BOUND                | 凭据或项目绑定问题，见 [auth/config-dir.md](../auth/config-dir.md) / [commands/project.md](../../commands/project.md)。 |
+| 401 / AUTH\_\* / PROJECT_NOT_BOUND                | 凭据或项目绑定问题，见 [commands/login.md](../../commands/login.md) / [commands/project.md](../../commands/project.md)。 |

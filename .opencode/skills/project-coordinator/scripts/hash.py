@@ -20,6 +20,8 @@
     2. validate.py — 校验 JSON/JSONL 语法
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import os
@@ -34,7 +36,7 @@ def is_image_file(file_path: str) -> bool:
     return ext.lower() in BINARY_IMAGE_EXTENSIONS
 
 
-def compute_file_hash(file_path: str, fast: bool = False) -> tuple[str, int]:
+def compute_file_hash(file_path: str, fast: bool = False) -> tuple:
     """计算文件的 SHA-256 哈希和大小
 
     fast=True 且文件为图片类型时，跳过 SHA-256，改用 mtime+size 快速指纹。
@@ -68,9 +70,9 @@ def compute_file_hash(file_path: str, fast: bool = False) -> tuple[str, int]:
     return f"sha256-{sha256.hexdigest()}", file_size
 
 
-def process_file(file_path: str, fast: bool = False) -> list[str]:
+def process_file(file_path: str, fast: bool = False) -> list:
     """处理单个文件，返回输出行列表"""
-    lines: list[str] = []
+    lines = []
 
     if not os.path.exists(file_path):
         lines.append(f"NOT_FOUND={file_path}")

@@ -7,7 +7,7 @@
 ```bash
 # 1) 建节点 + 设置生成参数
 libtv node "剧本" -t script --prompt "三幕结构，主角是一名侦探" \
-  --set model=aurora-3-prime \
+  --set "model=GVLM 3.1" \
   --set count=1
 
 # 2) 连上游参考并触发一次生成

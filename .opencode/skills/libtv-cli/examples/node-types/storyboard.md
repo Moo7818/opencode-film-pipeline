@@ -7,7 +7,7 @@
 ```bash
 # 1) 建节点 + 设置生成参数
 libtv node "分镜1" -t storyboard --prompt "按镜头列点描述" \
-  --set model=aurora-3-prime
+  --set "model=GVLM 3.1"
 
 # 2) 连上游并触发生成
 libtv node "分镜1" --left 上游剧情 --run

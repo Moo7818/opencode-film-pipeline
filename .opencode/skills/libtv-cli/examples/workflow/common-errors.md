@@ -9,9 +9,9 @@
 libtv node "剧情" -u params.prompt="走起"                # ❌ 非法：params 属于生成参数
 libtv node "剧情" --set prompt="走起"                    # ✅ 用 --set
 
-# case 2: 试图用 -u 改 key —— 被拒绝
-libtv node "剧情" -u key=new-key                         # ❌ key 禁止改
-# 如需替换主键，删除重建：libtv node "剧情" --delete && libtv node create …
+# case 2: 试图用 -u 改节点类型 —— 被拒绝
+libtv node "剧情" -u type=image                          # ❌ data.type 不可通过 CLI 变更
+# 如需换类型，删除重建：libtv node delete "剧情" && libtv node create …
 
 # case 3: 同一命令同时写 --left 与 --left-add —— 被拒绝
 libtv node "剧情" --left A --left-add B                  # ❌ 模式冲突

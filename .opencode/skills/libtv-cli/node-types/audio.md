@@ -17,7 +17,7 @@
 | 字段                                | 说明                                                                                                                                                          |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`prompt`**                        | 文案或描述（按模型而定）。                                                                                                                                    |
-| **`model`**                         | 音频模型 **`modelKey`**（如 `vocal-v3`、`vocal-music`、`mureka-8`）。                                                                                         |
+| **`model`**                         | 音频模型 **名字（`modelName`）**，如 `-s "model=Eelven V3"` / `-s "model=Mureka V8"`（用 `libtv model search --type audio` 查看；CLI 内部解析为 `modelKey`）。                                                                                         |
 | **`scene`**                         | 业务场景 / 子模式字符串（`schema` 顶层 `scene` / `sceneName` 提示用途）。若模型默认带 `scene`，新建时 CLI 按 schema 填初始值，更新时 `--set scene=…` 可覆盖。 |
 | **`count`**                         | 条数。                                                                                                                                                        |
 | **`settings` / `advancedSettings`** | 模型表单字段分桶；键集合随 `modelKey` 变化，务必对照 `libtv model <modelKey>` 输出。                                                                          |
@@ -49,9 +49,9 @@
 | 想改的东西                                            | 正确入口                                         |
 | ----------------------------------------------------- | ------------------------------------------------ |
 | `prompt` / `model` / `voice` / `stability` 等生成相关 | `-s / --set`（写 `data.params`）                 |
-| 展示名                                                | `--name`（等价于 `-u name=…`，但禁用 `-u name`） |
+| 展示名                                                | `--name`（不要用 `-u` 改名）                     |
 
-若确需手工改 `data.url` 等，对照 `packages_tv/libtv-cli/src/canvas-node/audio/node-data.ts` 写即可（不违反 [README.md](./README.md) 的「`-u` 明确拒写的键」）。
+若确需手工改 `data.url` 等，先用 `libtv node "<名>"`（仅查询）打出节点 JSON 对照字段名再写（不违反 [README.md](./README.md) 的「`-u` 明确拒写的键」）。
 
 ## 特殊用法
 

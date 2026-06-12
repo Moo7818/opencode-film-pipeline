@@ -10,7 +10,7 @@ libtv upload "参考图" -t image --resource ./refs/ref.png
 
 # 2) 建一个图片生成节点，并连参考图
 libtv node "概念图" -t image --prompt "赛博朋克街景" \
-  --set model=nebula-ultra \
+  --set "model=LibNano Pro" \
   --set ratio=16:9 \
   --set quality=2K \
   --set searchable=1 \

@@ -47,6 +47,10 @@ def validate_tasks(tasks, mode):
             if not isinstance(images, list) or len(images) < 2:
                 errors.append(f"[task {i}] episode mode requires at least 2 reference images (global benchmark + style)")
 
+        elif mode == "group":
+            if not isinstance(images, list) or len(images) == 0:
+                errors.append(f"[task {i}] group mode requires at least 1 reference image")
+
         else:
             errors.append(f"[task {i}] unknown mode: {mode}")
 

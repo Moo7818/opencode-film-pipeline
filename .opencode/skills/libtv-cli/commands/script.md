@@ -53,12 +53,12 @@
 libtv script storyboard "剧本"
 
 # case 2: 先写提示词跑文本生成，再生成分镜图组（典型双步流水线）
-libtv node create "剧本" -t script --prompt "三幕结构，主角是一名侦探" --set model=aurora-3-prime
+libtv node create "剧本" -t script --prompt "三幕结构，主角是一名侦探" --set "model=GVLM 3.1"
 libtv node "剧本" --run
 libtv script storyboard "剧本"
 
 # case 3: 覆盖本次分镜图模型与比例（不改脚本节点已有 imageGenConfig 的其它键）
-libtv script storyboard "剧本" -s model=seedream-4 -s aspectRatio=16:9
+libtv script storyboard "剧本" -s "model=Seedream 4.0" -s aspectRatio=16:9
 
 # case 4: 显式项目；同时通过 settings 覆盖部分基础设置（浅合并到已有 settings）
 libtv script storyboard "剧本" \

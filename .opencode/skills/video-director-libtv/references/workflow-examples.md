@@ -15,7 +15,7 @@ libtv node create "组1" -t video \
   --prompt "画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1,\"组叙事概述\":\"城市天际线航拍\"}" \
-  --set model=star-video2 \
+  --set model=Seedance 2.0 VIP \
   --set modeType=text2video \
   --set count=1 \
   --set ratio=16:9 \
@@ -44,7 +44,7 @@ libtv node create "组1" -t video \
 画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1}" \
-  --set model=star-video2 \
+  --set model=Seedance 2.0 VIP \
   --set modeType=mixed2video \
   --set count=1 \
   --set ratio=16:9 \
@@ -74,7 +74,7 @@ libtv node create "组1" -t video \
   --prompt "画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1}" \
-  --set model=star-video2 --set modeType=mixed2video \
+  --set model=Seedance 2.0 VIP --set modeType=mixed2video \
   --set count=1 --set ratio=16:9 --set duration=5 \
   --set enableSound=on \
   --left 场景_办公室 --left 角色_经理 --left 道具_电脑
@@ -111,7 +111,7 @@ libtv node create "组1" -t video \
 画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1}" \
-  --set model=star-video2 --set modeType=mixed2video \
+  --set model=Seedance 2.0 VIP --set modeType=mixed2video \
   --set count=1 --set ratio=16:9 --set duration=5 \
   --set enableSound=on \
   --left 场景参考 --left 角色参考 \
@@ -122,7 +122,7 @@ libtv node create "组2" -t video \
 画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":2}" \
-  --set model=star-video2 --set modeType=mixed2video \
+  --set model=Seedance 2.0 VIP --set modeType=mixed2video \
   --set count=1 --set ratio=16:9 --set duration=5 \
   --set enableSound=on \
   --left 场景参考 \
@@ -131,7 +131,7 @@ libtv node create "组3" -t video \
   --prompt "画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":3}" \
-  --set model=star-video2 --set modeType=text2video \
+  --set model=Seedance 2.0 VIP --set modeType=text2video \
   --set count=1 --set ratio=16:9 --set duration=5 \
   --set enableSound=off
 

@@ -12,12 +12,12 @@
 
 ## 常见生成器参数（`-s / --set`）
 
-写入 **`data.params`**，走所选 `modelKey` 的 schema 校验。`model` 必须在 **`scriptText`** 维度的 support 列表中；若改图片配图侧使用，则用 `scriptImage` 维度的图片模型。
+写入 **`data.params`**，走所选 `modelKey` 的 schema 校验。`-s model=` 只接受**模型名字（`modelName`）**（如 `-s "model=GVLM 3.1"`，含空格需引号；CLI 内部解析为 `modelKey`），且必须是 **`scriptText`** 维度 support 列表中的模型；若改图片配图侧使用，则用 `scriptImage` 维度的图片模型名字。
 
 | 字段                                | 说明                                                                             |
 | ----------------------------------- | -------------------------------------------------------------------------------- |
 | **`prompt`**                        | 主提示。                                                                         |
-| **`model`**                         | `scriptText` 侧 **`modelKey`**（剧情 / 结构化文本）；配图侧见下。                |
+| **`model`**                         | `scriptText` 侧**模型名字（`modelName`）**（剧情 / 结构化文本）；配图侧见下。     |
 | **`count`**                         | 生成次数 / 条数，须在模型允许范围内。                                            |
 | **`scene`**                         | 脚本业务场景；新建默认常为 **`script-generate`**；其它取值以 schema / 产品为准。 |
 | **`settings` / `advancedSettings`** | 是否存在分桶、有哪些键，**完全由该 `modelKey` 的 schema 决定**。                 |
@@ -34,23 +34,56 @@
 
 写入 **`data`** 顶层，**不**经生成器 schema 校验——这是改「分镜表数据」的主要入口。
 
-| 键                       | 类型                                      | 说明                                                                                                                           |
-| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **`rows`**               | `StoryboardRowCli[]`                      | 分镜行数据（`id` / `shotNumber` / `plotDescription` / `characters` / `shotSize` / `dialogue` / `imageGenerationPrompt` / …）。 |
-| **`title`**              | `string`                                  | 脚本 / 分镜标题。                                                                                                              |
-| **`viewMode`**           | `'table' \| 'creative'`                   | 视图模式。                                                                                                                     |
-| **`shotColumns`**        | `ShotColumnMetaCli[]`                     | 自定义列元数据。                                                                                                               |
-| **`activeViewId`**       | `string`                                  | 当前激活视图 id。                                                                                                              |
-| **`sourceType`**         | `'text' \| 'video' \| 'image' \| 'mixed'` | 来源类型。                                                                                                                     |
-| **`scriptModel`**        | `string`                                  | 脚本生成时使用的模型记录（**非**下次生成的 `params.model`）。                                                                  |
-| **`linkedImageGroupId`** | `string`                                  | 关联的图片分组 id。                                                                                                            |
-| **`imageGenConfig`**     | `ScriptImageGenConfigCli`                 | 图片生成配置快照。                                                                                                             |
+| 键                       | 类型                 | 说明                                                                  |
+| ------------------------ | -------------------- | --------------------------------------------------------------------- |
+| **`rows`**               | `StoryboardRowCli[]` | 分镜表行数据；逐行逐列改分镜内容的主入口。**字段见下表。**            |
+| **`title`**              | `string`             | 脚本 / 分镜标题（后端返回，**只读**，勿手设）。                       |
+| **`linkedImageGroupId`** | `string`             | 关联的分镜图组节点 id（跑分镜图时由画布自动写入，**只读**，勿手设）。 |
 
-> 生成参数（`prompt` / `model` / `count` / `scene`）请用 `-s`；展示名用 `--name`。
+> 生成参数（`prompt` / `model` / `count` / `scene`）请用 `-s`；展示名用 `--name`。`-u` 用户实际只需改 `rows`；表头列标题由服务端 `shotColumns` 决定，缺省时画布自动用默认中文表头，无需手设。
+
+### `rows[*]` 字段（`StoryboardRowCli`）
+
+每一行 = 一个镜头（对齐分镜表 Shots 字段规范）。整列改值时按行重写整个 `rows` 数组传入；除 `shotNumber` 外其余字段均可编辑。
+
+| 字段                      | 类型                          | 说明                                                                            |
+| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
+| `id`                      | `string`                      | 行唯一标识，用于与分镜图组 item 关联；新增行可省略由后端补。                     |
+| `shotNumber`              | `number`                      | 镜号，从 1 递增（展示用，**不建议手改**，画布会按行序自动重排）。               |
+| `durationSeconds`         | `number`                      | 单镜时长（秒），范围约 1.0–15.0。                                               |
+| `plotDescription`         | `string`                      | 情节 / 画面描述。                                                                |
+| `characters`              | `StoryboardCharacterCli[]`    | 角色信息数组，**结构见下**；画布按各行 `characters` 的最大数量动态加「角色」列。 |
+| `videoReference`          | `StoryboardVideoReferenceCli` | **视频参考图**（该镜头的参考帧图片，非参考视频片段）；可选，**结构见下**。      |
+| `shotSize`                | `string`                      | 景别（特写 / 近景 / 中景 / 全景 / 远景）。                                       |
+| `characterAction`         | `string`                      | 角色动作 / 表演定位。                                                            |
+| `emotion`                 | `string`                      | 微表情及心理状态。                                                              |
+| `sceneTags`               | `string`                      | 场景环境描述标签。                                                              |
+| `lightingAndAtmosphere`   | `string`                      | 灯光布局与环境氛围。                                                            |
+| `audioEffects`            | `string`                      | 音效 / 环境音 / 背景音乐。                                                       |
+| `dialogue`                | `string`                      | 角色台词及语气。                                                                |
+| **`imageGenerationPrompt`** | `string`                    | **核心**：分镜画面（配图）生成提示词；`libtv script storyboard` 逐张生成即读它。 |
+| **`videoMotionPrompt`**   | `string`                      | **核心**：视频运动生成提示词。                                                   |
+| `hiddenUuid`              | `string`                      | 前端生成的隐藏 UUID，用于关联分镜图等后续功能；一般无需手设。                    |
+
+#### `characters[*]` 字段（`StoryboardCharacterCli`）
+
+| 字段                   | 类型     | 说明                                       |
+| ---------------------- | -------- | ------------------------------------------ |
+| `characterName`        | `string` | 角色名称。                                 |
+| `characterDescription` | `string` | 外貌、服装、发型、妆造及配饰描述。         |
+| `characterImageUrl`    | `string` | 角色参考图链接（可为空）。                 |
+
+#### `videoReference` 字段（`StoryboardVideoReferenceCli`）
+
+> 这一列在画布上就是「视频参考图」——一张图片，**指该镜头的参考帧图，不是参考视频**。只需填 `referenceFrameImage`。
+
+| 字段                      | 类型     | 说明                                                |
+| ------------------------- | -------- | --------------------------------------------------- |
+| **`referenceFrameImage`** | `string` | 参考帧图片 URL；表格/创意视图按图片展示。            |
 
 ## 特殊用法
 
 - **上游为参考图**：把 `image` 资源节点连到 `script` 节点左侧后 `--run`，可用作分镜生成的参考素材（上游类型与条数约束见 `scriptText` 侧 schema）。
-- **生成分镜图组**：脚本节点已有分镜行后，用 [`libtv script storyboard <脚本>`](../commands/script.md) 对齐画布「生成分镜」——在右侧新建分镜图组、按行派生 `image` 子节点并逐张 run。分镜图模型 / 参数取自脚本节点 `imageGenConfig`，可用 `-s` 覆盖（如 `-s model=seedream-4 -s aspectRatio=16:9`）。
+- **生成分镜图组**：脚本节点已有分镜行后，用 [`libtv script storyboard <脚本>`](../commands/script.md) 对齐画布「生成分镜」——在右侧新建分镜图组、按行派生 `image` 子节点并逐张 run。分镜图模型 / 参数取自脚本节点 `imageGenConfig`，可用 `-s` 覆盖（如 `-s "model=Seedream 4.0" -s aspectRatio=16:9`）。
 - **列出 / 查询脚本模型**：`libtv model search --type script`（同时返回 `scriptText` 与 `scriptImage` 两套）；`libtv model <modelKey>`。详见 [../commands/model.md](../commands/model.md)。
 - 分镜行批量写入的典型流水线：见 [../examples/node-types/script.md](../examples/node-types/script.md)。

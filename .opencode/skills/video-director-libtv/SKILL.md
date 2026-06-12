@@ -39,6 +39,7 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 | 画面比例 | `project_config.json → aspect_ratio` | `--set ratio` | 读 |
 | 分辨率 | `project_config.json → resolution` | `--set resolution` | 读 |
 | 模型 | `project_config.json → model` | `--set model` | 读 |
+| ↳ 注意 | 1.0.2+ 要求填 **modelName**（中文名），如 `Seedance 2.0 VIP`，非 modelKey |
 | 生成模式 | `project_config.json → mode` | `--set modeType` | 读 |
 | 音频开关 | `project_config.json → enable_sound` | `--set enableSound` | 读 |
 | 分镜图模式 | `project_config.json → use_storyboard_images` | 决定参考素材选取策略 | 读 |
