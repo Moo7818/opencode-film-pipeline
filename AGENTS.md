@@ -15,6 +15,14 @@
 - `.opencode/` 配置目录只读，业务文件放 `project/`
 
 ## PowerShell 编码规范（Windows）
+所有 PowerShell 命令优先通过 `pwsh`（PowerShell 7.6.2）执行，其默认 UTF-8 无代码页问题：
+```powershell
+pwsh -Command "命令"
+```
+若必须在 PowerShell 5 中执行，先执行 `chcp 65001` 切换活动代码页到 UTF-8：
+```powershell
+chcp 65001; 要执行的命令
+```
 所有文件读写必须显式指定 `-Encoding UTF8`：
 - 读取：`Get-Content -Encoding UTF8 -Raw "路径"`
 - 写入：`Set-Content -Encoding UTF8 "路径" -Value "内容"`

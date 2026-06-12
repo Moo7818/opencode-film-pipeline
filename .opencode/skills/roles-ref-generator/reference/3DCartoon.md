@@ -1,8 +1,8 @@
 ---
 name: 3DCartoon
-description: 现代3D卡通动画风格角色参考图，Pixar/Disney融合方向
+description: Pixar/Disney卡通动画风格角色参考图，Pixar/Disney融合方向
 string1: 3D卡通渲染
-string2: 现代3D卡通美学，adorable and wholesome aesthetic可爱健康美学
+string2: Pixar/Disney卡通美学，adorable and wholesome aesthetic可爱健康美学
 string8_style_injection: 3DCartoon风格化造型：
   soft rounded facial features柔和圆润五官，
   big expressive eyes大而有神眼睛，
