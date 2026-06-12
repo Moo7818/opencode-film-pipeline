@@ -36,31 +36,39 @@ chcp 65001; 要执行的命令
 
 在中国网络环境下，GitHub 常因防火墙无法直连，错误如 `Connection was reset` 或 `Could not connect to server`。
 
-**排查与解决：**
+**核心解法：SSH（可靠绕过 HTTPS 封锁）**
 
-1. **检查本地代理端口**（常见：7890/7891 Clash、1080/10808 v2ray、9674 等）：
+HTTPS 到 `github.com:443` 通常被墙，但 `ssh.github.com:443` 及 `api.github.com:443` 一般可通过。推荐将远程仓库切换到 SSH 方式：
+
+1. **生成 SSH 密钥**（如没有）：
    ```powershell
-   Test-NetConnection -ComputerName 127.0.0.1 -Port 9674 -WarningAction SilentlyContinue
+   ssh-keygen -t ed25519 -C "你的邮箱" -f "$env:USERPROFILE\.ssh\id_ed25519"
    ```
-2. **检查 Windows 系统代理**（可能已配但未启用）：
+2. **将公钥添加为 Deploy Key**（通过 `api.github.com`，HTTPS 被墙时仍可用）：
    ```powershell
-   Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyServer -ErrorAction SilentlyContinue
-   Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyEnable -ErrorAction SilentlyContinue
+   $pubkey = Get-Content -Raw "$env:USERPROFILE\.ssh\id_ed25519.pub" | ForEach-Object { $_.Trim() }
+   $body = @{ title = "Deploy-Key"; key = $pubkey; read_only = $false } | ConvertTo-Json -Compress
+   Set-Content -Encoding ASCII -NoNewline -Path "$env:TEMP\deploy-key.json" -Value $body
+   gh api --method POST /repos/所有者/仓库名/keys --input "$env:TEMP\deploy-key.json"
    ```
-   `ProxyEnable = 1` 为启用，`0` 为禁用。
-3. **临时使用代理**：
+3. **配置 SSH 走 443 端口**（写入 `~/.ssh/config`）：
+   ```
+   Host github.com
+     HostName ssh.github.com
+     Port 443
+     User git
+     IdentityFile ~/.ssh/id_ed25519
+   ```
+4. **切换远程 URL 并推送**：
    ```powershell
-   git -c http.proxy=http://127.0.0.1:9674 -c https.proxy=http://127.0.0.1:9674 push
+   git remote set-url origin git@github.com:所有者/仓库名.git
+   git push
    ```
-4. **永久配置代理**：
-   ```powershell
-   git config --global http.proxy http://127.0.0.1:9674
-   git config --global https.proxy http://127.0.0.1:9674
-   ```
-5. **取消代理**（切换到不需代理的网络时）：
-   ```powershell
-   git config --global --unset http.proxy
-   git config --global --unset https.proxy
-   ```
+
+**替代方案：本地代理**（如有代理服务运行在 localhost）：
+```powershell
+git -c http.proxy=http://127.0.0.1:9674 -c https.proxy=http://127.0.0.1:9674 push
+```
+永久配置：`git config --global http.proxy http://127.0.0.1:9674`（取消用 `--unset`）
 
 
