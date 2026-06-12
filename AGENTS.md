@@ -32,4 +32,35 @@ chcp 65001; 要执行的命令
 ## 配置与技能修改规则
 - `.opencode/` 下的所有 skill/agent/config 文件必须通过 `skill-engineer` 子 agent（其加载 `skill-creator` 技能）修改，任何 agent 不得直接操作
 
+## Git/GitHub 网络代理（中国网络环境经验）
+
+在中国网络环境下，GitHub 常因防火墙无法直连，错误如 `Connection was reset` 或 `Could not connect to server`。
+
+**排查与解决：**
+
+1. **检查本地代理端口**（常见：7890/7891 Clash、1080/10808 v2ray、9674 等）：
+   ```powershell
+   Test-NetConnection -ComputerName 127.0.0.1 -Port 9674 -WarningAction SilentlyContinue
+   ```
+2. **检查 Windows 系统代理**（可能已配但未启用）：
+   ```powershell
+   Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyServer -ErrorAction SilentlyContinue
+   Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyEnable -ErrorAction SilentlyContinue
+   ```
+   `ProxyEnable = 1` 为启用，`0` 为禁用。
+3. **临时使用代理**：
+   ```powershell
+   git -c http.proxy=http://127.0.0.1:9674 -c https.proxy=http://127.0.0.1:9674 push
+   ```
+4. **永久配置代理**：
+   ```powershell
+   git config --global http.proxy http://127.0.0.1:9674
+   git config --global https.proxy http://127.0.0.1:9674
+   ```
+5. **取消代理**（切换到不需代理的网络时）：
+   ```powershell
+   git config --global --unset http.proxy
+   git config --global --unset https.proxy
+   ```
+
 
