@@ -4,10 +4,32 @@
 
 ## Python 环境
 - 虚拟环境路径：`.venv/`（项目根目录下）
-- Python 版本：3.13.11（uv 管理）
-- 激活：`.venv\Scripts\activate`（Windows） / `source .venv/bin/activate`（Unix）
-- 运行 Python 脚本时务必使用 `.venv\Scripts\python.exe`（Windows）或在已激活的 venv 内执行
+- Python 版本：3.13.x（uv 管理）
 - 依赖管理：`uv sync` 同步，`uv add <包>` 新增
+
+### 初次使用初始化
+```bash
+# 1. 安装 uv（如未安装）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. 初始化虚拟环境并生成 .env
+./scripts/setup_venv.sh
+
+# 3. 重启 opencode 使 MCP 配置生效
+```
+
+### 跨平台虚拟环境路径
+| 平台 | Python 路径 | 激活方式 |
+|------|------------|---------|
+| macOS/Linux | `.venv/bin/python3` | `source .venv/bin/activate` |
+| Windows (Git Bash/WSL) | `.venv/Scripts/python.exe` | `.venv/Scripts/activate` |
+
+### MCP 服务器配置
+opencode.json 中使用环境变量引用 Python 路径，由 `.env` 文件提供：
+```json
+"command": ["{env:VENV_PYTHON}", ".opencode/mcp-servers/grsai-server/server.py"]
+```
+运行 `./scripts/setup_venv.sh` 会自动生成正确的 `.env` 文件。
 
 ## 文件操作规则
 - 项目业务文件存放在 `project/` 目录下
