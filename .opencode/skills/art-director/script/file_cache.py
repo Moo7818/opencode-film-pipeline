@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# DEPRECATED: 此文件已被 .opencode/mcp-servers/grsai-server/ 中的对应模块替代。
+# 图像生成 API → grsai_client.py
+# COS 上传 → cos_client.py
+# 凭证管理 → config.py
+# 批量生成 → grsai_batch_generate MCP tool
+# 将在后续版本删除。
 """文件映射缓存模块
 
 提供本地文件与 COS 存储桶 URL 的智能映射缓存，避免相同素材重复上传。

@@ -10,8 +10,47 @@ description: 将分集剧本拆解为电影级分镜头脚本（结构化JSON）
 
 **核心约束（违反即违规）：**
 - **Agent 禁止自行构造 JSON 内容。** 所有分镜 JSON 必须经由 `run_pipeline.py --build` 调用 LLM 产出，不得在 Agent 对话中直接生成 JSON 写入文件。
-- **无需单独调用 call_llm.py、validators.py、expand_scenes_to_groups.py** — `run_pipeline.py --build` 一条命令自动串联全部步骤。
+- **无需单独调用 validators.py、expand_scenes_to_groups.py** — `run_pipeline.py --build` 一条命令自动串联全部步骤。
 - **所有中间文件在 `.pipeline/` 目录下，脚本全权管理**，Agent 不得读取或修改其中的文件。
+
+---
+
+## LLM 调用
+
+通过 MCP tool `grsai_call_llm` 执行 LLM 调用。
+
+### 单次调用
+
+```
+tool: grsai_call_llm
+input:
+  messages:
+    - role: "system"
+      content: "你是一个专业的分镜脚本..."
+    - role: "user"
+      content: "请将以下剧本拆解为分镜..."
+  model: "gemini-3.1-pro"
+  temperature: 0.7
+```
+
+### 返回格式
+
+```json
+{
+  "content": "LLM 输出的 JSON 文本...",
+  "finish_reason": "stop",
+  "usage": {"prompt_tokens": 1200, "completion_tokens": 3000, "total_tokens": 4200}
+}
+```
+
+### 长剧本分片模式
+
+当剧本超过 2000 字时，使用分片策略：
+1. 调用 `shard_manager.py` 分片（CLI，保留不变）
+2. 每个分片调用 `grsai_call_llm` tool（可并发）
+3. 调用 `shard_manager.py --merge` 合并（CLI，保留不变）
+
+分片模式下，agent 并发调用多个 `grsai_call_llm` tool，每个分片独立。
 
 ---
 
@@ -64,8 +103,7 @@ Agent 判断剧本长度 → 选择 run_pipeline.py --build 模式
     ▼
 run_pipeline.py 自动执行：
   ① 初始化管线目录 .pipeline/
-  ② call_llm.py 构建请求 → 调用 LLM
-     （长剧本：shard_manager.py 分片 → 并发调用 → 合并）
+  ② 调用 LLM（长剧本：分片 → 并发调用 → 合并）
   ③ validators.py 校验修复 → 输出 04_validated.json
   ④ expand_scenes_to_groups.py 展开独立组
      → .pipeline/05_groups/组{N}.json
@@ -301,7 +339,7 @@ python "$SKILL/run_pipeline.py" --build `
 
 ### Q：为什么会漏掉分组步骤？
 
-上一轮创建第三集时，Agent **没有使用 `run_pipeline.py`**，而是在对话中直接让 LLM 生成了完整的 `分镜脚本.json`。由于跳过了 `call_llm.py` 的标准 Prompt 模板和 `expand_scenes_to_groups.py` 的机械展开，导致：
+上一轮创建第三集时，Agent **没有使用 `run_pipeline.py`**，而是在对话中直接让 LLM 生成了完整的 `分镜脚本.json`。由于跳过了标准 Prompt 模板和 `expand_scenes_to_groups.py` 的机械展开，导致：
 - `.pipeline/` 目录不存在
 - `分镜/分组/组{N}.json` 不存在
 - 各组中没有注入场级 `通用设定`
