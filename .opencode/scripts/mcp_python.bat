@@ -7,8 +7,9 @@ REM 示例：scripts\mcp_python.bat .opencode\mcp-servers\grsai-server\server.py
 
 setlocal
 
-REM 获取项目根目录
-set PROJECT_ROOT=%~dp0..
+REM 获取项目根目录（.opencode\scripts\ 的上两级目录）
+set SCRIPT_DIR=%~dp0
+set PROJECT_ROOT=%SCRIPT_DIR%..\..
 
 REM 虚拟环境路径
 set VENV_DIR=%PROJECT_ROOT%\.venv

@@ -6,8 +6,11 @@
 !opencode.json
 !.opencode/
 !.opencode/**
+!doc/
+!doc/**
 
 # 白名单下的排除项
 .opencode/credentials/**
 .opencode/**/__pycache__/**
 .opencode/**/*.pyc
+.opencode/temp/**

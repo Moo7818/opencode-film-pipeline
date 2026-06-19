@@ -7,7 +7,7 @@
   "mcp": {
     "grsai": {
       "type": "local",
-      "command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/grsai-server/server.py"],
+      "command": [".opencode/scripts/mcp_python.py", ".opencode/mcp-servers/grsai-server/server.py"],
       "enabled": true
     }
   },
