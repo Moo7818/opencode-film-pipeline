@@ -3,13 +3,13 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "帮我生成一组角色参考图，任务文件在 evals/files/character_ref.json，用 gpt-image-2-vip 模型，输出到 ./generated/角色参考图，批次类型 character_reference",
-      "expected_output": "调用 batch_generator.py 处理 JSON 任务列表，生成 2 张角色参考图，日志和索引表正确记录",
+      "prompt": "帮我生成一组角色参考图，任务文件在 evals/files/character_ref.json，用 gpt-image-2-vip 模型，输出到 ./output/角色参考图，批次类型 character_reference",
+      "expected_output": "调用 grsai_batch_generate MCP tool 处理 JSON 任务列表，生成 2 张角色参考图",
       "files": ["evals/files/character_ref.json"],
       "expectations": [
-        "使用 --tasks 参数指向 evals/files/character_ref.json",
-        "使用 --batch-type character_reference 参数",
-        "使用 --model gpt-image-2-vip 参数",
+        "使用 grsai_batch_generate MCP tool 执行",
+        "task 列表从 evals/files/character_ref.json 读取",
+        "使用 model gpt-image-2-vip",
         "输出目录包含 2 个 PNG 文件",
         "日志目录下生成了 _index.json 且包含该批次记录",
         "日志目录下生成了 batch_*.json 全量文档且 succeeded 为 2"
@@ -17,13 +17,13 @@
     },
     {
       "id": 2,
-      "prompt": "生成一张分镜图，任务文件在 evals/files/storyboard_single.json，用 nano-banana-2 模型，16:9 比例 4K 分辨率，输出到 ./generated/分镜图，批次类型 storyboard",
-      "expected_output": "调用 batch_generator.py 处理单任务 JSON，使用 nano-banana-2 模型和 16:9 比例生成 1 张分镜图",
+      "prompt": "生成一张分镜图，任务文件在 evals/files/storyboard_single.json，用 nano-banana-2 模型，16:9 比例 4K 分辨率，输出到 ./output/分镜图，批次类型 storyboard",
+      "expected_output": "调用 grsai_batch_generate MCP tool 处理单任务 JSON，使用 nano-banana-2 模型和 16:9 比例生成 1 张分镜图",
       "files": ["evals/files/storyboard_single.json"],
       "expectations": [
-        "使用 --tasks 参数指向 evals/files/storyboard_single.json",
-        "使用 --model nano-banana-2 参数",
-        "使用 --batch-type storyboard 参数",
+        "使用 grsai_batch_generate MCP tool 执行",
+        "task 列表从 evals/files/storyboard_single.json 读取",
+        "使用 model nano-banana-2",
         "输出目录包含 1 个 PNG 文件",
         "日志全量文档中 model 字段为 nano-banana-2",
         "提示词原样传递，未被修改"
@@ -31,11 +31,12 @@
     },
     {
       "id": 3,
-      "prompt": "批量生成商品展示图，任务文件在 evals/files/batch_products.json，用 gpt-image-2-vip 模型，1:1 比例 4K，输出到 ./generated/商品展示图",
-      "expected_output": "调用 batch_generator.py 批量生成 3 张商品展示图，全部成功，日志完整",
+      "prompt": "批量生成商品展示图，任务文件在 evals/files/batch_products.json，用 gpt-image-2-vip 模型，1:1 比例 4K，输出到 ./output/商品展示图",
+      "expected_output": "调用 grsai_batch_generate MCP tool 批量生成 3 张商品展示图，全部成功",
       "files": ["evals/files/batch_products.json"],
       "expectations": [
-        "使用 --tasks 参数指向 evals/files/batch_products.json",
+        "使用 grsai_batch_generate MCP tool 执行",
+        "task 列表从 evals/files/batch_products.json 读取",
         "输出目录包含 3 个 PNG 文件",
         "日志全量文档中 total 为 3",
         "日志全量文档中 succeeded 为 3",

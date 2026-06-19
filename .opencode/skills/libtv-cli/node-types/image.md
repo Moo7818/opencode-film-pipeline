@@ -14,13 +14,13 @@
 
 写入 **`data.params`**，走所选 `modelKey` 的 schema 校验；schema 标在 `config.settings` / `config.advancedSettings` 的字段可**拍平**写顶层（CLI 会按 schema 自动归位）。
 
-| 字段                   | 说明                                                                         |
-| ---------------------- | ---------------------------------------------------------------------------- |
-| **`prompt`**           | 提示词。                                                                     |
+| 字段                   | 说明                                                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **`prompt`**           | 提示词。                                                                                                                                |
 | **`model`**            | 图片模型 **名字（`modelName`）**，如 `-s "model=LibNano Pro"`（用 `libtv model search --type image` 查看；CLI 内部解析为 `modelKey`）。 |
-| **`count`**            | 出图张数；允许值由 schema 的 `properties.count` 决定。                       |
-| **`settings`**         | 表单「基础设置」的键集合，见 `libtv model <modelKey>` 的 `config.settings`。 |
-| **`advancedSettings`** | 「高级设置」的键集合，见 `config.advancedSettings`。                         |
+| **`count`**            | 出图张数；允许值由 schema 的 `properties.count` 决定。                                                                                  |
+| **`settings`**         | 表单「基础设置」的键集合，见 `libtv model <modelKey>` 的 `config.settings`。                                                            |
+| **`advancedSettings`** | 「高级设置」的键集合，见 `config.advancedSettings`。                                                                                    |
 
 ### 抽样：`nebula-ultra`（`libtv model nebula-ultra`）
 

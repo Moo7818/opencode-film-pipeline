@@ -41,7 +41,7 @@ input:
       aspect_ratio: "2048x1152"
       image_size: "4K"
       filename: "character_01.png"
-  output_dir: "./generated/角色参考图"
+  output_dir: "./output/角色参考图"
   concurrency: 10
 ```
 
@@ -58,7 +58,7 @@ input:
       "index": 0,
       "status": "completed",
       "image_url": "https://...",
-      "local_path": "./generated/角色参考图/character_01.png"
+      "local_path": "./output/角色参考图/character_01.png"
     }
   ]
 }

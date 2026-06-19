@@ -9,5 +9,5 @@
     }
   ],
   "model": "nano-banana-2",
-  "output_path": "./generated/分镜图"
+  "output_path": "./output/分镜图"
 }

@@ -7,7 +7,7 @@
 以下三条所有 case 默认满足，不在每个文件里重复：
 
 1. 已完成登录（[`libtv login web` / `login phone`](../commands/login.md)）；独立凭据目录（`LIBTV_CONFIG_DIR`）用法同见 [commands/login.md](../commands/login.md)。
-2. 在**画布所在工作目录**执行过 [`libtv project use <项目UUID>`](../commands/project.md)；`libtv project list` 可查 UUID。未绑定时每条命令可显式加 `-p <UUID>`。
+2. 在**画布所在工作目录**执行过 [`libtv project use <画布UUID>`](../commands/project.md)；`libtv project list` 可查 UUID。未绑定时每条命令可显式加 `-p <UUID>`。画布归属的**项目（工作区）**操作见 [commands/workspace.md](../commands/workspace.md)。
 3. 需要限定普通分组时执行 [`libtv group use <分组>`](../commands/group.md)；临时覆盖用 `-g/--group`。
 
 语法速查：`-s`（`data.params`）vs `-u`（`data` 顶层）见 [../node-types/README.md](../node-types/README.md)；管道（NDJSON）与 stdout/stderr 规则见 [pipes/README.md](./pipes/README.md)。
@@ -16,6 +16,7 @@
 
 | 场景                                    | 文件                                                         |
 | --------------------------------------- | ------------------------------------------------------------ |
+| 新建项目（工作区）→ 建画布 → 目录绑定   | [workflow/workspace-setup.md](./workflow/workspace-setup.md) |
 | 上传资源 → 建文本节点 → 连边 → 触发生成 | [workflow/create-and-run.md](./workflow/create-and-run.md)   |
 | 一条命令建节点 + 连上游 + 触发生成      | [workflow/all-in-one.md](./workflow/all-in-one.md)           |
 | 修改已有节点的生成参数                  | [workflow/update-params.md](./workflow/update-params.md)     |

@@ -13,7 +13,7 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. 初始化虚拟环境并生成 .env
-./scripts/setup_venv.sh
+.opencode/scripts/setup_venv.sh
 
 # 3. 重启 opencode 使 MCP 配置生效
 ```
@@ -25,11 +25,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 | Windows (Git Bash/WSL) | `.venv/Scripts/python.exe` | `.venv/Scripts/activate` |
 
 ### MCP 服务器配置
-opencode.json 中使用环境变量引用 Python 路径，由 `.env` 文件提供：
+opencode.json 使用**绝对路径**指定 Python 解释器（因为 `{env:*}` 在 config 解析时 `.env` 尚未加载）：
 ```json
-"command": ["{env:VENV_PYTHON}", ".opencode/mcp-servers/grsai-server/server.py"]
+"command": ["/absolute/path/to/.venv/bin/python3", ".opencode/mcp-servers/grsai-server/server.py"]
 ```
-运行 `./scripts/setup_venv.sh` 会自动生成正确的 `.env` 文件。
+运行 `.opencode/scripts/setup_venv.sh` 会自动生成 `.env` 文件，但需手动将路径写入 opencode.json。
 
 ## 文件操作规则
 - 项目业务文件存放在 `project/` 目录下

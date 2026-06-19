@@ -16,5 +16,5 @@
     }
   ],
   "model": "gpt-image-2-vip",
-  "output_path": "./generated/角色参考图"
+  "output_path": "./output/角色参考图"
 }

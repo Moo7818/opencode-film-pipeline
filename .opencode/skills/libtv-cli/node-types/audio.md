@@ -14,13 +14,13 @@
 
 写入 **`data.params`**；落在 `config.advancedSettings` / `config.settings` 的字段可**拍平**写顶层。写入嵌套对象时，`params.advancedSettings` / `params.settings` 的键一般为 schema 的 **`originalField`**，缺省为字段名（与 `libtv model <modelKey>` 的 `properties.*` 一致）。
 
-| 字段                                | 说明                                                                                                                                                          |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`prompt`**                        | 文案或描述（按模型而定）。                                                                                                                                    |
-| **`model`**                         | 音频模型 **名字（`modelName`）**，如 `-s "model=Eelven V3"` / `-s "model=Mureka V8"`（用 `libtv model search --type audio` 查看；CLI 内部解析为 `modelKey`）。                                                                                         |
-| **`scene`**                         | 业务场景 / 子模式字符串（`schema` 顶层 `scene` / `sceneName` 提示用途）。若模型默认带 `scene`，新建时 CLI 按 schema 填初始值，更新时 `--set scene=…` 可覆盖。 |
-| **`count`**                         | 条数。                                                                                                                                                        |
-| **`settings` / `advancedSettings`** | 模型表单字段分桶；键集合随 `modelKey` 变化，务必对照 `libtv model <modelKey>` 输出。                                                                          |
+| 字段                                | 说明                                                                                                                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`prompt`**                        | 文案或描述（按模型而定）。                                                                                                                                     |
+| **`model`**                         | 音频模型 **名字（`modelName`）**，如 `-s "model=Eelven V3"` / `-s "model=Mureka V8"`（用 `libtv model search --type audio` 查看；CLI 内部解析为 `modelKey`）。 |
+| **`scene`**                         | 业务场景 / 子模式字符串（`schema` 顶层 `scene` / `sceneName` 提示用途）。若模型默认带 `scene`，新建时 CLI 按 schema 填初始值，更新时 `--set scene=…` 可覆盖。  |
+| **`count`**                         | 条数。                                                                                                                                                         |
+| **`settings` / `advancedSettings`** | 模型表单字段分桶；键集合随 `modelKey` 变化，务必对照 `libtv model <modelKey>` 输出。                                                                           |
 
 ### 抽样：`vocal-v3`（`libtv model vocal-v3`）
 
@@ -46,10 +46,10 @@
 
 `audio` 节点 `data` 顶层以**上传 / 任务链路**写入为主；`node-data.ts` 只定义了 `url`（`string[]`）等少量字段。日常需要人工改时，几乎都是：
 
-| 想改的东西                                            | 正确入口                                         |
-| ----------------------------------------------------- | ------------------------------------------------ |
-| `prompt` / `model` / `voice` / `stability` 等生成相关 | `-s / --set`（写 `data.params`）                 |
-| 展示名                                                | `--name`（不要用 `-u` 改名）                     |
+| 想改的东西                                            | 正确入口                         |
+| ----------------------------------------------------- | -------------------------------- |
+| `prompt` / `model` / `voice` / `stability` 等生成相关 | `-s / --set`（写 `data.params`） |
+| 展示名                                                | `--name`（不要用 `-u` 改名）     |
 
 若确需手工改 `data.url` 等，先用 `libtv node "<名>"`（仅查询）打出节点 JSON 对照字段名再写（不违反 [README.md](./README.md) 的「`-u` 明确拒写的键」）。
 

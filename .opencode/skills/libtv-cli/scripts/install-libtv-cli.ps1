@@ -8,13 +8,16 @@ $ErrorActionPreference = 'Stop'
 # Keep the URL shape aligned with macOS/Linux:
 # https://liblibai-web-static.liblib.cloud/cli/<version>/libtv-<platform>.zip
 $LibtvRemoteBase = 'https://liblibai-web-static.liblib.cloud/cli'
-# latest channel: resolve the default remote version from latest/manifest.json.
-$LibtvRemoteLatestManifestUrl = "$LibtvRemoteBase/latest/manifest.json"
+# latest channel: resolve the default remote version from the www landing-activity channel
+# (getById?id=<channel>), whose linkUrl is a JSON string holding .version.
+# Override the channel id with LIBTV_CLI_VERSION_CHANNEL_ID (default 240).
+$LibtvVersionChannelId = if ($env:LIBTV_CLI_VERSION_CHANNEL_ID) { $env:LIBTV_CLI_VERSION_CHANNEL_ID } else { '240' }
+$LibtvRemoteLatestVersionUrl = "https://api2.liblib.art/api/www/landing-activities/getById?id=$LibtvVersionChannelId"
 
 # LIBTV_CLI_VERSION pins install/update to one version.
 #   - Remote: download URL becomes $LibtvRemoteBase/<version>/libtv-windows-<arch>.zip
 #   - Local: Resolve-LocalReleaseBinary only checks release\<version>\
-# When unset, remote install reads latest/manifest.json; local install uses the highest version.
+# When unset, remote install reads the landing-activity channel; local install uses the highest version.
 $LibtvVersionPin = if ($env:LIBTV_CLI_VERSION) { $env:LIBTV_CLI_VERSION } else { '' }
 
 function Die([string]$Msg) {
@@ -171,17 +174,22 @@ function Resolve-LocalReleaseBinary {
 }
 
 function Resolve-LatestRemoteVersion {
-    # Read .version from latest/manifest.json. Invoke-RestMethod parses JSON.
-    Write-Host "Resolving latest version: $LibtvRemoteLatestManifestUrl"
+    # Read .version from the landing-activity channel. Invoke-RestMethod parses the outer JSON;
+    # data.linkUrl is itself a JSON string ({"version":"1.0.2"}), so parse it again with ConvertFrom-Json.
+    Write-Host "Resolving latest version: $LibtvRemoteLatestVersionUrl"
     try {
-        $resp = Invoke-RestMethod -Uri $LibtvRemoteLatestManifestUrl -UseBasicParsing
+        $resp = Invoke-RestMethod -Uri $LibtvRemoteLatestVersionUrl -UseBasicParsing
     }
     catch {
-        Die "Failed to fetch latest manifest ($LibtvRemoteLatestManifestUrl): $($_.Exception.Message). You can set LIBTV_CLI_VERSION=<version>."
+        Die "Failed to fetch latest version ($LibtvRemoteLatestVersionUrl): $($_.Exception.Message). You can set LIBTV_CLI_VERSION=<version>."
     }
-    $ver = if ($resp -and $resp.version) { [string]$resp.version } else { '' }
+    $link = if ($resp -and $resp.data -and $resp.data.linkUrl) { [string]$resp.data.linkUrl } else { '' }
+    $ver = ''
+    if ($link) {
+        try { $ver = [string]((ConvertFrom-Json $link).version) } catch { $ver = '' }
+    }
     if (-not $ver) {
-        Die "latest manifest is missing the version field ($LibtvRemoteLatestManifestUrl)."
+        Die "latest version response is missing the version field ($LibtvRemoteLatestVersionUrl)."
     }
     return $ver
 }

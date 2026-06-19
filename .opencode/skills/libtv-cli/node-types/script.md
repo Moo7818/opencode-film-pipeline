@@ -17,7 +17,7 @@
 | 字段                                | 说明                                                                             |
 | ----------------------------------- | -------------------------------------------------------------------------------- |
 | **`prompt`**                        | 主提示。                                                                         |
-| **`model`**                         | `scriptText` 侧**模型名字（`modelName`）**（剧情 / 结构化文本）；配图侧见下。     |
+| **`model`**                         | `scriptText` 侧**模型名字（`modelName`）**（剧情 / 结构化文本）；配图侧见下。    |
 | **`count`**                         | 生成次数 / 条数，须在模型允许范围内。                                            |
 | **`scene`**                         | 脚本业务场景；新建默认常为 **`script-generate`**；其它取值以 schema / 产品为准。 |
 | **`settings` / `advancedSettings`** | 是否存在分桶、有哪些键，**完全由该 `modelKey` 的 schema 决定**。                 |
@@ -46,40 +46,40 @@
 
 每一行 = 一个镜头（对齐分镜表 Shots 字段规范）。整列改值时按行重写整个 `rows` 数组传入；除 `shotNumber` 外其余字段均可编辑。
 
-| 字段                      | 类型                          | 说明                                                                            |
-| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
-| `id`                      | `string`                      | 行唯一标识，用于与分镜图组 item 关联；新增行可省略由后端补。                     |
-| `shotNumber`              | `number`                      | 镜号，从 1 递增（展示用，**不建议手改**，画布会按行序自动重排）。               |
-| `durationSeconds`         | `number`                      | 单镜时长（秒），范围约 1.0–15.0。                                               |
-| `plotDescription`         | `string`                      | 情节 / 画面描述。                                                                |
-| `characters`              | `StoryboardCharacterCli[]`    | 角色信息数组，**结构见下**；画布按各行 `characters` 的最大数量动态加「角色」列。 |
-| `videoReference`          | `StoryboardVideoReferenceCli` | **视频参考图**（该镜头的参考帧图片，非参考视频片段）；可选，**结构见下**。      |
-| `shotSize`                | `string`                      | 景别（特写 / 近景 / 中景 / 全景 / 远景）。                                       |
-| `characterAction`         | `string`                      | 角色动作 / 表演定位。                                                            |
-| `emotion`                 | `string`                      | 微表情及心理状态。                                                              |
-| `sceneTags`               | `string`                      | 场景环境描述标签。                                                              |
-| `lightingAndAtmosphere`   | `string`                      | 灯光布局与环境氛围。                                                            |
-| `audioEffects`            | `string`                      | 音效 / 环境音 / 背景音乐。                                                       |
-| `dialogue`                | `string`                      | 角色台词及语气。                                                                |
-| **`imageGenerationPrompt`** | `string`                    | **核心**：分镜画面（配图）生成提示词；`libtv script storyboard` 逐张生成即读它。 |
-| **`videoMotionPrompt`**   | `string`                      | **核心**：视频运动生成提示词。                                                   |
-| `hiddenUuid`              | `string`                      | 前端生成的隐藏 UUID，用于关联分镜图等后续功能；一般无需手设。                    |
+| 字段                        | 类型                          | 说明                                                                             |
+| --------------------------- | ----------------------------- | -------------------------------------------------------------------------------- |
+| `id`                        | `string`                      | 行唯一标识，用于与分镜图组 item 关联；新增行可省略由后端补。                     |
+| `shotNumber`                | `number`                      | 镜号，从 1 递增（展示用，**不建议手改**，画布会按行序自动重排）。                |
+| `durationSeconds`           | `number`                      | 单镜时长（秒），范围约 1.0–15.0。                                                |
+| `plotDescription`           | `string`                      | 情节 / 画面描述。                                                                |
+| `characters`                | `StoryboardCharacterCli[]`    | 角色信息数组，**结构见下**；画布按各行 `characters` 的最大数量动态加「角色」列。 |
+| `videoReference`            | `StoryboardVideoReferenceCli` | **视频参考图**（该镜头的参考帧图片，非参考视频片段）；可选，**结构见下**。       |
+| `shotSize`                  | `string`                      | 景别（特写 / 近景 / 中景 / 全景 / 远景）。                                       |
+| `characterAction`           | `string`                      | 角色动作 / 表演定位。                                                            |
+| `emotion`                   | `string`                      | 微表情及心理状态。                                                               |
+| `sceneTags`                 | `string`                      | 场景环境描述标签。                                                               |
+| `lightingAndAtmosphere`     | `string`                      | 灯光布局与环境氛围。                                                             |
+| `audioEffects`              | `string`                      | 音效 / 环境音 / 背景音乐。                                                       |
+| `dialogue`                  | `string`                      | 角色台词及语气。                                                                 |
+| **`imageGenerationPrompt`** | `string`                      | **核心**：分镜画面（配图）生成提示词；`libtv script storyboard` 逐张生成即读它。 |
+| **`videoMotionPrompt`**     | `string`                      | **核心**：视频运动生成提示词。                                                   |
+| `hiddenUuid`                | `string`                      | 前端生成的隐藏 UUID，用于关联分镜图等后续功能；一般无需手设。                    |
 
 #### `characters[*]` 字段（`StoryboardCharacterCli`）
 
-| 字段                   | 类型     | 说明                                       |
-| ---------------------- | -------- | ------------------------------------------ |
-| `characterName`        | `string` | 角色名称。                                 |
-| `characterDescription` | `string` | 外貌、服装、发型、妆造及配饰描述。         |
-| `characterImageUrl`    | `string` | 角色参考图链接（可为空）。                 |
+| 字段                   | 类型     | 说明                               |
+| ---------------------- | -------- | ---------------------------------- |
+| `characterName`        | `string` | 角色名称。                         |
+| `characterDescription` | `string` | 外貌、服装、发型、妆造及配饰描述。 |
+| `characterImageUrl`    | `string` | 角色参考图链接（可为空）。         |
 
 #### `videoReference` 字段（`StoryboardVideoReferenceCli`）
 
 > 这一列在画布上就是「视频参考图」——一张图片，**指该镜头的参考帧图，不是参考视频**。只需填 `referenceFrameImage`。
 
-| 字段                      | 类型     | 说明                                                |
-| ------------------------- | -------- | --------------------------------------------------- |
-| **`referenceFrameImage`** | `string` | 参考帧图片 URL；表格/创意视图按图片展示。            |
+| 字段                      | 类型     | 说明                                      |
+| ------------------------- | -------- | ----------------------------------------- |
+| **`referenceFrameImage`** | `string` | 参考帧图片 URL；表格/创意视图按图片展示。 |
 
 ## 特殊用法
 

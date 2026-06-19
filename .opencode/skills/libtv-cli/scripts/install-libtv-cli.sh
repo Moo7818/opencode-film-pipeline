@@ -16,13 +16,15 @@ set -euo pipefail
 
 # 官方远端（与 https://liblibai-web-static.liblib.cloud/cli/<ver>/libtv-<platform>.zip 一致）
 LIBTV_REMOTE_BASE='https://liblibai-web-static.liblib.cloud/cli'
-# latest 通道：用 latest/manifest.json 的 .version 作为远端默认版本（避免脚本里钉死版本号导致和发布脱节）
-LIBTV_REMOTE_LATEST_MANIFEST_URL="${LIBTV_REMOTE_BASE}/latest/manifest.json"
+# latest 通道：从 www landing-activity 渠道（getById?id=<channel>）的 linkUrl JSON 取 .version 作为远端默认版本，
+# 避免脚本里钉死版本号导致和发布脱节。渠道 id 可用 LIBTV_CLI_VERSION_CHANNEL_ID 覆盖（默认 240）。
+LIBTV_VERSION_CHANNEL_ID="${LIBTV_CLI_VERSION_CHANNEL_ID:-240}"
+LIBTV_REMOTE_LATEST_VERSION_URL="https://api2.liblib.art/api/www/landing-activities/getById?id=${LIBTV_VERSION_CHANNEL_ID}"
 
 # LIBTV_CLI_VERSION：定向把安装/更新钉到某个版本
 #   - 远端：下载 URL 变成 ${LIBTV_REMOTE_BASE}/${LIBTV_CLI_VERSION}/<bundle>.zip
 #   - 本地：resolve_local_release_* 只看 release/${LIBTV_CLI_VERSION}/，不再回退到其它版本
-# 未设置则远端去拉 latest/manifest.json 取 .version；本地仍挑最高版本
+# 未设置则远端去拉 landing-activity 渠道的 linkUrl JSON 取 .version；本地仍挑最高版本
 LIBTV_VERSION_PIN="${LIBTV_CLI_VERSION:-}"
 
 die() { echo "error: $*" >&2; exit 1; } # 非零退出；set -e 下用于显式失败
@@ -359,19 +361,21 @@ resolve_local_release_zip() {
 # 远程 zip：liblib 静态站；失败时打印 install hint 后 die
 # ---------------------------------------------------------------------------
 
-# 拉 latest/manifest.json 取 .version；用 grep/sed 解析，避免 jq 依赖。
+# 拉 landing-activity 渠道（getById?id=<channel>）取 .version；用 grep/sed 解析，避免 jq 依赖。
+# 响应形如 {"code":0,"data":{"linkUrl":"{\n  \"version\": \"1.0.2\"\n}\n"}}：version 嵌在被转义的 linkUrl JSON 串里。
+# 先 tr -d '\\' 去掉转义反斜杠，把内层 \"version\": \"1.0.2\" 还原成 "version": "1.0.2"，再套用同一套 grep/sed。
 # 失败仅写 stderr 并返回非 0，由调用方负责 die（避免在命令替换中 exit 被吞掉）。
 resolve_latest_remote_version() {
   local tmp ver
-  tmp="$(mktemp -t libtv_cli_manifest.XXXXXX)"
-  echo "正在解析最新版本: $LIBTV_REMOTE_LATEST_MANIFEST_URL" >&2
-  if ! fetch_url "$LIBTV_REMOTE_LATEST_MANIFEST_URL" "$tmp"; then
-    echo "error: 无法获取 latest manifest（$LIBTV_REMOTE_LATEST_MANIFEST_URL）" >&2
+  tmp="$(mktemp -t libtv_cli_version.XXXXXX)"
+  echo "正在解析最新版本: $LIBTV_REMOTE_LATEST_VERSION_URL" >&2
+  if ! fetch_url "$LIBTV_REMOTE_LATEST_VERSION_URL" "$tmp"; then
+    echo "error: 无法获取最新版本（$LIBTV_REMOTE_LATEST_VERSION_URL）" >&2
     return 1
   fi
-  ver="$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$tmp" | head -n1 | sed -E 's/.*"([^"]+)"[[:space:]]*$/\1/')"
+  ver="$(tr -d '\\' < "$tmp" | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | head -n1 | sed -E 's/.*"([^"]+)"[[:space:]]*$/\1/')"
   if [[ -z "$ver" ]]; then
-    echo "error: latest manifest 缺少 version 字段（$LIBTV_REMOTE_LATEST_MANIFEST_URL）" >&2
+    echo "error: 最新版本响应缺少 version 字段（$LIBTV_REMOTE_LATEST_VERSION_URL）" >&2
     return 1
   fi
   echo "$ver"

@@ -14,13 +14,13 @@
 
 写入 **`data.params`**，走所选 `modelKey` 的 schema 校验。典型键：
 
-| 字段                                | 说明                                                                                                                                                             |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`prompt`**                        | 提示全文（等价于 `--prompt`，后者会覆盖 `-s prompt=…`）。                                                                                                        |
-| **`model`**                         | **文本模型名字（`modelName`）**，如 `-s "model=GVLM 3.1"`（用 `libtv model search --type text` 查看；CLI 内部解析为 `modelKey`）。字段集以 [`libtv model <model>`](../commands/model.md) 输出为准。                                             |
-| **`count`**                         | 生成条数，需符合当前模型 schema。                                                                                                                                |
-| **`modeType`**                      | 多模态槽位选择（如 `image2text` / `video2text`）；取值见 `schema.properties.modeType.items`。                                                                    |
-| **`settings` / `advancedSettings`** | 若 `libtv model <modelKey>` 的 `config` 未声明分桶列表，该模型通常**没有**表单分桶字段，仅 `properties` 顶层能力（如 `modeType`）与 `rules`。`-s` 可拍平写顶层。 |
+| 字段                                | 说明                                                                                                                                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`prompt`**                        | 提示全文（等价于 `--prompt`，后者会覆盖 `-s prompt=…`）。                                                                                                                                           |
+| **`model`**                         | **文本模型名字（`modelName`）**，如 `-s "model=GVLM 3.1"`（用 `libtv model search --type text` 查看；CLI 内部解析为 `modelKey`）。字段集以 [`libtv model <model>`](../commands/model.md) 输出为准。 |
+| **`count`**                         | 生成条数，需符合当前模型 schema。                                                                                                                                                                   |
+| **`modeType`**                      | 多模态槽位选择（如 `image2text` / `video2text`）；取值见 `schema.properties.modeType.items`。                                                                                                       |
+| **`settings` / `advancedSettings`** | 若 `libtv model <modelKey>` 的 `config` 未声明分桶列表，该模型通常**没有**表单分桶字段，仅 `properties` 顶层能力（如 `modeType`）与 `rules`。`-s` 可拍平写顶层。                                    |
 
 ### 抽样：`aurora-3-prime` / `qwen-3-vl-flash`
 

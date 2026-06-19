@@ -87,7 +87,7 @@
   "total": 10,
   "succeeded": 8,
   "failed": 2,
-  "output_dir": "./generated",
+  "output_dir": "./output",
   "model": "gpt-image-2-vip",
   "results": [...],
   "failed_tasks": [...]
@@ -107,11 +107,6 @@
 
 **自动更新：** 每次运行批量生成时，自动更新索引表
 
-**自动检测：** 未传 `--project-dir` 时，脚本自动扫描 CWD 下的 `project/` 目录。若其中只有一个非隐藏子目录，自动将其作为项目根目录，`.logs` 正确落在项目目录内。
+**自动检测：** 由 MCP tool `grsai_batch_generate` 自动管理日志目录和索引。
 
-**手动重建：** 如果索引表损坏，可从全量文档重建：
-```bash
-python {baseDir}/script/batch_generator.py --rebuild-index -p ./project_root
-```
-
-**索引表损坏不影响全量文档，可随时重建。**
+**索引表损坏不影响全量文档。**

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """视频生成管线编排器 — 一站式完整流程
 
+依赖: libtv >= 1.1.1（group --run 现为阻塞等待命令，CLI 内部完成轮询）
+
 用法:
   # 完整流程（上传素材 → 创建节点（一次性含引用行） → 建组）
   python run_video_pipeline.py --build ^
@@ -9,7 +11,7 @@
     --refs "组7:场景_现代南京长江边,角色_一岛,角色_郑和,道具_平板" ^
     --refs "组8:场景_现代南京长江边,角色_一岛,角色_郑和"
 
-  # 完整流程 + 运行
+  # 完整流程 + 运行（group --run 阻塞等待）
   python run_video_pipeline.py --build ... --run
 
   # 完整流程 + 运行 + 自动下载视频到 project/<项目>/<剧集>/视频/
@@ -66,6 +68,7 @@ def run_libtv(args_list):
 
 
 def poll_node(node_name, interval=POLL_INTERVAL, timeout=POLL_TIMEOUT):
+    # libtv >= 1.1.1: group --run 已阻塞等待完成，此处轮询通常立即返回
     start = time.time()
     while time.time() - start < timeout:
         result = run_libtv(["node", node_name])
@@ -342,14 +345,15 @@ def build_pipeline(args):
     # ========== 步骤5: [可选] 运行 ==========
     if args.run:
         print("\n" + "=" * 60)
-        print("步骤5: 运行分组")
+        print("步骤5: 运行分组（libtv >= 1.1.1 阻塞等待完成）")
         print("=" * 60)
+        # v1.1.1+: group --run 阻塞等待，stderr 每 ~3min 输出进度，stdout 输终态 JSON
         run_libtv(["group", group_name, "--run"])
 
-        # ========== 步骤6: [可选] 轮询 + 下载视频 ==========
+        # ========== 步骤6: [可选] 下载视频 ==========
         if args.download:
             print("\n" + "=" * 60)
-            print("步骤6: 轮询 + 下载视频")
+            print("步骤6: 下载视频（group --run 已等待完成，直接查询结果）")
             print("=" * 60)
 
             output_dir = args.output_dir or os.path.join(project_root, args.episode, "视频")

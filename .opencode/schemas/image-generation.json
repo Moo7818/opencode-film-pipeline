@@ -58,7 +58,7 @@
     "output_path": {
       "type": "string",
       "description": "全局输出目录。批次是功能性单元，所有产物归到同一文件夹",
-      "default": "./generated"
+      "default": "./output"
     },
     "oss_id": {
       "type": "string",
@@ -89,7 +89,7 @@
         }
       ],
       "model": "gpt-image-2-vip",
-      "output_path": "./generated/角色参考图"
+      "output_path": "./output/角色参考图"
     }
   ]
 }

@@ -9,7 +9,7 @@
 | 分镜分组路径 | `{项目根}/{剧集号}/分镜/分组/` | 包含 `组1.json` ~ `组{N}.json` |
 | project_config.json | `.meta/projects/{uuid}/project_config.json` | 全局视频参数（字段定义见 `.opencode/schemas/project-config.json`） |
 
-## 步骤 2：绑定画布项目并写入 canvas_uuid
+## 步骤 2：绑定画布并写入 canvas_uuid
 
 如果 `project_config.json` 的 `canvas_uuid` 为空，视频导演首次运行时需读取 `.libtv/project.json` 获取 UUID，绑定后写回配置：
 
@@ -17,7 +17,7 @@
 # 从 .libtv/project.json 读取画布 UUID
 $canvasUuid = (Get-Content -Encoding UTF8 -Raw ".libtv/project.json" | ConvertFrom-Json).projectUuid
 
-# 绑定画布
+# 绑定画布（v1.1.1+ 还会同步写入画布所属的 workspaceId + teamId）
 libtv project use $canvasUuid
 
 # 将 UUID 写入 project_config.json
@@ -64,11 +64,24 @@ libtv upload "<素材显示名>" -t image -f "<本地绝对路径>"
 
 ### 4.3 `{{Image N}}` 编号规则
 
-- `--left` 的传入顺序决定 `{{Image N}}` 的编号
-- 第一个 `--left` → `{{Image 1}}`，第二个 → `{{Image 2}}`，以此类推
-- `--prompt` 写入不会重算 `imageList`，所以可以安全地在创建后更新 prompt
+`--left` 顺序决定 `{{Image N}}` 编号的基础规则不变。**v1.1.1+ 变化**：
 
-### 4.4 方式一：一次性创建
+- **`--left`/`--right` 改为 ensure 模式**：只确保列出的节点已连线，**不会删除**已在画布上但未列出的边
+- 需要增删已有连线时，使用 `--left-add <节点>` / `--left-rm <节点>`（增量追加/移除）
+- `--prompt` 写入不会重算 `imageList`，可以安全地在创建后更新 prompt
+
+### 4.4 `{{Node "..."}}` prompt 占位符（v1.1.1+）
+
+v1.1.1+ 支持 `{{Node "节点名"}}` 语法替代 `{{Image N}}`，直接在 prompt 中按**节点展示名**引用已连线上游节点，无需关心 Image N 的实际编号：
+
+```bash
+# 用 {{Node "节点名"}} 替代 {{Image N}}
+libtv node "组1" --prompt "请参考场景氛围{{Node \"场景参考_01\"}}和角色形象{{Node \"角色参考_01\"}}进行画面生成"
+```
+
+当画布内节点名唯一时推荐使用，更直观可控。如遇重名，可先用 `libtv node <名>` 查询其 `nodeKey`，再用 `{{Node <nodeKey>}}` 精确锚定。
+
+### 4.5 方式一：一次性创建
 
 直接在 `create` 命令中写入含引用行的完整 prompt：
 
@@ -88,7 +101,7 @@ libtv node create "组1" -t video \
   --left 场景参考_01 --left 角色参考_01
 ```
 
-### 4.5 方式二：两阶段（推荐）
+### 4.6 方式二：两阶段（推荐）
 
 需要验证顺序后再写引用时使用。
 
@@ -122,7 +135,7 @@ libtv node "组1" --prompt "请参考场景氛围{{Image 1}}、角色形象{{Ima
 {\"组号\":1}"
 ```
 
-### 4.6 重要约束
+### 4.7 重要约束
 
 - **创建到运行之间不要打开 Web UI 查看画布**，否则会触发服务端重排
 - `--prompt` 写入不会触发重算，两阶段安全
@@ -136,7 +149,13 @@ libtv group create "<剧集号>视频组" --node <组1> --node <组2>
 libtv group "<剧集号>视频组" --run
 ```
 
+**v1.1.1+ 行为变化**：`group --run` 现在是**阻塞等待命令**，CLI 内部会提交任务、轮询进度，并在全部节点完成后输出终态 JSON 到 stdout 后退出。stderr 约每 3 分钟输出一条 `[run-group]` 进度日志。
+
+外部脚本 / agent **直接等待该命令退出**，不要后台运行、不要加超时、不要额外轮询。
+
 ## 步骤 6：轮询等待生成完成
+
+> **v1.1.1+**：如果步骤 5 使用了 `--run`，步骤 6 可以跳过——`group --run` 已阻塞等待完成。需单独查询结果时：
 
 ```bash
 libtv node "<组名>"

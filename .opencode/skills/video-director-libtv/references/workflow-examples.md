@@ -1,15 +1,16 @@
 # 常见场景命令序列
 
 **通用约定**：
-- `<项目UUID>` = 画布项目 UUID（`libtv project list` 可查）
+- `<画布UUID>` = 画布 UUID（`libtv project list` 可查）
 - 所有命令在**画布所在工作目录**下执行
+- 以下命令基于 `libtv` **v1.1.1+**。关键变化：`group --run` 现为**阻塞等待**命令，CLI 内部完成轮询后退出
 
 ---
 
 ## 场景 1：纯文生视频
 
 ```bash
-libtv project use <项目UUID>
+libtv project use <画布UUID>
 
 libtv node create "组1" -t video \
   --prompt "画面严禁出现任何字幕，无配乐
@@ -32,7 +33,7 @@ libtv group "EP01视频" --run
 ## 场景 2：有参考图（一次性创建）
 
 ```bash
-libtv project use <项目UUID>
+libtv project use <画布UUID>
 
 libtv upload "场景参考" -t image -f "temp/场景参考.png"
 libtv upload "角色参考" -t image -f "temp/角色参考.png"
@@ -60,10 +61,10 @@ libtv group "EP01视频" --run
 
 ## 场景 3：有参考图（两阶段）
 
-需要先确认 `imageList` 顺序再写引用时使用。
+需要先确认 `imageList` 顺序再写引用时使用。也可改用 `{{Node "..."}}` 省去编号确认（见下文）。
 
 ```bash
-libtv project use <项目UUID>
+libtv project use <画布UUID>
 
 libtv upload "场景_办公室" -t image -f "temp/场景参考.png"
 libtv upload "角色_经理" -t image -f "temp/角色参考.png"
@@ -79,7 +80,7 @@ libtv node create "组1" -t video \
   --set enableSound=on \
   --left 场景_办公室 --left 角色_经理 --left 道具_电脑
 
-# 阶段2：查询 imageList 顺序
+# 方案 A：查询 imageList 顺序后写引用（兼容旧版）
 libtv node "组1"
 # 输出 imageList 顺序决定了 {{Image 1}}{{Image 2}}{{Image 3}}
 
@@ -90,6 +91,10 @@ libtv node "组1" --prompt "请参考办公室场景{{Image 1}}、经理角色�
 ---
 {\"组号\":1}"
 
+# 方案 B（v1.1.1+）：直接用 {{Node "节点名"}}，无需查询顺序
+libtv node "组1" --prompt \
+  "请参考办公室场景{{Node \"场景_办公室\"}}、经理角色形象{{Node \"角色_经理\"}}和电脑道具样式{{Node \"道具_电脑\"}}进行画面生成"
+
 libtv group create "EP01视频" --node 组1
 libtv group "EP01视频" --run
 ```
@@ -99,7 +104,7 @@ libtv group "EP01视频" --run
 ## 场景 4：批量多组处理
 
 ```bash
-libtv project use <项目UUID>
+libtv project use <画布UUID>
 
 libtv upload "场景参考" -t image -f "temp/场景参考.png"
 libtv upload "角色参考" -t image -f "temp/角色参考.png"
@@ -145,13 +150,16 @@ libtv group "EP01视频" --run
 
 | 操作 | 命令 |
 |------|------|
-| 绑定项目 | `libtv project use <UUID>` |
+| 绑定画布 | `libtv project use <UUID>` |
 | 上传参考图 | `libtv upload "<名>" -t image -f "<路径>"` |
 | 创建节点（一次性） | `libtv node create "<名>" -t video --prompt "完整prompt含引用行" --set ... --left ...` |
 | 创建节点（阶段1） | `libtv node create "<名>" -t video --prompt "占位" --set ... --left ...` |
 | 查询 imageList | `libtv node "<名>"` |
 | 更新 prompt（阶段2） | `libtv node "<名>" --prompt "完整prompt含引用行"` |
+| 使用 `{{Node "..."}}`（v1.1.1+） | `libtv node "<名>" --prompt "...{{Node \"上游节点名\"}}..."` |
+| 增量追加左连线 | `libtv node "<名>" --left-add <节点名>` |
+| 增量移除左连线 | `libtv node "<名>" --left-rm <节点名>` |
 | 建分组 | `libtv group create "<组名>" --node <节点1>` |
-| 整组运行 | `libtv group "<组名>" --run` |
+| 整组运行（**阻塞等待**） | `libtv group "<组名>" --run` |
 | 删除节点 | `libtv node delete "<名>"` |
 | 查看模型 | `libtv model search --type video` |

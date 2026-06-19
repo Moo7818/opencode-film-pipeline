@@ -13,7 +13,7 @@ Agent 的职责**只有**：
   - 场→组展开 + 通用设定注入
   - 输出独立组 JSON 到最终目录
 
-**禁止 Agent 自行生成 JSON 内容。所有 JSON 必须经由 call_llm.py 产出。**
+LLM 调用委托给 MCP server 的 grsai_client.call_llm（统一凭证源）。
 
 用法:
   # 短剧本（≤2000字）
@@ -32,12 +32,18 @@ Agent 的职责**只有**：
     --output-dir "project/X/EP01/分镜"
 """
 
+import json
 import os
 import shutil
 import subprocess
 import sys
-import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+# 引入 MCP server 的 grsai_client 模块（统一凭证源和 HTTP 调用逻辑）
+MCP_SERVER_DIR = Path(__file__).resolve().parents[3] / "mcp-servers" / "grsai-server"
+sys.path.insert(0, str(MCP_SERVER_DIR))
+from grsai_client import call_llm as _mcp_call_llm
 
 
 SKILL_DIR = Path(__file__).resolve().parent
@@ -48,7 +54,7 @@ SKILL_DIR = Path(__file__).resolve().parent
 # ============================================================
 
 def _run(step_name, args, capture=True):
-    """执行单个步骤，返回 (success, stdout)"""
+    """执行单个子进程步骤，返回 (success, stdout)"""
     cmd = [sys.executable] + args
     print(f"\n{'='*60}")
     print(f"  [{step_name}] {' '.join(args)}")
@@ -56,7 +62,6 @@ def _run(step_name, args, capture=True):
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     result = subprocess.run(cmd, capture_output=capture, text=False, env=env)
-    # 手动用 UTF-8 解码，避免 Windows GBK 问题
     out = result.stdout.decode("utf-8", errors="replace") if result.stdout else ""
     err = result.stderr.decode("utf-8", errors="replace") if result.stderr else ""
     if out:
@@ -70,9 +75,30 @@ def _run(step_name, args, capture=True):
     return True, out or err
 
 
-def _count_chars(text):
-    """统计文本字符数（含换行）"""
-    return len(text)
+# ============================================================
+# LLM 调用（进程内，直接委托给 MCP server 的 grsai_client）
+# ============================================================
+
+def _write_request(system_prompt, user_content, output_path):
+    """构建并写出 request.json"""
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_content})
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump({"messages": messages}, f, ensure_ascii=False, indent=2)
+    print(f"  \u2714 {output_path}")
+
+
+def _call_and_write(req_path, model=None, temperature=0.7):
+    """读取 request.json → 调用 MCP server LLM → 写出同目录 response.json"""
+    req_data = json.loads(Path(req_path).read_text(encoding="utf-8"))
+    messages = req_data.get("messages", req_data)
+    result = _mcp_call_llm(messages, model, temperature)
+    resp_path = Path(req_path).parent / "response.json"
+    resp_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    return result
 
 
 # ============================================================
@@ -86,36 +112,22 @@ def setup_pipeline(pipeline_dir):
     print(f"  📁 管线目录就绪: {pd}")
 
 
-def build_and_call_llm(pipeline_dir, system_prompt, user_message):
-    """Step A：构建请求 → 调用 LLM（短剧本单次）"""
+def build_and_call_llm(pipeline_dir, system_prompt, user_message, model=None, temperature=0.7):
+    """Step A：构建请求 → 调用 LLM（短剧本单次，进程内）"""
+    pd = Path(pipeline_dir).resolve()
+    req_path = pd / "01_request.json"
+
+    _write_request(system_prompt, user_message, str(req_path))
+    result = _call_and_write(req_path, model, temperature)
+    print(f"  ✅ LLM 调用完成: {result.get('finish_reason', '?')} | tokens: {result.get('usage', {}).get('total_tokens', '?')}")
+    return True
+
+
+def shard_and_call_llm(pipeline_dir, system_prompt, script_path, model=None, temperature=0.7):
+    """Step B：分片 → 并发调用 LLM（进程内） → 合并"""
     pd = Path(pipeline_dir).resolve()
 
-    # 构建请求
-    ok, _ = _run("构建请求", [
-        str(SKILL_DIR / "call_llm.py"),
-        "--build-request",
-        "--system", system_prompt,
-        "--user", user_message,
-        "--pipeline-dir", str(pd),
-    ])
-    if not ok:
-        return False
-
-    # 调用 LLM
-    ok, _ = _run("调用 LLM", [
-        str(SKILL_DIR / "call_llm.py"),
-        "--input", str(pd / "01_request.json"),
-        "--output", str(pd / "01_response.json"),
-        "--pipeline-dir", str(pd),
-    ])
-    return ok
-
-
-def shard_and_call_llm(pipeline_dir, system_prompt, script_path):
-    """Step B：分片 → 并发调用 LLM → 合并（长剧本）"""
-    pd = Path(pipeline_dir).resolve()
-
-    # 分片 + 生成请求文件
+    # 分片 + 生成请求文件（子进程调用 shard_manager.py）
     ok, _ = _run("分片分析", [
         str(SKILL_DIR / "shard_manager.py"),
         "--split", script_path,
@@ -126,16 +138,21 @@ def shard_and_call_llm(pipeline_dir, system_prompt, script_path):
     if not ok:
         return False
 
-    # 并发调用 LLM
-    ok, _ = _run("并发调用 LLM", [
-        str(SKILL_DIR / "call_llm.py"),
-        "--batch-dir", str(pd),
-        "--pipeline-dir", str(pd),
-    ])
-    if not ok:
+    # 并发调用 LLM（进程内，无需子进程）
+    request_files = sorted(pd.rglob("request.json"))
+    if not request_files:
+        print("  ❌ 未找到 request.json 分片文件", file=sys.stderr)
         return False
 
-    # 合并分片
+    print(f"  并发处理 {len(request_files)} 个分片...")
+    with ThreadPoolExecutor(max_workers=min(len(request_files), 5)) as pool:
+        futures = [pool.submit(_call_and_write, p, model, temperature) for p in request_files]
+        for future in as_completed(futures):
+            result = future.result()
+            print(f"  ✅ 分片完成: {result.get('finish_reason', '?')} | {result.get('usage', {}).get('total_tokens', '?')} tokens")
+
+    print(f"  ✅ 并发调用完成，响应文件已写入 {pd}")
+    # 合并分片（子进程调用 shard_manager.py）
     ok, _ = _run("合并分片结果", [
         str(SKILL_DIR / "shard_manager.py"),
         "--merge", str(pd),
@@ -239,22 +256,23 @@ def build_pipeline(pipeline_dir, system_prompt, user_message,
                    with_task_table=False,
                    task_table_model="gpt-image-2",
                    task_table_resolution="1K",
-                   task_table_aspect_ratio="16:9"):
+                   task_table_aspect_ratio="16:9",
+                   llm_model=None, llm_temperature=0.7):
     """完整管线：初始化 → LLM 调用 → 校验 → 展开 → [可选]生成任务表 → 输出"""
 
     # 0. 初始化管线目录
     setup_pipeline(pipeline_dir)
 
-    # 1. LLM 调用
+    # 1. LLM 调用（进程内，直接委托给 MCP server 的 grsai_client）
     if shard:
         if not script_path:
             print("  ❌ 长剧本模式必须提供 --script-path", file=sys.stderr)
             return False
         print("\n>>> 📄 长剧本模式：分片 → 并发 → 合并")
-        ok = shard_and_call_llm(pipeline_dir, system_prompt, script_path)
+        ok = shard_and_call_llm(pipeline_dir, system_prompt, script_path, llm_model, llm_temperature)
     else:
         print("\n>>> 📄 短剧本模式：单次请求")
-        ok = build_and_call_llm(pipeline_dir, system_prompt, user_message)
+        ok = build_and_call_llm(pipeline_dir, system_prompt, user_message, llm_model, llm_temperature)
 
     if not ok:
         print("  ❌ LLM 调用失败，管线终止", file=sys.stderr)
@@ -342,15 +360,15 @@ def main():
     parser.add_argument("--output-groups", default="分组",
                         help="最终分组文件夹名称（在 output-dir 下）")
 
-    # --- Prompt 输入（三选一：--system / --system-file / --config） ---
+    # --- Prompt 输入 ---
     parser.add_argument("--system", default=None,
-                        help="System Prompt 文本（短剧本 --build 模式必填之一）")
+                        help="System Prompt 文本")
     parser.add_argument("--system-file", default=None,
-                        help="System Prompt 文件路径（推荐，避免引号问题）")
+                        help="System Prompt 文件路径")
     parser.add_argument("--user", default=None,
-                        help="User Message 文本（短剧本 --build 模式必填之一）")
+                        help="User Message 文本")
     parser.add_argument("--user-file", default=None,
-                        help="User Message 文件路径（推荐，避免引号问题）")
+                        help="User Message 文件路径")
 
     # --- 分片模式 ---
     parser.add_argument("--shard", action="store_true",
@@ -358,20 +376,26 @@ def main():
     parser.add_argument("--script-path", default=None,
                         help="剧本文件路径（长剧本分片模式必填）")
 
-    # --- 分镜图任务表（可选分支） ---
+    # --- 分镜图任务表 ---
     parser.add_argument("--with-task-table", action="store_true",
-                        help="启用分镜图任务表生成（配合 --build / --process）")
+                        help="启用分镜图任务表生成")
     parser.add_argument("--task-table-model", default="gpt-image-2",
-                        help="分镜图模型（默认 gpt-image-2，Seedance 视频推荐 doubao-seedance-2-0-fast-260128）")
+                        help="分镜图模型")
     parser.add_argument("--task-table-resolution", default="1K",
-                        help="分镜图分辨率（默认 1K，Seedance 视频推荐 480p/720p）")
+                        help="分镜图分辨率")
     parser.add_argument("--task-table-aspect-ratio", default="16:9",
-                        help="分镜图画幅比例（默认 16:9）")
+                        help="分镜图画幅比例")
+
+    # --- LLM 参数 ---
+    parser.add_argument("--llm-model", default=None,
+                        help="LLM 模型名（默认由 credentials.json 决定）")
+    parser.add_argument("--llm-temperature", type=float, default=0.7,
+                        help="LLM 温度（默认 0.7）")
 
     args = parser.parse_args()
 
     # -----------------------------------------------------------
-    # 配置文件模式：从 JSON 读取所有参数
+    # 配置文件模式
     # -----------------------------------------------------------
     if args.config:
         cfg = load_config(args.config)
@@ -383,7 +407,6 @@ def main():
         shard = cfg.get("shard", False)
         script_path = cfg.get("script_path", None)
 
-        # 支持文件路径方式
         if not system_prompt and cfg.get("system_file"):
             with open(cfg["system_file"], "r", encoding="utf-8") as f:
                 system_prompt = f.read()
@@ -414,11 +437,13 @@ def main():
             task_table_model=cfg.get("task_table_model", args.task_table_model),
             task_table_resolution=cfg.get("task_table_resolution", args.task_table_resolution),
             task_table_aspect_ratio=cfg.get("task_table_aspect_ratio", args.task_table_aspect_ratio),
+            llm_model=cfg.get("llm_model", args.llm_model),
+            llm_temperature=cfg.get("llm_temperature", args.llm_temperature),
         )
         sys.exit(0 if ok else 1)
 
     # -----------------------------------------------------------
-    # 文件传参模式（--system-file / --user-file）
+    # 文件传参模式
     # -----------------------------------------------------------
     system_prompt = args.system
     user_message = args.user or ""
@@ -453,6 +478,8 @@ def main():
             task_table_model=args.task_table_model,
             task_table_resolution=args.task_table_resolution,
             task_table_aspect_ratio=args.task_table_aspect_ratio,
+            llm_model=args.llm_model,
+            llm_temperature=args.llm_temperature,
         )
         if not ok:
             sys.exit(1)

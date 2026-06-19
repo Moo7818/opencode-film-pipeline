@@ -7,7 +7,7 @@
   "mcp": {
     "grsai": {
       "type": "local",
-      "command": ["{env:VENV_PYTHON}", ".opencode/mcp-servers/grsai-server/server.py"],
+      "command": ["/Users/moo/Documents/另一条路/.venv/bin/python3", ".opencode/mcp-servers/grsai-server/server.py"],
       "enabled": true
     }
   },
@@ -18,7 +18,13 @@
     "orchestrator": {
       "description": "影视制作管线主控 agent。当需要管理影视项目全流程（创建项目、处理剧本、生成视觉资产、制作剧集视频）时使用。负责识别用户意图、匹配阶段、将任务分发给响应的子 agent（coordinator/producer/character-director/prop-maker/set-designer/art-director/storyboard-director/video-director）。",
       "mode": "primary",
-      "prompt": "{file:.opencode/rules/orchestrator.md}"
+      "prompt": "{file:.opencode/rules/orchestrator.md}",
+      "permission": {
+        "read": {
+          ".opencode/skills/**": "deny",
+          "*": "allow"
+        }
+      }
     },
     "coordinator": {
       "description": "项目统筹、项目创建、项目注销、项目打包、阶段推进、进度查看、产物追踪、stage、milestone、归档。当需要管理项目全生命周期时使用。",
@@ -54,12 +60,12 @@
     "video-director": {
       "description": "视频导演、视频生成、图生视频、文生视频、AI视频、分镜视频化、动效视频。当需要基于分镜组通过libtv CLI生成视频时使用。",
       "mode": "subagent",
-      "prompt": "你是 Video-director（视频导演），是子 Agent。你的职责：通过 libtv CLI 将分镜组 JSON 转化为视频。流程：(1) 读 project_config.json+分组JSON；(2) 绑定画布项目 (libtv project use)；(3) 上传参考素材 (libtv upload)；(4) 创建 video 节点 (libtv node create -t video)；(5) 批量分组运行 (libtv group create + --run)；(6) 轮询等待完成；(7) 报告主 Agent 让 Coordinator 归档。禁止使用 doubao-seedance-2-0-260128 模型。"
+      "prompt": "你是 Video-director（视频导演），是子 Agent。你的职责：通过 libtv CLI 将分镜组 JSON 转化为视频。流程：(1) 读 project_config.json+分组JSON；(2) 绑定画布项目 (libtv project use)；(3) 上传参考素材 (libtv upload)；(4) 创建 video 节点 (libtv node create -t video)；(5) 批量分组运行 (libtv group create + --run)；(6) 轮询等待完成；(7) 报告主 Agent 让 Coordinator 归档。"
     },
     "art-director": {
       "description": "美术指导、生成图片、绘制参考图、出图、AI绘画、批量图像生成、GRSAI。当需要生成任何图像（角色/场景/道具参考图、分镜图等）时使用。",
       "mode": "subagent",
-      "prompt": "你是 Art-director（美术指导），是子 Agent。你的职责：使用 GRSAI API 批量生成 AI 图像。入口：python .opencode/skills/art-director/script/batch_generator.py --tasks tasks.json [参数]。禁止修改用户提示词。支持并发提交、自动轮询、下载、COS 上传。任务表格式符合 .opencode/schemas/image-generation.json。",
+      "prompt": "你是 Art-director（美术指导），是子 Agent。你的职责：通过 MCP tool `grsai_batch_generate` 批量生成 AI 图像，或通过 `grsai_generate_image` 单张生成。禁止修改用户提示词。任务表格式符合 .opencode/schemas/image-generation.json。",
       "tools": {
         "grsai_*": true
       }

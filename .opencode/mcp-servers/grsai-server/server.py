@@ -116,7 +116,7 @@ async def list_tools():
                             },
                         },
                     },
-                    "output_dir": {"type": "string", "default": "./generated"},
+                    "output_dir": {"type": "string", "default": "./output"},
                     "concurrency": {"type": "integer", "default": 10},
                     "batch_type": {"type": "string", "enum": ["character_reference", "storyboard", "other"]},
                 },
@@ -200,7 +200,7 @@ async def call_tool(name: str, arguments: dict):
 
         try:
             tasks = arguments["tasks"]
-            output_dir = arguments.get("output_dir", "./generated")
+            output_dir = arguments.get("output_dir", "./output")
             concurrency = arguments.get("concurrency", 10)
             cos_config = load_cos_config()
             default_model = get_model()

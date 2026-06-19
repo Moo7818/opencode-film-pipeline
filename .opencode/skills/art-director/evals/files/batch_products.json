@@ -23,5 +23,5 @@
     }
   ],
   "model": "gpt-image-2-vip",
-  "output_path": "./generated/商品展示图"
+  "output_path": "./output/商品展示图"
 }

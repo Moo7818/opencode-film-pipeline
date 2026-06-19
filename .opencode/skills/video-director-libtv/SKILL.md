@@ -11,7 +11,8 @@ description: 基于 libtv CLI 的视频导演 Skill。覆盖：分镜视频化�
 
 - 已完成 `libtv login web` 或 `libtv login phone`
 - 凭证文件已就位：`.opencode/credentials/libtv_credentials.json`
-- 已在画布上创建项目并执行 `libtv project use <项目UUID>`
+- 已在画布上创建项目并已绑定画布：`libtv project use <画布UUID>`
+- `libtv` CLI 版本 ≥ **1.1.1**（使用 `libtv --version` 确认；关键变化见文末）
 - 分镜组 JSON 已就绪（`分组/组{N}.json`）
 - `project_config.json` 已配置（字段定义见 `.opencode/schemas/project-config.json`）
 
@@ -39,11 +40,12 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 | 画面比例 | `project_config.json → aspect_ratio` | `--set ratio` | 读 |
 | 分辨率 | `project_config.json → resolution` | `--set resolution` | 读 |
 | 模型 | `project_config.json → model` | `--set model` | 读 |
-| ↳ 注意 | 1.0.2+ 要求填 **modelName**（中文名），如 `Seedance 2.0 VIP`，非 modelKey |
+| ↳ 注意 | 1.1.1+ 要求填 **modelName**（中文名），如 `Seedance 2.0 VIP`，非 modelKey |
 | 生成模式 | `project_config.json → mode` | `--set modeType` | 读 |
 | 音频开关 | `project_config.json → enable_sound` | `--set enableSound` | 读 |
 | 分镜图模式 | `project_config.json → use_storyboard_images` | 决定参考素材选取策略 | 读 |
 | 画布 UUID | `.libtv/project.json → projectUuid` | `libtv project use <值>` | **写**入 `.meta/projects/{uuid}/project_config.json` |
+| ↳ `project use` 副作用 | v1.1.1+ 同时将画布所属项目 `workspaceId` 与团队 `teamId` 同步写入 `.libtv/project.json` | — |
 | 组时长 | `组{N}.json → 组时长` | `--set duration` | 读 |
 
 `use_storyboard_images` 影响参考素材的连线策略（详见 `references/storyboard-to-libtv.md` 第 6 节）：为 `true` 时优先选取分镜图作为主要参考，否则以角色/场景参考图为主。
@@ -117,8 +119,22 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 
 | 内容 | 文件 |
 |------|------|
-| libtv CLI 节点命令 | [libtv-cli-skill/commands/node.md](../libtv-cli-skill/commands/node.md) |
-| libtv CLI 上传命令 | [libtv-cli-skill/commands/upload.md](../libtv-cli-skill/commands/upload.md) |
-| libtv CLI 分组命令 | [libtv-cli-skill/commands/group.md](../libtv-cli-skill/commands/group.md) |
-| libtv CLI 模型检索 | [libtv-cli-skill/commands/model.md](../libtv-cli-skill/commands/model.md) |
-| libtv CLI 视频节点类型 | [libtv-cli-skill/node-types/video.md](../libtv-cli-skill/node-types/video.md) |
+| libtv CLI 节点命令 | [libtv-cli/commands/node.md](../libtv-cli/commands/node.md) |
+| libtv CLI 上传命令 | [libtv-cli/commands/upload.md](../libtv-cli/commands/upload.md) |
+| libtv CLI 分组命令 | [libtv-cli/commands/group.md](../libtv-cli/commands/group.md) |
+| libtv CLI 模型检索 | [libtv-cli/commands/model.md](../libtv-cli/commands/model.md) |
+| libtv CLI 视频节点类型 | [libtv-cli/node-types/video.md](../libtv-cli/node-types/video.md) |
+| libtv CLI 画布命令（含 workspace） | [libtv-cli/commands/project.md](../libtv-cli/commands/project.md) |
+| libtv CLI 项目/工作区 | [libtv-cli/commands/workspace.md](../libtv-cli/commands/workspace.md) |
+
+### libtv CLI v1.1.1 关键行为变化
+
+`libtv` 从 v1.1.0 起有以下影响视频导演工作流的变化：
+
+| 变化 | 对视频导演的影响 |
+|------|------------------|
+| **`--left`/`--right` 改为 ensure 模式** | 不会删除未在列表中指定的已有边。需要增删时用 `--left-add`/`--left-rm` |
+| **`node --run` 阻塞等待终态** | `libtv node <名> --run` 内部完成轮询并输出终态 JSON，外部不要再封装轮询 |
+| **`group --run` 阻塞等待终态** | `libtv group <组名> --run` 阻塞等待全部节点完成，stderr 每 ~3 分钟输出进度，stdout 输出终态 JSON |
+| **`project use` 同步 workspaceId + teamId** | 不影响现有流程，但 `.libtv/project.json` 会多出 workspace/team 字段 |
+| **`{{Node "节点名"}}` prompt 占位符** | 可替代 `{{Image N}}` 更可靠地引用已连线的上游节点 |

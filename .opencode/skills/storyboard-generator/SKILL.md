@@ -1,5 +1,5 @@
 ---
-name: storyborad-generator
+name: storyboard-generator
 description: 将分集剧本拆解为电影级分镜头脚本（结构化JSON），输出独立组JSON格式的分镜任务表。[可选]按需生成分镜图生图任务表，配套Seedance 2.0 Fast模型实现分镜→视频桥接。分镜导演Agent依据此技能执行分镜制作。当任务涉及生成分镜脚本、镜头分解、分镜图任务表时加载此技能。注意：这是底层执行技能，由分镜导演 Agent 按需加载，不直接响应路由。
 ---
 
@@ -17,40 +17,22 @@ description: 将分集剧本拆解为电影级分镜头脚本（结构化JSON）
 
 ## LLM 调用
 
-通过 MCP tool `grsai_call_llm` 执行 LLM 调用。
+`run_pipeline.py` 直接 import MCP server 的 `grsai_client.call_llm()` 进程内调用 LLM（统一凭证源 `credentials.json`），无需子进程中转。
 
-### 单次调用
+### 内部调用链
 
 ```
-tool: grsai_call_llm
-input:
-  messages:
-    - role: "system"
-      content: "你是一个专业的分镜脚本..."
-    - role: "user"
-      content: "请将以下剧本拆解为分镜..."
-  model: "gemini-3.1-pro"
-  temperature: 0.7
-```
-
-### 返回格式
-
-```json
-{
-  "content": "LLM 输出的 JSON 文本...",
-  "finish_reason": "stop",
-  "usage": {"prompt_tokens": 1200, "completion_tokens": 3000, "total_tokens": 4200}
-}
+run_pipeline.py
+  └─ import → grsai_client.call_llm()  ← MCP server 模块
+               └─ HTTP POST → GRSAI API
 ```
 
 ### 长剧本分片模式
 
 当剧本超过 2000 字时，使用分片策略：
-1. 调用 `shard_manager.py` 分片（CLI，保留不变）
-2. 每个分片调用 `grsai_call_llm` tool（可并发）
-3. 调用 `shard_manager.py --merge` 合并（CLI，保留不变）
-
-分片模式下，agent 并发调用多个 `grsai_call_llm` tool，每个分片独立。
+1. `shard_manager.py` 分片
+2. `run_pipeline.py` 进程内 `ThreadPoolExecutor` 并发调用 `grsai_client.call_llm()`
+3. `shard_manager.py --merge` 合并
 
 ---
 

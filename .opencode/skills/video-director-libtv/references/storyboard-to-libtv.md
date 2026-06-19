@@ -25,6 +25,7 @@
 | `model` | `--set model=<值>` | 视频模型 modelKey |
 | `mode` | `--set modeType=<值>` | 生成模式，如 `mixed2video`、`text2video` |
 | `enable_sound` | `--set enableSound=on/off` | `true` → `on`，`false` → `off` |
+| — | `--set scene=<值>` | v1.1.1+ 模型 schema 可选业务场景字段，由 `libtv model <modelKey>` 决定
 
 ---
 
@@ -54,6 +55,17 @@
 
 - `--left` 传入顺序决定编号，第一个 → `{{Image 1}}`
 - `--prompt` 写入不会重算 `imageList`，可在创建后安全更新
+
+### 2.4 `{{Node "..."}}` 占位符（v1.1.1+ 推荐）
+
+v1.1.1+ 支持按**节点展示名**引用已连线上游节点，不再依赖 `{{Image N}}` 编号：
+
+```bash
+"请参考场景氛围{{Node \"场景参考_01\"}}和角色形象{{Node \"角色参考_01\"}}进行画面生成"
+```
+
+- 节点名在画布内唯一时优先使用此方式
+- 遇重名先用 `libtv node <名>` 查询 `nodeKey`，改用 `{{Node <nodeKey>}}`
 
 ---
 
@@ -120,7 +132,11 @@ def get_duration(group_json):
 
 ### 6.3 连线示例
 
-`--left` 顺序决定 `{{Image N}}` 编号：
+`--left` 顺序决定 `{{Image N}}` 编号。
+
+**v1.1.1+ 注意**：`--left`/`--right` 改为 **ensure 模式**——只确保列出的节点已连线，不会删除未列出的已有边。需要增删时：
+- 追加：`--left-add <节点>` / `--left-rm <节点>`
+- 全量替换：先用 `--left-rm` 移除旧的、再加 `--left`（或 `--left-add`）新的
 
 **分镜图模式（use_storyboard_images=true）：**
 ```bash
