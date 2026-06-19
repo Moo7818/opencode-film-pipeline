@@ -25,11 +25,26 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 | Windows (Git Bash/WSL) | `.venv/Scripts/python.exe` | `.venv/Scripts/activate` |
 
 ### MCP 服务器配置
-opencode.json 使用**绝对路径**指定 Python 解释器（因为 `{env:*}` 在 config 解析时 `.env` 尚未加载）：
+opencode.json 使用 `.opencode/scripts/mcp_python.sh` 作为 Python 启动器，运行时自动检测 `.venv/bin/python3`（Unix）或 `.venv/Scripts/python.exe`（Windows）：
 ```json
-"command": ["/absolute/path/to/.venv/bin/python3", ".opencode/mcp-servers/grsai-server/server.py"]
+"command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/grsai-server/server.py"]
 ```
-运行 `.opencode/scripts/setup_venv.sh` 会自动生成 `.env` 文件，但需手动将路径写入 opencode.json。
+
+**部署流程（新机器）：**
+```bash
+# 1. 安装 uv（如未安装）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. 创建虚拟环境并安装依赖
+uv sync
+
+# 3. 配置 credentials
+# 将 credentials.json 放入 .opencode/mcp-servers/grsai-server/
+
+# 4. 重启 opencode
+```
+
+> `{env:*}` 在 config 解析时 `.env` 尚未加载，因此用包装脚本而非 env 变量引用路径。
 
 ## 文件操作规则
 - 项目业务文件存放在 `project/` 目录下

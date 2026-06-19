@@ -52,14 +52,10 @@ EOF
 
 echo "✓ 已生成 .env 文件"
 
-# 检查 opencode.json 中的 MCP Python 路径是否需要更新
-if ! grep -q "$PROJECT_ROOT/.venv/bin/python3" opencode.json 2>/dev/null; then
-    echo ""
-    echo "⚠️  opencode.json 中的 MCP Python 路径可能未更新"
-    echo "   建议更新为: $PROJECT_ROOT/.venv/bin/python3"
-    echo "   （注意：{env:*} 在 config 解析时 .env 尚未加载，须使用绝对路径）"
-    echo ""
-fi
+# 检查 setup_venv.sh 脚本自身完整性
+echo ""
+echo "✅ 如需配置 MCP 服务器，已将启动器指向 mcp_python.sh"
+echo "   确保 opencode.json 使用: .opencode/scripts/mcp_python.sh"
 
 echo ""
 echo "=== 初始化完成 ==="
