@@ -239,18 +239,15 @@ def _process_urls(urls, cos_config, timestamp=None):
     return result, uploaded
 
 
-def generate_image(prompt, model, aspect_ratio=None, image_size=None,
-                   reference_images=None, oss_id=None, oss_path=None,
-                   cos_config=None, timestamp=None,
-                   poll_delay=14, poll_interval=5, max_poll_rounds=60):
-    """单张图像生成，阻塞直到完成或超时"""
+def submit_image(prompt, model, aspect_ratio=None, image_size=None,
+                 reference_images=None, oss_id=None, oss_path=None,
+                 cos_config=None, timestamp=None):
+    """提交图像生成任务，立即返回 task_id，不等待完成"""
     host = get_host()
     api_key = get_api_key()
 
-    # 1. 处理参考图
     processed_urls, uploaded_refs = _process_urls(reference_images, cos_config, timestamp)
 
-    # 2. 构建请求体
     headers = {"Authorization": f"Bearer {api_key}"}
     if oss_id:
         headers["oss-id"] = oss_id
@@ -272,12 +269,10 @@ def generate_image(prompt, model, aspect_ratio=None, image_size=None,
     if processed_urls:
         data["images"] = processed_urls if isinstance(processed_urls, list) else [processed_urls]
 
-    # 3. 提交
     resp_text = _api_request(f"{host}/v1/api/generate", headers, data, timeout=30)
     result = _parse_response(resp_text)
     task_id = _extract_task_id(result)
 
-    # 4. 检查即时结果
     status = _extract_status(result)
     if status in ("failed", "violation"):
         return {"status": "failed", "error": _extract_failure_reason(result),
@@ -293,7 +288,15 @@ def generate_image(prompt, model, aspect_ratio=None, image_size=None,
         return {"status": "failed", "error": "未返回 task_id",
                 "task_id": None, "uploaded_refs": uploaded_refs}
 
-    # 5. 轮询
+    return {"status": "submitted", "task_id": task_id, "uploaded_refs": uploaded_refs,
+            "message": f"任务已提交，task_id={task_id}，请使用 poll_image() 查询结果"}
+
+
+def poll_image(task_id, host=None, api_key=None, poll_delay=14, poll_interval=5, max_poll_rounds=60):
+    """根据 task_id 轮询图像生成结果，阻塞直到完成或超时"""
+    host = host or get_host()
+    api_key = api_key or get_api_key()
+
     time.sleep(poll_delay)
     for _ in range(max_poll_rounds):
         time.sleep(poll_interval)
@@ -306,15 +309,34 @@ def generate_image(prompt, model, aspect_ratio=None, image_size=None,
             status = _extract_status(result)
             if status in ("failed", "violation"):
                 return {"status": "failed", "error": _extract_failure_reason(result),
-                        "task_id": task_id, "uploaded_refs": uploaded_refs}
+                        "task_id": task_id}
             if status == "succeeded":
                 image_url = _extract_image_url(result)
                 if image_url:
                     return {"status": "completed", "image_url": image_url,
-                            "oss_url": _extract_oss_url(result), "task_id": task_id,
-                            "uploaded_refs": uploaded_refs}
+                            "oss_url": _extract_oss_url(result), "task_id": task_id}
         except Exception:
             continue
 
     return {"status": "timeout", "error": f"轮询超时 {max_poll_rounds * poll_interval}s",
-            "task_id": task_id, "uploaded_refs": uploaded_refs}
+            "task_id": task_id}
+
+
+def generate_image(prompt, model, aspect_ratio=None, image_size=None,
+                   reference_images=None, oss_id=None, oss_path=None,
+                   cos_config=None, timestamp=None,
+                   poll_delay=14, poll_interval=5, max_poll_rounds=60):
+    """单张图像生成，阻塞直到完成或超时（submit_image + poll_image 的组合）"""
+    submit_result = submit_image(
+        prompt=prompt, model=model, aspect_ratio=aspect_ratio, image_size=image_size,
+        reference_images=reference_images, oss_id=oss_id, oss_path=oss_path,
+        cos_config=cos_config, timestamp=timestamp,
+    )
+
+    if submit_result.get("status") != "submitted":
+        return submit_result
+
+    return poll_image(
+        task_id=submit_result["task_id"],
+        poll_delay=poll_delay, poll_interval=poll_interval, max_poll_rounds=max_poll_rounds,
+    )
