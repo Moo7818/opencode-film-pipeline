@@ -184,9 +184,9 @@ def grsai_batch_generate(
                 return item
             result = poll_image(
                 task_id=item["task_id"],
-                poll_delay=10,
+                poll_delay=14,
                 poll_interval=5,
-                max_poll_rounds=20,
+                max_poll_rounds=60,
             )
             # 下载
             if result.get("status") == "completed" and result.get("image_url"):
