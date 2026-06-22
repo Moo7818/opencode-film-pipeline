@@ -88,17 +88,24 @@ libtv node "组1" --prompt "请参考场景氛围{{Node \"场景参考_01\"}}和
 直接在 `create` 命令中写入含引用行的完整 prompt：
 
 ```bash
-libtv node create "组1" -t video \
-  --prompt "请参考场景氛围{{Image 1}}和角色形象{{Image 2}}进行画面生成
+# 用临时脚本传递 prompt（避免引号嵌套和长度限制）
+$prompt = @"
+请参考场景氛围{{Image 1}}和角色形象{{Image 2}}进行画面生成
 
 画面严禁出现任何字幕，无配乐
 ---
-{完整的组 JSON 内容}" \
-  --set model=Seedance 2.0 VIP \
-  --set modeType=mixed2video \
-  --set count=1 \
-  --set ratio=16:9 \
-  --set duration=5 \
+{完整的组 JSON 内容}
+"@
+
+$script = @"
+`$env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
+libtv node create "组1" -t video `
+  --prompt "$prompt" `
+  --set model="Seedance 2.0 VIP" `
+  --set modeType=mixed2video `
+  --set count=1 `
+  --set ratio=16:9 `
+  --set duration=5 `
   --set enableSound=on \
   --left 场景参考_01 --left 角色参考_01
 ```

@@ -107,6 +107,67 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 
 无参考图时跳过引用行和空行，直接用约束行 + 分隔线 + JSON。
 
+## Prompt 传递方式
+
+**禁止**将完整 prompt 直接作为 `--prompt "..."` 内联参数传递到 CLI。分镜 JSON 含大量特殊字符（引号、换行），直接内联会导致：
+- PowerShell 引号嵌套爆炸
+- Windows 命令行长度限制（8191 字符）
+
+**必须使用临时 PowerShell 脚本**传递 prompt。标准流程：
+
+```powershell
+# 1. 写临时脚本到 temp/ 目录
+$script = @"
+`$env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
+
+libtv node create "组1" -t video `
+  --prompt @"
+请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
+
+画面严禁出现任何字幕，无配乐
+---
+{组 JSON 内容，原样拷贝}
+"@ `
+  --set model="Seedance 2.0 VIP" `
+  --set modeType=mixed2video `
+  --set duration=5 `
+  --left 角色_一岛 `
+  --left 场景_现代南京长江边
+"@
+
+# 2. 写入 temp/ 目录（不在 temp/ 之外创建文件）
+Set-Content -Encoding UTF8 -Path "temp/create_group1.ps1" -Value $script
+
+# 3. 执行
+pwsh -File "temp/create_group1.ps1"
+```
+
+优势：
+- **无引号嵌套**：PowerShell `@""@` here-string 内可自由包含 `"` 和换行
+- **无长度限制**：脚本文件不受 8191 字符限制
+- **便于调试**：脚本文件可作为执行记录保留（`temp/` 目录文件禁止删除）
+
+### 两阶段更新 prompt
+
+两阶段方式中，更新 prompt 同样使用 temp 脚本：
+
+```powershell
+$script = @"
+`$env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
+
+libtv node "组1" --prompt @"
+请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
+
+画面严禁出现任何字幕，无配乐
+---
+{组 JSON 内容，原样拷贝}
+"@
+"@
+
+Set-Content -Encoding UTF8 -Path "temp/update_prompt_group1.ps1" -Value $script
+pwsh -File "temp/update_prompt_group1.ps1"
+```
+
 ### ⛔ Prompt 硬约束（必须遵守）
 
 1. **引用描述用自然语言**：根据参考图文件名中的语义信息（场景/角色/道具/光影等）写出自然的描述，不要使用"角色形象参考"等固定短语
