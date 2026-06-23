@@ -9,12 +9,35 @@
 | 分镜分组路径 | `{项目根}/{剧集号}/分镜/分组/` | 包含 `组1.json` ~ `组{N}.json` |
 | project_config.json | `.meta/projects/{uuid}/project_config.json` | 全局视频参数（字段定义见 `.opencode/schemas/project-config.json`） |
 
-## 步骤 2：绑定画布并写入 canvas_uuid
+## 步骤 2a：创建/切换到项目工作区（workspace）
 
-如果 `project_config.json` 的 `canvas_uuid` 为空，视频导演首次运行时需读取 `.libtv/project.json` 获取 UUID，绑定后写回配置：
+每个项目应有独立的 libtv workspace。首次运行时需创建工作区，后续运行时切换到已有工作区：
 
 ```bash
-# 从 .libtv/project.json 读取画布 UUID
+# 检查是否已有项目的工作区（从 project_config.json 或 .libtv/project.json 读取 workspaceId）
+# 如果没有，创建一个新的工作区
+libtv workspace create "{项目名}"
+
+# 切换到工作区（写入 .libtv/project.json 的 workspaceId）
+libtv workspace use <workspaceId>
+```
+
+> **说明**：`libtv workspace create` 会创建新工作区并返回 workspaceId。创建后需执行 `libtv workspace use` 完成绑定。
+
+## 步骤 2b：创建/绑定画布（canvas）
+
+如果 `project_config.json` 的 `canvas_uuid` 为空，视频导演需要在当前 workspace 下创建新画布：
+
+```bash
+# 在当前工作区下创建画布
+# 画布名称建议格式：{项目名}_{剧集号}
+libtv project create "画布名称" --ratio 9:16
+```
+
+创建画布后，从输出中获取画布 UUID，绑定并写入配置：
+
+```bash
+# 读取新创建的画布 UUID
 $canvasUuid = (Get-Content -Encoding UTF8 -Raw ".libtv/project.json" | ConvertFrom-Json).projectUuid
 
 # 绑定画布（v1.1.1+ 还会同步写入画布所属的 workspaceId + teamId）
@@ -26,6 +49,8 @@ $config = Get-Content -Encoding UTF8 -Raw $configPath | ConvertFrom-Json
 $config.canvas_uuid = $canvasUuid
 $config | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $configPath
 ```
+
+如果 `canvas_uuid` 已存在，直接使用 `libtv project use <canvas_uuid>` 绑定。
 
 ## 步骤 3：上传参考素材为画布资源节点
 
@@ -40,6 +65,15 @@ libtv upload "<素材显示名>" -t image -f "<本地绝对路径>"
 
 **命名规则**：`{素材类型}_{序号}`，如 `角色参考_01`、`分镜图_组1`。
 
+**音色参考上传**（项目有音色参考时执行）：
+根据分镜组中角色的台词/音效信息，匹配对应的音色参考 WAV 文件并上传：
+```bash
+libtv upload "音色_吉小泰" -t audio -f "project/{项目名}/全局依赖/音色参考/吉小泰-音色参考.wav"
+```
+上传命名规则：`音色_{角色名}`（如 `音色_吉小泰`、`音色_妈妈`）。
+
+上传后的音色参考节点通过 `--left 音色_{角色名}` 连线到对应 video 节点。音色参考属于 audio 类型素材，使用 `{{Audio N}}` 在 prompt 中引用，其中 `N` 为 `--left` 中 audio 节点的排列序号（从 1 开始）。所有 image 节点在前、audio 节点在后排列 `--left` 参数，确保 `{{Image N}}` 和 `{{Audio N}}` 编号互不干扰。
+
 ## 步骤 4：创建 video 节点（两种方式）
 
 ### 4.1 字段映射
@@ -51,16 +85,20 @@ libtv upload "<素材显示名>" -t image -f "<本地绝对路径>"
 
 ### 4.2 Prompt 格式
 
-有参考图时：
+有参考图时，参考以下格式拼接 prompt（非强制，可根据需要调整引用措辞）：
+
+引用行示例：`请参考吉小泰角色相貌参考{{Image 1}}、现代家庭客厅场景参考{{Image 2}}进行画面生成`
+
+实际 prompt 结构：
 ```
-请参考{自然描述}{{Image 1}}、{自然描述}{{Image 2}}进行画面生成
+{引用行（可选，灵活编写）}
 
 画面严禁出现任何字幕，无配乐
 ---
 {完整的组 JSON 内容，原样拷贝，严禁修改}
-
-自然描述根据参考图文件名而定，如 `一岛角色相貌参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}`
 ```
+
+> 引用行的文字措辞由视频导演根据实际参考素材自行编写，无需遵循固定模板。例如：`请参考角色相貌{{Image 1}}和场景{{Image 2}}` 或 `参照人物形象{{Image 1}}和场景氛围{{Image 2}}生成` 均可。
 
 无参考图时跳过引用行和空行。
 
@@ -71,6 +109,20 @@ libtv upload "<素材显示名>" -t image -f "<本地绝对路径>"
 - **`--left`/`--right` 改为 ensure 模式**：只确保列出的节点已连线，**不会删除**已在画布上但未列出的边
 - 需要增删已有连线时，使用 `--left-add <节点>` / `--left-rm <节点>`（增量追加/移除）
 - `--prompt` 写入不会重算 `imageList`，可以安全地在创建后更新 prompt
+
+### 4.3.1 `{{Audio N}}` 编号规则（v1.1.1+）
+
+audio 类型节点的 `{{Audio N}}` 编号规则：
+
+1. `--left` 中 audio 节点的排列顺序决定 `{{Audio N}}` 编号，第一个 audio 节点 → `{{Audio 1}}`
+2. `{{Audio N}}` 与 `{{Image N}}` 是独立的编号体系，互不影响
+3. 推荐将所有 image 节点排在 `--left` 前面、所有 audio 节点排在后面，使两类编号都清晰可读
+4. 在 prompt 中使用 `{{Audio 1}}` 引用第一个音色参考
+
+示例 prompt：
+```
+请参考角色形象{{Image 1}}和场景氛围{{Image 2}}进行画面生成，角色音色请参考{{Audio 1}}
+```
 
 ### 4.4 `{{Node "..."}}` prompt 占位符（v1.1.1+）
 
@@ -107,7 +159,8 @@ libtv node create "组1" -t video `
   --set ratio=16:9 `
   --set duration=5 `
   --set enableSound=on \
-  --left 场景参考_01 --left 角色参考_01
+  --left 场景参考_01 --left 角色参考_01 \
+  --left 音色_吉小泰   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
 ```
 
 ### 4.6 方式二：两阶段（推荐）
@@ -127,7 +180,8 @@ libtv node create "组1" -t video \
   --set ratio=16:9 \
   --set duration=5 \
   --set enableSound=on \
-  --left 场景参考_01 --left 角色参考_01 --left 道具参考_01
+  --left 场景参考_01 --left 角色参考_01 --left 道具参考_01 \
+  --left 音色_吉小泰   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
 ```
 
 **阶段 2** — 查询 `imageList` 后 `--prompt` 写入引用行：

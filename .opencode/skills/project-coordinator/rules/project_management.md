@@ -177,7 +177,7 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `type` | string | 产物类型：`raw_script` / `script` / `character_design` / `storyboard` / `poster` / `reference` / `setting` / `other` |
+| `type` | string | 产物类型：`raw_script` / `script` / `character_design` / `storyboard` / `poster` / `reference` / `setting` / `audio_reference` / `other` |
 | `status` | string | `draft` / `review` / `final` / `deprecated` |
 | `hash` | string | 文件内容 SHA-256，用于检测变更 |
 | `tags` | string[] | 自定义标签，方便检索 |
@@ -227,6 +227,7 @@ agent 在创建或更新产物时，应同步更新 `manifest.json`。`deprecate
 | `poster` | `episode` + `filename` | `project/{name}/{episode}/海报设计/{filename}` |
 | `setting` | `filename` | `project/{name}/全局依赖/全局设定/{filename}` |
 | `reference` | `subtype` + `filename` | `project/{name}/前期采样/{subtype}/{filename}` |
+| `audio_reference` | `filename` | `project/{name}/全局依赖/音色参考/{filename}` |
 | `other` | 按 `path` 字段直接使用 | `project/{name}/{path}` |
 
 ### 3.2 变量说明

@@ -347,5 +347,6 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
 | `storyboard` | `project/{name}/{episode}/分镜/{filename}` |
 | `poster` | `project/{name}/{episode}/海报设计/{filename}` |
 | `setting` | `project/{name}/全局依赖/全局设定/{filename}` |
+| `audio_reference` | `project/{name}/全局依赖/音色参考/{filename}` |
 
 监控 `events.jsonl` 可以重建任意时刻的项目状态快照。

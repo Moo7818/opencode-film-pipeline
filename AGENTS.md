@@ -60,6 +60,21 @@ pwsh -Command "命令"
 ```powershell
 chcp 65001; 要执行的命令
 ```
+
+### ⚠️ `bash tool` 调用注意事项
+bash tool 的 shell 已经是 pwsh，因此：
+- **禁止嵌套** `pwsh -Command "..."`，直接执行命令即可
+- 传中文参数必须用**单引号**包裹（如 `-Name '中文名'`），阻止外层 pwsh 展开
+- 设置环境变量在同一作用域用 `$env:KEY='val'`，勿传入内层命令
+
+```powershell
+# ✅ 正确：直接在 bash tool 中执行
+$env:PYTHONIOENCODING='utf-8'; & script.ps1 -Name '项目名称' -Path 'D:\路径\含中文\文件.wav'
+
+# ❌ 错误：嵌套 pwsh 会导致 $env: 被外层展开
+pwsh -Command "$env:PYTHONIOENCODING='utf-8'; & script.ps1"
+```
+
 所有文件读写必须显式指定 `-Encoding UTF8`：
 - 读取：`Get-Content -Encoding UTF8 -Raw "路径"`
 - 写入：`Set-Content -Encoding UTF8 "路径" -Value "内容"`

@@ -11,6 +11,13 @@
     --refs "组7:场景_现代南京长江边,角色_一岛,角色_郑和,道具_平板" ^
     --refs "组8:场景_现代南京长江边,角色_一岛,角色_郑和"
 
+  # 完整流程 + 音色参考
+  python run_video_pipeline.py --build ^
+    --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+    --groups 7 8 9 --model star-video2 --ratio 16:9 ^
+    --refs "组7:场景_现代南京,角色_一岛" ^
+    --voice-refs 吉小泰 妈妈 女儿
+
   # 完整流程 + 运行（group --run 阻塞等待）
   python run_video_pipeline.py --build ... --run
 
@@ -180,6 +187,43 @@ def upload_references(project_root, canvas_cache):
     return ref_nodes
 
 
+def upload_voice_refs(project_root, role_names):
+    """上传音色参考（WAV）到画布，返回上传成功的节点名列表。"""
+    voice_ref_dir = os.path.join(project_root, "全局依赖", "音色参考")
+    voice_nodes = []
+
+    print("\n" + "=" * 60)
+    print("上传音色参考到画布")
+    print("=" * 60)
+
+    if not os.path.isdir(voice_ref_dir):
+        print(f"  ⚠ 音色参考目录不存在: {voice_ref_dir}")
+        return voice_nodes
+
+    for role_name in role_names:
+        role_name = role_name.strip()
+        if not role_name:
+            continue
+
+        wav_path = os.path.join(voice_ref_dir, f"{role_name}-音色参考.wav")
+        if not os.path.exists(wav_path):
+            print(f"  ⚠ 未找到 {role_name} 的音色参考文件: {wav_path}")
+            continue
+
+        node_name = f"音色_{role_name}"
+        rel = os.path.relpath(wav_path, project_root)
+        print(f"  {rel} → {node_name}...", end=" ")
+        result = run_libtv(["upload", node_name, "-t", "audio", "-f", wav_path])
+        if result:
+            voice_nodes.append(node_name)
+            print("✅")
+        else:
+            print("❌")
+
+    print(f"  音色参考就绪: {len(voice_nodes)} 个")
+    return voice_nodes
+
+
 def build_ref_description(ref_name, idx):
     """根据参考图名称生成 Image N 描述。
     --left 顺序决定 {{Image N}} 编号，第一个 --left 为 {{Image 1}}"""
@@ -199,13 +243,32 @@ def build_ref_description(ref_name, idx):
         return f"参考图{{{{Image {idx}}}}}"
 
 
-def build_prompt(group_json, ref_names):
+def build_prompt(group_json, ref_names, voice_ref_names=None, ref_prefix="请参考", ref_suffix="进行画面生成", audio_connector="，"):
     """构建完整 prompt：引用行 + 约束行 + 分隔线 + JSON。
-    引用行中的 {{Image N}} 编号与 --left 顺序一致。"""
+    引用行中的 {{Image N}} 编号与 --left 顺序一致。
+    含音色参考时在 prompt 末尾追加 {{Audio N}} 引用。
+    可通过 ref_prefix/ref_suffix/audio_connector 自定义引用措辞。"""
     raw_json = json.dumps(group_json, ensure_ascii=False)
     if ref_names:
         ref_parts = [build_ref_description(n, i+1) for i, n in enumerate(ref_names)]
-        ref_line = "请参考" + "、".join(ref_parts) + "进行画面生成"
+        ref_line = ref_prefix + "、".join(ref_parts) + ref_suffix
+        if voice_ref_names:
+            # voice_ref_names 是节点名列表，如 ["音色_吉小泰", "音色_妈妈"]
+            # 从节点名中提取角色名（去掉 "音色_" 前缀）
+            audio_parts = []
+            for i, vn in enumerate(voice_ref_names):
+                role = vn.replace("音色_", "", 1) if vn.startswith("音色_") else vn
+                audio_parts.append(f"{role}角色音色请参考{{{{Audio {i+1}}}}}")
+            ref_line += audio_connector + "、".join(audio_parts)
+        return f"{ref_line}\n\n{CONSTRAINT}\n{SEPARATOR}\n{raw_json}"
+    if voice_ref_names:
+        # voice_ref_names 是节点名列表，如 ["音色_吉小泰", "音色_妈妈"]
+        # 从节点名中提取角色名（去掉 "音色_" 前缀）
+        audio_parts = []
+        for i, vn in enumerate(voice_ref_names):
+            role = vn.replace("音色_", "", 1) if vn.startswith("音色_") else vn
+            audio_parts.append(f"{role}角色音色请参考{{{{Audio {i+1}}}}}")
+        ref_line = ref_prefix + "、".join(audio_parts) + ref_suffix
         return f"{ref_line}\n\n{CONSTRAINT}\n{SEPARATOR}\n{raw_json}"
     return f"{CONSTRAINT}\n{SEPARATOR}\n{raw_json}"
 
@@ -252,6 +315,11 @@ def build_pipeline(args):
     canvas_cache = build_canvas_cache(canvas_uuid)
     ref_nodes = upload_references(project_root, canvas_cache)
 
+    # ========== 步骤2.5: [可选] 上传音色参考 ==========
+    voice_ref_nodes = []
+    if args.voice_refs:
+        voice_ref_nodes = upload_voice_refs(project_root, args.voice_refs)
+
     # ========== 步骤3: 创建 video 节点（一次性完成 + 连线 + 引用行） ==========
     print("\n" + "=" * 60)
     print("步骤3: 创建 video 节点（一次性完成 + 连线 + 引用行）")
@@ -284,8 +352,8 @@ def build_pipeline(args):
             available_refs.extend(match_ref_name(r, ref_nodes))
         available_refs = list(dict.fromkeys(available_refs))
 
-        # --left 顺序决定 {{Image N}} 编号
-        prompt = build_prompt(group, available_refs)
+        # --left 顺序决定 {{Image N}} 和 {{Audio N}} 编号
+        prompt = build_prompt(group, available_refs, voice_ref_nodes)
 
         mode_type = "mixed2video" if available_refs else "text2video"
 
@@ -302,8 +370,11 @@ def build_pipeline(args):
         ]
         for ref_name in available_refs:
             cmd += ["--left", ref_name]
+        for vn in voice_ref_nodes:
+            cmd += ["--left", vn]
 
-        refs_desc = ", ".join(available_refs) if available_refs else "(无参考图)"
+        all_left = list(available_refs) + list(voice_ref_nodes)
+        refs_desc = ", ".join(all_left) if all_left else "(无参考素材)"
         print(f"\n  创建 {group_name}（{duration}s）")
         print(f"    模式: {mode_type} | 连线: {refs_desc}")
 
@@ -420,6 +491,8 @@ def main():
     parser.add_argument("--groups", nargs="+", type=int, default=None, help="组号列表")
     parser.add_argument("--refs", action="append", default=None,
                         help='参考图映射 格式: "组N:类型_名,类型_名"')
+    parser.add_argument("--voice-refs", nargs="*", default=None,
+                        help='音色参考角色列表，如 吉小泰 妈妈 女儿；自动在 project/<项目>/全局依赖/音色参考/ 下查找对应WAV文件并上传连线')
     parser.add_argument("--run", action="store_true", help="执行后运行分组")
     parser.add_argument("--download", action="store_true", help="运行后轮询并下载视频到本地")
     parser.add_argument("--output-dir", default=None, help="视频下载目录（默认: project/<项目>/<剧集>/视频/）")

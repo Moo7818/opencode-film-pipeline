@@ -89,6 +89,7 @@
 | `poster` | `*/海报设计/*.png` |
 | `reference` | `*/前期采样/**`, `*/角色参考图/**` |
 | `setting` | `*/全局设定/*.md` |
+| `audio_reference` | `*/音色参考/*.wav` |
 | `other` | 其他类型产物 |
 
 ## 查询
