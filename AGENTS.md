@@ -88,4 +88,8 @@ pwsh -Command "$env:PYTHONIOENCODING='utf-8'; & script.ps1"
 
 中国网络环境下 GitHub 网络配置方法见 [.opencode/rules/git-network-proxy.md](.opencode/rules/git-network-proxy.md)。
 
+## 凭证管理
+
+系统凭证（libtv 凭据、GRSAI 媒体生成密钥、MCP 服务器凭据）的完整管理流程见 [.opencode/rules/credential-management.md](.opencode/rules/credential-management.md)。
+
 

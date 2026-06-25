@@ -27,7 +27,7 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 
 所有调用 libtv CLI 的命令前必须先设置此环境变量，确保使用 `.opencode/credentials/libtv_credentials.json` 而非默认的 `~/.libtv/credentials.json`。
 
-如果该文件不存在，提示用户先执行 `libtv login web --open` 或 `libtv login phone` 完成登录，然后将生成的 `~/.libtv/credentials.json` 复制到 `.opencode/credentials/libtv_credentials.json`。
+如果该文件不存在，提示用户先执行 `libtv login web --open` 或 `libtv login phone` 完成登录，然后将生成的 `~/.libtv/credentials.json` 复制到 `.opencode/credentials/libtv_credentials.json`。完整的凭证管理（登录、登出、同步、多账号隔离）流程见 `.opencode/rules/credential-management.md`。
 
 ## 参数查找与引用
 
