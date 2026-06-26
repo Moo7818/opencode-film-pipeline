@@ -15,3 +15,7 @@
 .opencode/**/__pycache__/**
 .opencode/**/*.pyc
 .opencode/temp/**
+
+# MCP server venvs and storage
+.opencode/mcp-servers/*/.venv/
+.opencode/mcp-storage/

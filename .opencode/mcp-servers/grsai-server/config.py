@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """凭证加载模块
 
-加载优先级：环境变量 > 同目录 credentials.json
+加载优先级：环境变量 > 系统级凭证 .opencode/credentials/media_gen_config.json
 """
 
 import json
@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-CONFIG_FILE = Path(__file__).parent / "credentials.json"
+CONFIG_FILE = Path(__file__).resolve().parents[3] / "credentials" / "media_gen_config.json"
 
 # 环境变量 key 名
 CFG_API_KEY = "GRSAI_API_KEY"

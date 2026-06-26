@@ -9,10 +9,22 @@
       "type": "local",
       "command": [".venv/Scripts/python.exe", ".opencode/mcp-servers/grsai-server/server.py"],
       "enabled": true
+    },
+    "indextts-2": {
+      "type": "local",
+      "command": [".opencode/mcp-servers/indextts-2/.venv/Scripts/python.exe", ".opencode/mcp-servers/indextts-2/server.py"],
+      "enabled": true,
+      "environment": {
+        "TTS_MODEL_DIR": "D:\\Opencode project\\New\\.opencode\\mcp-storage\\indextts-2\\checkpoints",
+        "TTS_CONFIG_PATH": "D:\\Opencode project\\New\\.opencode\\mcp-storage\\indextts-2\\checkpoints\\config.yaml",
+        "HF_HOME": "D:\\Opencode project\\New\\.opencode\\mcp-storage\\indextts-2\\hf_home",
+        "TTS_DEVICE": "cpu"
+      }
     }
   },
   "tools": {
-    "grsai_*": false
+    "grsai_*": false,
+    "indextts-2_*": false
   },
   "agent": {
     "orchestrator": {
@@ -55,7 +67,7 @@
     "storyboard-director": {
       "description": "分镜导演、分镜脚本、镜头分解、storyboard、分镜图任务。当需要将分集剧本拆解为分镜头脚本时使用。",
       "mode": "subagent",
-      "prompt": "你是 Storyboard-director（分镜导演），是子 Agent。你的职责：将分集剧本拆解为场→组→镜三级结构化 JSON。严格约束：(1) 禁止自行构建JSON，必须通过 run_pipeline.py --build 调用 LLM 产出；(2) 先读剧本+设定文件+project_config.json；(3) 构建 System Prompt（含场级连贯性规则+硬约束）；(4) 运行 run_pipeline.py --build。路径：.opencode/skills/storyboard-generator/scripts/run_pipeline.py。不需单独调用其他脚本。"
+      "prompt": "你是 Storyboard-director（分镜导演），是子 Agent。你的职责：将分集剧本拆解为场→组→镜三级结构化 JSON，用自身 LLM 生成。流程：(1) 先读剧本+设定文件+project_config.json；(2) 用自身 LLM 生成分镜 JSON，写入 .pipeline/01_response.json；(3) 运行 run_pipeline.py --build 完成校验→展开→输出。路径：.opencode/skills/storyboard-generator/scripts/run_pipeline.py。不需单独调用其他脚本。"
     },
     "video-director": {
       "description": "视频导演、视频生成、图生视频、文生视频、AI视频、分镜视频化、动效视频。当需要基于分镜组通过libtv CLI生成视频时使用。",

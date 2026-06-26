@@ -3,26 +3,13 @@
 所有 agent 使用中文推理和对话。
 
 ## Python 环境
-- 虚拟环境路径：`.venv/`（项目根目录下）
+- 虚拟环境路径：`.venv/`（项目根目录）
 - Python 版本：3.13.x（uv 管理）
-- 依赖管理：`uv sync` 同步，`uv add <包>` 新增
+- 依赖声明：`pyproject.toml`（项目根目录）
+- 依赖管理：`uv sync` 安装/同步，`uv add <包>` 新增
 
-### 初次使用初始化
-```bash
-# 1. 安装 uv（如未安装）
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. 初始化虚拟环境并生成 .env
-.opencode/scripts/setup_venv.sh
-
-# 3. 重启 opencode 使 MCP 配置生效
-```
-
-### 跨平台虚拟环境路径
-| 平台 | Python 路径 | 激活方式 |
-|------|------------|---------|
-| macOS/Linux | `.venv/bin/python3` | `source .venv/bin/activate` |
-| Windows (Git Bash/WSL) | `.venv/Scripts/python.exe` | `.venv/Scripts/activate` |
+### 部署流程（新机器）
+见 [.opencode/rules/deployment.md](.opencode/rules/deployment.md)。
 
 ### MCP 服务器配置
 opencode.json 使用 `.opencode/scripts/mcp_python.sh` 作为 Python 启动器，运行时自动检测 `.venv/bin/python3`（Unix）或 `.venv/Scripts/python.exe`（Windows）：
@@ -30,21 +17,7 @@ opencode.json 使用 `.opencode/scripts/mcp_python.sh` 作为 Python 启动器�
 "command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/grsai-server/server.py"]
 ```
 
-**部署流程（新机器）：**
-```bash
-# 1. 安装 uv（如未安装）
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. 创建虚拟环境并安装依赖
-uv sync
-
-# 3. 配置 credentials
-# 将 credentials.json 放入 .opencode/mcp-servers/grsai-server/
-
-# 4. 重启 opencode
-```
-
-> `{env:*}` 在 config 解析时 `.env` 尚未加载，因此用包装脚本而非 env 变量引用路径。
+> 包装脚本自动检测平台路径，无需手动配置 `{env:*}` 或 `.env`。
 
 ## 文件操作规则
 - 项目业务文件存放在 `project/` 目录下

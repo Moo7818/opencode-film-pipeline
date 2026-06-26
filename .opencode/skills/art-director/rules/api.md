@@ -66,10 +66,10 @@
 不确定当前生效的默认模型？运行：
 
 ```bash
-python -c "from grsai_client import call_llm; print('grsai_client OK')"
+python -c "from grsai_client import submit_image; print('grsai_client OK')"
 ```
 
-凭证配置位于 `.opencode/mcp-servers/grsai-server/credentials.json`，格式示例：
+凭证配置位于 `.opencode/credentials/media_gen_config.json`，格式示例：
 
 ```json
 {
@@ -80,7 +80,7 @@ python -c "from grsai_client import call_llm; print('grsai_client OK')"
 
 ## 凭证加载
 
-优先级：环境变量 > `.opencode/mcp-servers/grsai-server/credentials.json`
+优先级：环境变量 > `.opencode/credentials/media_gen_config.json`
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|

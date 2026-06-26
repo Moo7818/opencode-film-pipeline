@@ -3,7 +3,6 @@
 
 提供以下工具：
 - grsai_health_check: 检查 API 连通性和凭证有效性
-- grsai_call_llm: 调用 GRSAI LLM API
 - grsai_submit_image: 提交图像生成任务，立即返回 task_id（不阻塞）
 - grsai_poll_result: 根据 task_id 轮询结果
 - grsai_batch_generate: 批量提交并轮询（注意：任务量大时可能超时，建议分批提交后逐个 poll）
@@ -34,28 +33,6 @@ def grsai_health_check() -> dict:
         "host": host,
         "cos_configured": cos_configured,
     }
-
-
-@mcp.tool()
-def grsai_call_llm(
-    messages: list[dict],
-    model: str = "gemini-3.1-pro",
-    temperature: float = 0.7,
-    max_tokens: int | None = None,
-    timeout: int = 300,
-) -> dict:
-    """调用 GRSAI LLM API，支持 3 次指数退避重试"""
-    from grsai_client import call_llm
-    try:
-        return call_llm(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            timeout=timeout,
-        )
-    except RuntimeError as e:
-        return {"error": str(e)}
 
 
 @mcp.tool()

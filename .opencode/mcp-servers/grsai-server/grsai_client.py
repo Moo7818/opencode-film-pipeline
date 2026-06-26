@@ -9,7 +9,6 @@ Phase 3：图像生成（后续扩展）
 import hashlib
 import json
 import os
-import random
 import sys
 import time
 import urllib.error
@@ -17,80 +16,6 @@ import urllib.parse
 import urllib.request
 
 from config import _cfg, get_api_key, get_host
-
-MAX_RETRIES = 3
-
-
-def call_llm(messages, model=None, temperature=0.7, max_tokens=None, timeout=300):
-    """调用 GRSAI LLM API，支持 3 次指数退避重试
-
-    从 call_llm.py call() 函数提取，保持完全一致的行为。
-
-    Args:
-        messages: [{"role": "system"|"user"|"assistant", "content": "..."}]
-        model: 模型名，默认从配置读取，fallback "gemini-3.1-pro"
-        temperature: 温度，默认 0.7
-        max_tokens: 最大 token 数（可选）
-        timeout: 请求超时秒数，默认 300
-
-    Returns:
-        {"content": str, "finish_reason": str, "usage": dict}
-
-    Raises:
-        RuntimeError: 认证失败、上下文超长、请求错误、网络错误
-    """
-    api_key = get_api_key()
-    host = get_host()
-    model = model or _cfg("GRSAI_LLM_MODEL") or "gemini-3.1-pro"
-
-    body = {
-        "model": model,
-        "stream": False,
-        "messages": messages,
-        "temperature": temperature,
-    }
-    if max_tokens:
-        body["max_tokens"] = max_tokens
-
-    req = urllib.request.Request(
-        url=f"{host.rstrip('/')}/v1/chat/completions",
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
-
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            choice = data["choices"][0]
-            return {
-                "content": choice["message"]["content"],
-                "finish_reason": choice.get("finish_reason"),
-                "usage": data.get("usage", {}),
-            }
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="replace")
-            if e.code in (401, 403):
-                raise RuntimeError(f"认证失败 (HTTP {e.code}): {err_body[:300]}")
-            if e.code == 400 and ("context_length" in err_body.lower() or "token" in err_body.lower()):
-                raise RuntimeError(f"上下文超长 (HTTP 400): {err_body[:300]}")
-            if e.code == 400:
-                raise RuntimeError(f"请求参数错误 (HTTP 400): {err_body[:300]}")
-            if attempt == MAX_RETRIES:
-                raise RuntimeError(f"API 失败 (HTTP {e.code}, 已重试{MAX_RETRIES}次): {err_body[:300]}")
-        except urllib.error.URLError as e:
-            if attempt == MAX_RETRIES:
-                raise RuntimeError(f"网络错误 (已重试{MAX_RETRIES}次): {e.reason}")
-        wait = min(2 ** attempt, 60) * (0.5 + random.random())
-        print(f"  ⚠ 第{attempt}次失败，{wait:.1f}s 后重试...", file=sys.stderr)
-        time.sleep(wait)
-
-    raise RuntimeError("不可达状态")
-
 
 # ─── 图像生成 ─────────────────────────────────────────────
 

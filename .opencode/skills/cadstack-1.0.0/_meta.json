@@ -1,0 +1,8 @@
+{
+  "ownerId": "kn7487yrpc8ydv5qvfepzh6av583f230",
+  "name": "cadstack",
+  "description": "CAD 自动化技能包，通过自然语言描述来生成和执行 CAD 操作。支持多后端 CAD 工具（FreeCAD、AutoCAD、SolidWorks、Fusion 360），包含子技能：/cad、/cad-plan、/cad-review、/cad-qa、/cad-config。当用户需要 CAD 设计、3D 建模、零件设计、工程制图、参数化建模时触发。",
+  "slug": "cadstack",
+  "version": "1.0.0",
+  "publishedAt": 1774248286470
+}

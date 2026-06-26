@@ -163,11 +163,11 @@ def main():
     parser.add_argument("--image-refs", nargs="*", default=None,
                         help="参考图标注列表，如 --image-refs 校长角色 食堂场景 风格")
     parser.add_argument("--model", default=DEFAULT_MODEL,
-                        help=f"模型（默认 {DEFAULT_MODEL}，Seedance 视频推荐 doubao-seedance-2-0-fast-260128）")
+                        help=f"模型（默认 {DEFAULT_MODEL}，视频推荐 doubao-seedance-2-0-fast-260128）")
     parser.add_argument("--image-size", default=DEFAULT_SIZE,
-                        help=f"分辨率（默认 {DEFAULT_SIZE}，Seedance 视频推荐 480p/720p）")
+                        help=f"分辨率（默认 {DEFAULT_SIZE}，视频推荐 480p/720p）")
     parser.add_argument("--aspect-ratio", default=DEFAULT_ASPECT,
-                        help=f"画面比例（默认 {DEFAULT_ASPECT}，Seedance 视频推荐 16:9/9:16/1:1）")
+                        help=f"画面比例（默认 {DEFAULT_ASPECT}，视频推荐 16:9/9:16/1:1）")
     args = parser.parse_args()
 
     groups = []
@@ -179,7 +179,7 @@ def main():
             print(f"从 {groups_dir}/ 读取独立组 JSON")
             groups = load_groups_from_dir(str(groups_dir))
         else:
-            for candidate in ["04_validated.json", "03_merged.json"]:
+            for candidate in ["04_validated.json"]:
                 p = pd / candidate
                 if p.exists():
                     print(f"从 .pipeline/{candidate} 读取（自动检测）")

@@ -1,0 +1,26 @@
+{
+  "skill_name": "gpt-image-2-prompt-studio",
+  "evals": [
+    {
+      "id": 0,
+      "name": "search-and-list-poster-templates",
+      "prompt": "帮我看看 awesome-gpt-image-2 仓库里有哪些海报（poster）模板？列出前 5 个给我看看，要包含 case_id、标题。",
+      "expected_output": "列出 poster 类别的前 5 个模板，包含 case_id 和标题",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "generate-from-template",
+      "prompt": "用 awesome-gpt-image-2 仓库里那个波士顿2026春季城市海报模板（poster_case1），把城市改成广州，帮我生成一张图。风格要水墨风，竖版 9:16。",
+      "expected_output": "生成 JSON 任务表（prompt 中的 Boston 被替换为 Guangzhou），aspectRatio 为 2160x3840（9:16 竖版），model 为 gpt-image-2",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "batch-multiple-portraits",
+      "prompt": "从 awesome-gpt-image-2 的 portrait 模板里，帮我选 3 个胶片风格（film）的人像模板，批量生成任务表。",
+      "expected_output": "生成包含 3 个任务的 JSON 任务表，每个任务都有真实的 portrait 模板 prompt",
+      "files": []
+    }
+  ]
+}
