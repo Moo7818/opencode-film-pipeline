@@ -38,6 +38,9 @@
         "read": {
           ".opencode/skills/**": "deny",
           "*": "allow"
+        },
+        "skill": {
+          "*": "deny"
         }
       },
       "tools": {
