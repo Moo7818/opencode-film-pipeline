@@ -8,6 +8,8 @@ import datetime
 import hashlib
 import hmac
 import os
+import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -75,10 +77,16 @@ def upload_to_cos(local_path, secret_id, secret_key, bucket, region, timestamp=N
 
     content_type = "application/octet-stream"
 
+    # 分块计算 SHA256，避免大文件一次性读入内存
+    sha256_hash = hashlib.sha256()
+    with open(local_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            sha256_hash.update(chunk)
+    content_sha256 = sha256_hash.hexdigest()
+
+    # 读取完整文件内容用于上传请求体
     with open(local_path, "rb") as f:
         data = f.read()
-
-    content_sha256 = hashlib.sha256(data).hexdigest()
     headers = _make_cos_auth_header(
         secret_id, secret_key, bucket, region,
         "PUT", encoded_cos_path, content_type, content_sha256
@@ -87,8 +95,17 @@ def upload_to_cos(local_path, secret_id, secret_key, bucket, region, timestamp=N
     url = f"https://{bucket}.cos.{region}.myqcloud.com{encoded_cos_path}"
     req = urllib.request.Request(url, data=data, method="PUT", headers=headers)
 
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        if resp.status in (200, 204):
-            return url
-        else:
-            raise Exception(f"上传失败：HTTP {resp.status}")
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                if resp.status in (200, 204):
+                    return url
+                raise Exception(f"上传失败：HTTP {resp.status}")
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait = 2 ** attempt
+                print(f"上传失败（{e}），{wait}秒后重试（第{attempt + 2}次）...", file=sys.stderr)
+                time.sleep(wait)
+            else:
+                raise

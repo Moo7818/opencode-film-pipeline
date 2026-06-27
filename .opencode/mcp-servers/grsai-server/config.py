@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-CONFIG_FILE = Path(__file__).resolve().parents[3] / "credentials" / "media_gen_config.json"
+CONFIG_FILE = Path(__file__).resolve().parents[2] / "credentials" / "media_gen_config.json"
 
 # 环境变量 key 名
 CFG_API_KEY = "GRSAI_API_KEY"
@@ -54,7 +54,7 @@ def get_api_key():
     key = _cfg(CFG_API_KEY)
     if not key:
         print(f"缺少 {CFG_API_KEY}，请在 {CONFIG_FILE} 或环境变量中配置", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("缺少GRSAI_API_KEY，请检查环境变量或media_gen_config.json")
     return key
 
 

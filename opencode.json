@@ -7,12 +7,12 @@
   "mcp": {
     "grsai": {
       "type": "local",
-      "command": [".venv/Scripts/python.exe", ".opencode/mcp-servers/grsai-server/server.py"],
+      "command": [".opencode/scripts/mcp_python.bat", ".opencode/mcp-servers/grsai-server/server.py"],
       "enabled": true
     },
     "indextts-2": {
       "type": "local",
-      "command": [".opencode/mcp-servers/indextts-2/.venv/Scripts/python.exe", ".opencode/mcp-servers/indextts-2/server.py"],
+      "command": [".opencode/scripts/mcp_python.bat", ".opencode/mcp-servers/indextts-2/server.py"],
       "enabled": true,
       "environment": {
         "TTS_MODEL_DIR": "D:\\Opencode project\\New\\.opencode\\mcp-storage\\indextts-2\\checkpoints",
@@ -26,6 +26,9 @@
     "grsai_*": false,
     "indextts-2_*": false
   },
+  "experimental": {
+    "mcp_timeout": 600000
+  },
   "agent": {
     "orchestrator": {
       "description": "影视制作管线主控 agent。当需要管理影视项目全流程（创建项目、处理剧本、生成视觉资产、制作剧集视频）时使用。负责识别用户意图、匹配阶段、将任务分发给响应的子 agent（coordinator/producer/character-director/prop-maker/set-designer/art-director/storyboard-director/video-director）。",
@@ -36,6 +39,9 @@
           ".opencode/skills/**": "deny",
           "*": "allow"
         }
+      },
+      "tools": {
+        "grsai_*": true
       }
     },
     "coordinator": {
@@ -46,6 +52,7 @@
     "producer": {
       "description": "监制、剧本处理、提取剧本设定、生成设定文件、分集剧本、monte。当需要从原始剧本提取角色/场景/道具设定、生成分集剧本时使用。涉及历史内容时可使用WebSearch联网检索。",
       "mode": "subagent",
+      "model": "opencode/mimo-2.5-pro-free",
       "prompt": "你是 Producer（监制），是子 Agent。你的职责：从原始剧本提取角色/场景/道具设定，生成分集剧本。流程：扫描项目目录→读取原始剧本→识别历史真实内容→WebSearch检索补充→提取角色设定→提取场景设定→提取道具设定→生成分集剧本→保存文件→输出产物清单。只为核心角色/场景/道具做设定，不为过场角色做。台词原样保留。输出产物清单供主 Agent spawn Coordinator 归档。"
     },
     "character-director": {
@@ -66,7 +73,8 @@
     "storyboard-director": {
       "description": "分镜导演、分镜脚本、镜头分解、storyboard、分镜图任务。当需要将分集剧本拆解为分镜头脚本时使用。",
       "mode": "subagent",
-      "prompt": "你是 Storyboard-director（分镜导演），是子 Agent。你的职责：将分集剧本拆解为场→组→镜三级结构化 JSON，用自身 LLM 生成。流程：(1) 先读剧本+设定文件+project_config.json；(2) 用自身 LLM 生成分镜 JSON，写入 .pipeline/01_response.json；(3) 运行 run_pipeline.py --build 完成校验→展开→输出。路径：.opencode/skills/storyboard-generator/scripts/run_pipeline.py。不需单独调用其他脚本。"
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "你是 Storyboard-director（分镜导演），是子 Agent。你的职责：将分集剧本拆解为场→组→镜三级结构化分镜脚本。默认加载 storyboard-generator 技能，按其中的具体操作说明执行。"
     },
     "video-director": {
       "description": "视频导演、视频生成、图生视频、文生视频、AI视频、分镜视频化、动效视频。当需要基于分镜组通过libtv CLI生成视频时使用。",
@@ -76,7 +84,7 @@
     "art-director": {
       "description": "美术指导、生成图片、绘制参考图、出图、AI绘画、批量图像生成、GRSAI。当需要生成任何图像（角色/场景/道具参考图、分镜图等）时使用。",
       "mode": "subagent",
-      "prompt": "你是 Art-director（美术指导），是子 Agent。你的职责：通过 MCP tool `grsai_batch_generate` 批量生成 AI 图像，或通过 `grsai_generate_image` 单张生成。禁止修改用户提示词。任务表格式符合 .opencode/schemas/image-generation.json。",
+      "prompt": "你是 Art-director（美术指导），是子 Agent。你的职责：通过 MCP tool 调用 GRSAI 生成 AI 图像。批量生图使用 `grsai_batch_generate`，单张生图使用 `grsai_submit_image` + `grsai_poll_result` 两步完成。大批量任务（>10 张）建议用 `batch_type=submit_only` 分批处理。禁止修改用户提示词。任务表格式符合 .opencode/schemas/image-generation.json。MCP 使用规范详见 art-director 技能 SKILL.md。",
       "tools": {
         "grsai_*": true
       }

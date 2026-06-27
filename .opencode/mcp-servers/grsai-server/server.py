@@ -48,7 +48,7 @@ def grsai_submit_image(
     """提交图像生成任务，立即返回 task_id。不阻塞等待生成完成。
     
     返回 status="submitted" 时，请使用 grsai_poll_result 传入 task_id 查询结果。
-    poll 默认参数为 delay=14s, interval=5s, max_rounds=60（总最长 ~314s）。
+    poll 默认参数为 delay=5s, interval=3s, max_rounds=20（总最长 ~65s）。
     """
     from grsai_client import submit_image
     from config import load_cos_config, _cfg, CFG_OSS_ID, CFG_OSS_PATH
@@ -63,24 +63,25 @@ def grsai_submit_image(
             oss_path=oss_path or _cfg(CFG_OSS_PATH),
             cos_config=load_cos_config(),
         )
-    except Exception as e:
+    except ValueError as e:
         return {"error": str(e)}
+    except Exception:
+        return {"error": "提交图像时服务器内部错误"}
 
 
 @mcp.tool()
 def grsai_poll_result(
     task_id: str,
-    poll_delay: int = 14,
-    poll_interval: int = 5,
-    max_poll_rounds: int = 60,
+    poll_delay: int = 5,
+    poll_interval: int = 3,
+    max_poll_rounds: int = 20,
 ) -> dict:
     """根据 task_id 轮询图像生成结果。阻塞直到完成或超时。
     
     推荐策略：
-    - 首次调用后等 10-20s 再 poll
-    - 短轮询：poll_delay=5, poll_interval=3, max_poll_rounds=40（~125s）
-    - 标准轮询：poll_delay=14, poll_interval=5, max_poll_rounds=20（~114s，适配 MCP 120s 超时）
-    - 长任务：poll_delay=20, poll_interval=10, max_poll_rounds=30（~320s）
+    - 首次调用后等 5-10s 再 poll
+    - 默认轮询：poll_delay=5, poll_interval=3, max_poll_rounds=20（~65s，适配 MCP 120s 超时）
+    - 长任务：手动传 max_poll_rounds=60，如 poll_delay=5, poll_interval=3, max_poll_rounds=60（~185s）
     """
     from grsai_client import poll_image
     try:
@@ -90,8 +91,10 @@ def grsai_poll_result(
             poll_interval=poll_interval,
             max_poll_rounds=max_poll_rounds,
         )
-    except Exception as e:
+    except ValueError as e:
         return {"error": str(e)}
+    except Exception:
+        return {"error": "轮询时服务器内部错误"}
 
 
 @mcp.tool()
@@ -101,10 +104,13 @@ def grsai_batch_generate(
     concurrency: int = 10,
     batch_type: str | None = None,
 ) -> dict:
-    """批量提交图像生成任务（分批提交 + 逐个 poll）。注意 MCP tool 默认 120s 超时，大批量任务建议：
+    """批量提交图像生成任务。支持两种模式：
+    - batch_type=None（默认）：提交 + 轮询 + 下载，一揽子完成
+    - batch_type="submit_only"：仅提交不轮询，返回所有 task_id，适合大批量任务
     
+    注意 MCP tool 默认 120s 超时，大批量任务建议：
     1. 先逐个 grsai_submit_image 拿到所有 task_id
-    2. 再用 grsai_poll_result 分批轮询（每次 poll 设 max_poll_rounds=20 适配 120s 超时）
+    2. 再用 grsai_poll_result 分批轮询（默认 max_poll_rounds=20 适配 120s 超时）
     """
     from grsai_client import submit_image, poll_image
     from config import load_cos_config, get_model
@@ -153,36 +159,43 @@ def grsai_batch_generate(
             else:
                 submitted_ids.append({"index": item["index"], "filename": item["filename"], "status": "failed", **r})
 
-        # 阶段 2：轮询所有已提交的任务
-        def poll_task(item):
-            if item.get("status") == "completed":
-                return item
-            if item.get("status") != "submitted":
-                return item
-            result = poll_image(
-                task_id=item["task_id"],
-                poll_delay=14,
-                poll_interval=5,
-                max_poll_rounds=60,
-            )
-            # 下载
-            if result.get("status") == "completed" and result.get("image_url"):
-                local_path = os.path.join(output_dir, item["filename"])
-                try:
-                    import urllib.request
-                    urllib.request.urlretrieve(result["image_url"], local_path)
-                    result["local_path"] = local_path
-                except Exception:
-                    result["download_error"] = "下载失败"
-            result["index"] = item["index"]
-            return result
+        # 阶段 2：根据 batch_type 决定是否轮询
+        if batch_type == "submit_only":
+            # 仅提交模式：返回所有 task_id，不轮询
+            results = submitted_ids
+        else:
+            # 默认模式：轮询所有已提交的任务并下载
+            def poll_task(item):
+                if item.get("status") == "completed":
+                    return item
+                if item.get("status") != "submitted":
+                    return item
+                result = poll_image(
+                    task_id=item["task_id"],
+                    poll_delay=5,
+                    poll_interval=3,
+                    max_poll_rounds=20,
+                )
+                # 下载
+                if result.get("status") == "completed" and result.get("image_url"):
+                    local_path = os.path.join(output_dir, item["filename"])
+                    try:
+                        import urllib.request
+                        response = urllib.request.urlopen(result["image_url"], timeout=60)
+                        with open(local_path, 'wb') as f:
+                            f.write(response.read())
+                        result["local_path"] = local_path
+                    except Exception:
+                        result["download_error"] = "下载失败"
+                result["index"] = item["index"]
+                return result
 
-        results = []
-        with ThreadPoolExecutor(max_workers=concurrency) as executor:
-            futures = {executor.submit(poll_task, item): item["index"] for item in submitted_ids}
-            for future in as_completed(futures):
-                results.append(future.result())
-        results.sort(key=lambda x: x["index"])
+            results = []
+            with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                futures = {executor.submit(poll_task, item): item["index"] for item in submitted_ids}
+                for future in as_completed(futures):
+                    results.append(future.result())
+            results.sort(key=lambda x: x["index"])
 
         succeeded = sum(1 for r in results if r["status"] == "completed")
         failed = len(results) - succeeded
@@ -195,8 +208,10 @@ def grsai_batch_generate(
             "failed": failed,
             "results": results,
         }
-    except Exception as e:
+    except ValueError as e:
         return {"error": str(e)}
+    except Exception:
+        return {"error": "批量生成时服务器内部错误"}
 
 
 @mcp.tool()
@@ -216,8 +231,10 @@ def grsai_upload_cos(local_path: str) -> dict:
             region=cos_config["region"],
         )
         return {"url": url}
-    except Exception as e:
+    except ValueError as e:
         return {"error": str(e)}
+    except Exception:
+        return {"error": "上传时服务器内部错误"}
 
 
 if __name__ == "__main__":

@@ -98,7 +98,7 @@ def _parse_response(text):
                 return json.loads(line[5:].strip())
             except json.JSONDecodeError:
                 continue
-    return {"raw": text}
+    return {}
 
 
 def _extract_task_id(result):
@@ -194,7 +194,7 @@ def submit_image(prompt, model, aspect_ratio=None, image_size=None,
     if processed_urls:
         data["images"] = processed_urls if isinstance(processed_urls, list) else [processed_urls]
 
-    resp_text = _api_request(f"{host}/v1/api/generate", headers, data, timeout=30)
+    resp_text = _api_request(f"{host}/v1/api/generate", headers, data, timeout=120)
     result = _parse_response(resp_text)
     task_id = _extract_task_id(result)
 
@@ -217,21 +217,23 @@ def submit_image(prompt, model, aspect_ratio=None, image_size=None,
             "message": f"任务已提交，task_id={task_id}，请使用 poll_image() 查询结果"}
 
 
-def poll_image(task_id, host=None, api_key=None, poll_delay=14, poll_interval=5, max_poll_rounds=60):
+def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interval=3, max_poll_rounds=20):
     """根据 task_id 轮询图像生成结果，阻塞直到完成或超时"""
     host = host or get_host()
     api_key = api_key or get_api_key()
 
     time.sleep(poll_delay)
+    consecutive_failures = 0
     for _ in range(max_poll_rounds):
         time.sleep(poll_interval)
         try:
             poll_url = f"{host}/v1/api/result?id={urllib.parse.quote(task_id, safe='')}"
             req = urllib.request.Request(poll_url, headers={"Authorization": f"Bearer {api_key}"}, method="GET")
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=30) as resp:
                 result = _parse_response(resp.read().decode("utf-8"))
 
             status = _extract_status(result)
+            consecutive_failures = 0  # 请求成功，重置连续失败计数
             if status in ("failed", "violation"):
                 return {"status": "failed", "error": _extract_failure_reason(result),
                         "task_id": task_id}
@@ -241,6 +243,10 @@ def poll_image(task_id, host=None, api_key=None, poll_delay=14, poll_interval=5,
                     return {"status": "completed", "image_url": image_url,
                             "oss_url": _extract_oss_url(result), "task_id": task_id}
         except Exception:
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                return {"status": "failed", "error": "连续轮询失败3次，请稍后重试",
+                        "task_id": task_id}
             continue
 
     return {"status": "timeout", "error": f"轮询超时 {max_poll_rounds * poll_interval}s",
@@ -250,7 +256,7 @@ def poll_image(task_id, host=None, api_key=None, poll_delay=14, poll_interval=5,
 def generate_image(prompt, model, aspect_ratio=None, image_size=None,
                    reference_images=None, oss_id=None, oss_path=None,
                    cos_config=None, timestamp=None,
-                   poll_delay=14, poll_interval=5, max_poll_rounds=60):
+                   poll_delay=5, poll_interval=3, max_poll_rounds=20):
     """单张图像生成，阻塞直到完成或超时（submit_image + poll_image 的组合）"""
     submit_result = submit_image(
         prompt=prompt, model=model, aspect_ratio=aspect_ratio, image_size=image_size,
