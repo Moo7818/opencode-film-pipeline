@@ -5,6 +5,8 @@
 !README.md
 !AGENTS.md
 !opencode.json
+!pyproject.toml
+!uv.lock
 !.opencode/
 !.opencode/**
 !doc/
@@ -15,6 +17,10 @@
 .opencode/**/__pycache__/**
 .opencode/**/*.pyc
 .opencode/temp/**
+
+# Jupyter 检查点文件
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/**
 
 # MCP server venvs and storage
 .opencode/mcp-servers/*/.venv/

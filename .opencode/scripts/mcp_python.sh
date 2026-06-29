@@ -7,9 +7,9 @@
 
 set -e
 
-# 获取项目根目录（脚本所在目录的父目录）
+# 获取项目根目录（脚本所在目录的上两级：scripts -> .opencode -> 项目根）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # 虚拟环境路径
 VENV_DIR="$PROJECT_ROOT/.venv"

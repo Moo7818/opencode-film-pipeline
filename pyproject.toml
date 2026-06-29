@@ -1,0 +1,17 @@
+[project]
+name = "another-road"
+version = "0.1.0"
+description = "另一条路 - 影视制作工作流"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=1.27.0",
+    "httpx",
+    "pydantic",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
