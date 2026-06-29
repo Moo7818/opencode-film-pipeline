@@ -57,6 +57,11 @@ pwsh -Command "$env:PYTHONIOENCODING='utf-8'; & script.ps1"
 ## 配置与技能修改规则
 - `.opencode/` 下的所有 skill/agent/config 文件必须通过 `skill-engineer` 子 agent（其加载 `skill-creator` 技能）修改，任何 agent 不得直接操作
 
+## 子 Agent 职责边界
+- 每个子 agent **只完成自己分内的事**，不得越权替其他 agent 执行任务
+- coordinator 只做元数据管理（创建项目、修改 stages/manifest/events、打包归档），**不参与任何内容制作**
+- 内容制作（角色/场景/道具参考图任务表、分镜脚本、生图、视频生成等）必须由对应的专业子 agent 完成
+
 ## Git/GitHub 网络代理
 
 中国网络环境下 GitHub 网络配置方法见 [.opencode/rules/git-network-proxy.md](.opencode/rules/git-network-proxy.md)。
