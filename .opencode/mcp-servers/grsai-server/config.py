@@ -9,7 +9,12 @@ import os
 import sys
 from pathlib import Path
 
-CONFIG_FILE = Path(__file__).resolve().parents[2] / "credentials" / "media_gen_config.json"
+# 环境变量优先，否则使用相对于脚本位置的默认路径
+_env_config_path = os.environ.get("GRSAI_CONFIG_PATH")
+if _env_config_path:
+    CONFIG_FILE = Path(_env_config_path)
+else:
+    CONFIG_FILE = Path(__file__).resolve().parents[2] / "credentials" / "media_gen_config.json"
 
 # 环境变量 key 名
 CFG_API_KEY = "GRSAI_API_KEY"
@@ -79,3 +84,43 @@ def load_cos_config():
             "region": region,
         }
     return None
+
+
+def validate_config():
+    """验证所有必要配置，返回状态报告"""
+    api_key = _cfg(CFG_API_KEY)
+    host = _cfg(CFG_HOST) or DEFAULT_HOST
+    model = _cfg(CFG_MODEL) or DEFAULT_MODEL
+    cos_sid = _cfg(CFG_COS_ID)
+    cos_skey = _cfg(CFG_COS_KEY)
+    cos_bucket = _cfg(CFG_COS_BUCKET)
+    cos_region = _cfg(CFG_COS_REGION)
+
+    config_file_path = str(CONFIG_FILE) if CONFIG_FILE.exists() else None
+
+    checks = {
+        "config_file_found": CONFIG_FILE.exists(),
+        "config_file_path": str(CONFIG_FILE),
+        "api_key_configured": bool(api_key),
+        "host_configured": bool(host),
+        "model_configured": bool(model),
+        "cos_configured": all([cos_sid, cos_skey, cos_bucket, cos_region]),
+    }
+
+    missing = [k for k, v in checks.items() if k.endswith("_configured") and not v]
+
+    return {
+        "valid": len(missing) == 0,
+        "checks": checks,
+        "missing": missing,
+        "config_source": "env" if os.environ.get(CFG_API_KEY) else "file" if CONFIG_FILE.exists() else "none",
+    }
+
+
+# 错误码
+ERR_CONFIG_MISSING = "config_missing"
+ERR_API_UNAVAILABLE = "api_unavailable"
+ERR_SUBMIT_FAILED = "submit_failed"
+ERR_POLL_FAILED = "poll_failed"
+ERR_UPLOAD_FAILED = "upload_failed"
+ERR_BATCH_FAILED = "batch_failed"

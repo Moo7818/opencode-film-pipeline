@@ -10,10 +10,9 @@ import hashlib
 import json
 import os
 import sys
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
+import asyncio
+import httpx
 
 from config import _cfg, get_api_key, get_host
 
@@ -59,28 +58,6 @@ def resolve_aspect_ratio(ratio, image_size="4K"):
 
 def _is_nano_banana_model(model):
     return bool(model and model.lower().startswith("nano-banana"))
-
-
-def _api_request(url, headers, data=None, timeout=120):
-    body = json.dumps(data).encode("utf-8") if data else None
-    req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            **headers,
-            "Content-Type": "application/json",
-        },
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode("utf-8")
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode("utf-8") if e.fp else ""
-        raise Exception(f"API 错误 {e.code}: {err_body}")
-    except urllib.error.URLError as e:
-        raise Exception(f"网络错误: {e.reason}")
 
 
 def _parse_response(text):
@@ -138,7 +115,7 @@ def _compute_file_hash(local_path):
     return sha256.hexdigest()
 
 
-def _process_urls(urls, cos_config, timestamp=None):
+async def _process_urls(urls, cos_config, timestamp=None):
     """将本地文件路径替换为 COS URL，跳过远程 URL"""
     if not urls:
         return urls, []
@@ -149,7 +126,7 @@ def _process_urls(urls, cos_config, timestamp=None):
             if not cos_config:
                 raise ValueError("检测到本地文件但未配置 COS 凭证")
             from cos_client import upload_to_cos
-            public_url = upload_to_cos(
+            public_url = await upload_to_cos(
                 url,
                 secret_id=cos_config['secret_id'],
                 secret_key=cos_config['secret_key'],
@@ -164,14 +141,25 @@ def _process_urls(urls, cos_config, timestamp=None):
     return result, uploaded
 
 
-def submit_image(prompt, model, aspect_ratio=None, image_size=None,
-                 reference_images=None, oss_id=None, oss_path=None,
-                 cos_config=None, timestamp=None):
-    """提交图像生成任务，立即返回 task_id，不等待完成"""
+async def _api_request(url, headers, data=None, timeout=120):
+    """异步 HTTP 请求"""
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        headers = {**headers, "Content-Type": "application/json"}
+        body = json.dumps(data).encode("utf-8") if data else None
+        response = await client.post(url, content=body, headers=headers)
+        if response.status_code >= 400:
+            raise Exception(f"API 错误 {response.status_code}: {response.text}")
+        return response.text
+
+
+async def submit_image(prompt, model, aspect_ratio=None, image_size=None,
+                       reference_images=None, oss_id=None, oss_path=None,
+                       cos_config=None, timestamp=None):
+    """异步提交图像生成任务"""
     host = get_host()
     api_key = get_api_key()
 
-    processed_urls, uploaded_refs = _process_urls(reference_images, cos_config, timestamp)
+    processed_urls, uploaded_refs = await _process_urls(reference_images, cos_config, timestamp)
 
     headers = {"Authorization": f"Bearer {api_key}"}
     if oss_id:
@@ -194,7 +182,7 @@ def submit_image(prompt, model, aspect_ratio=None, image_size=None,
     if processed_urls:
         data["images"] = processed_urls if isinstance(processed_urls, list) else [processed_urls]
 
-    resp_text = _api_request(f"{host}/v1/api/generate", headers, data, timeout=120)
+    resp_text = await _api_request(f"{host}/v1/api/generate", headers, data, timeout=120)
     result = _parse_response(resp_text)
     task_id = _extract_task_id(result)
 
@@ -217,57 +205,57 @@ def submit_image(prompt, model, aspect_ratio=None, image_size=None,
             "message": f"任务已提交，task_id={task_id}，请使用 poll_image() 查询结果"}
 
 
-def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interval=3, max_poll_rounds=20):
-    """根据 task_id 轮询图像生成结果，阻塞直到完成或超时"""
+async def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interval=3, max_poll_rounds=20):
+    """异步轮询图像生成结果"""
     host = host or get_host()
     api_key = api_key or get_api_key()
 
-    time.sleep(poll_delay)
+    await asyncio.sleep(poll_delay)
     consecutive_failures = 0
-    for _ in range(max_poll_rounds):
-        time.sleep(poll_interval)
-        try:
-            poll_url = f"{host}/v1/api/result?id={urllib.parse.quote(task_id, safe='')}"
-            req = urllib.request.Request(poll_url, headers={"Authorization": f"Bearer {api_key}"}, method="GET")
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                result = _parse_response(resp.read().decode("utf-8"))
 
-            status = _extract_status(result)
-            consecutive_failures = 0  # 请求成功，重置连续失败计数
-            if status in ("failed", "violation"):
-                return {"status": "failed", "error": _extract_failure_reason(result),
-                        "task_id": task_id}
-            if status == "succeeded":
-                image_url = _extract_image_url(result)
-                if image_url:
-                    return {"status": "completed", "image_url": image_url,
-                            "oss_url": _extract_oss_url(result), "task_id": task_id}
-        except Exception:
-            consecutive_failures += 1
-            if consecutive_failures >= 3:
-                return {"status": "failed", "error": "连续轮询失败3次，请稍后重试",
-                        "task_id": task_id}
-            continue
+    async with httpx.AsyncClient(timeout=30) as client:
+        for _ in range(max_poll_rounds):
+            await asyncio.sleep(poll_interval)
+            try:
+                poll_url = f"{host}/v1/api/result?id={urllib.parse.quote(task_id, safe='')}"
+                response = await client.get(poll_url, headers={"Authorization": f"Bearer {api_key}"})
+
+                result = _parse_response(response.text)
+                status = _extract_status(result)
+                consecutive_failures = 0
+
+                if status in ("failed", "violation"):
+                    return {"status": "failed", "error": _extract_failure_reason(result),
+                            "task_id": task_id}
+                if status == "succeeded":
+                    image_url = _extract_image_url(result)
+                    if image_url:
+                        return {"status": "completed", "image_url": image_url,
+                                "oss_url": _extract_oss_url(result), "task_id": task_id}
+            except Exception:
+                consecutive_failures += 1
+                if consecutive_failures >= 3:
+                    return {"status": "failed", "error": "连续轮询失败3次，请稍后重试",
+                            "task_id": task_id}
+                continue
 
     return {"status": "timeout", "error": f"轮询超时 {max_poll_rounds * poll_interval}s",
             "task_id": task_id}
 
 
-def generate_image(prompt, model, aspect_ratio=None, image_size=None,
-                   reference_images=None, oss_id=None, oss_path=None,
-                   cos_config=None, timestamp=None,
-                   poll_delay=5, poll_interval=3, max_poll_rounds=20):
-    """单张图像生成，阻塞直到完成或超时（submit_image + poll_image 的组合）"""
-    submit_result = submit_image(
+async def generate_image(prompt, model, aspect_ratio=None, image_size=None,
+                         reference_images=None, oss_id=None, oss_path=None,
+                         cos_config=None, timestamp=None,
+                         poll_delay=5, poll_interval=3, max_poll_rounds=20):
+    """异步单张图像生成（submit + poll 组合）"""
+    submit_result = await submit_image(
         prompt=prompt, model=model, aspect_ratio=aspect_ratio, image_size=image_size,
         reference_images=reference_images, oss_id=oss_id, oss_path=oss_path,
         cos_config=cos_config, timestamp=timestamp,
     )
-
     if submit_result.get("status") != "submitted":
         return submit_result
-
-    return poll_image(
+    return await poll_image(
         task_id=submit_result["task_id"],
         poll_delay=poll_delay, poll_interval=poll_interval, max_poll_rounds=max_poll_rounds,
     )

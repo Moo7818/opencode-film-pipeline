@@ -137,7 +137,7 @@ opencode
 - **PowerShell UTF-8**：所有文件读写显式指定 `-Encoding UTF8`
 - **白名单 .gitignore**：仅跟踪 README.md、AGENTS.md、opencode.json、`.opencode/`、`doc/`
 - **禁止删除**：`temp/` 下任何文件
-- **配置只读**：`.opencode/` 仅通过 skill-engineer 修改
+- **配置只读**：`.opencode/` 仅通过 system-engineer 修改
 
 ## Git 分支策略
 

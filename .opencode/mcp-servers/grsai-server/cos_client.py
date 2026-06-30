@@ -9,9 +9,9 @@ import hashlib
 import hmac
 import os
 import sys
-import time
 import urllib.parse
-import urllib.request
+import asyncio
+import httpx
 
 
 def _sign(key, msg):
@@ -67,45 +67,43 @@ def _make_cos_auth_header(secret_id, secret_key, bucket, region,
     }
 
 
-def upload_to_cos(local_path, secret_id, secret_key, bucket, region, timestamp=None):
-    """上传本地文件到腾讯云 COS，返回公开 URL"""
+async def upload_to_cos(local_path, secret_id, secret_key, bucket, region, timestamp=None):
+    """异步上传本地文件到腾讯云 COS，返回公开 URL"""
     original_filename = os.path.basename(local_path)
     cos_filename = f"{timestamp}_{original_filename}" if timestamp else original_filename
 
     raw_cos_path = f"/{cos_filename}"
     encoded_cos_path = urllib.parse.quote(raw_cos_path, safe='/')
-
     content_type = "application/octet-stream"
 
-    # 分块计算 SHA256，避免大文件一次性读入内存
     sha256_hash = hashlib.sha256()
     with open(local_path, "rb") as f:
         for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
             sha256_hash.update(chunk)
     content_sha256 = sha256_hash.hexdigest()
 
-    # 读取完整文件内容用于上传请求体
     with open(local_path, "rb") as f:
         data = f.read()
+
     headers = _make_cos_auth_header(
         secret_id, secret_key, bucket, region,
         "PUT", encoded_cos_path, content_type, content_sha256
     )
 
     url = f"https://{bucket}.cos.{region}.myqcloud.com{encoded_cos_path}"
-    req = urllib.request.Request(url, data=data, method="PUT", headers=headers)
 
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                if resp.status in (200, 204):
+            async with httpx.AsyncClient(timeout=120) as client:
+                response = await client.put(url, content=data, headers=headers)
+                if response.status_code in (200, 204):
                     return url
-                raise Exception(f"上传失败：HTTP {resp.status}")
+                raise Exception(f"上传失败：HTTP {response.status_code}")
         except Exception as e:
             if attempt < max_retries - 1:
                 wait = 2 ** attempt
                 print(f"上传失败（{e}），{wait}秒后重试（第{attempt + 2}次）...", file=sys.stderr)
-                time.sleep(wait)
+                await asyncio.sleep(wait)
             else:
                 raise

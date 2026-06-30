@@ -35,7 +35,8 @@
 | 分镜、故事板、镜头分解 | storyboard-director |
 | 视频生成、制作视频、图生视频、文生视频 | video-director |
 | 写剧本、润色、故事创作、脚本写作 | writer |
-| 配置、技能修改、编辑 skill、openmode 配置 | skill-engineer |
+| 配置、技能修改、编辑 skill、openmode 配置 | system-engineer |
+| 开发、调试、MCP服务器、系统配置、脚本编写 | system-engineer |
 
 若用户意图涉及上述多个领域，按"多意图并行"处理，同时 spawn 多个子 agent。
 
@@ -52,7 +53,7 @@
 | storyboard-director | 分集剧本 → 分镜头脚本 + 分镜图任务表 |
 | video-director | 分镜 → 视频生成（图生视频/文生视频） |
 | writer | 剧本创作/润色/故事扩展 |
-| skill-engineer | 技能创建/编辑/优化/评测 |
+| system-engineer | 技能创建/编辑/优化/评测、MCP 服务器开发/调试、系统配置与脚本编写。所有开发性和维护性任务都必须用此 agent |
 
 # 决策流程
 

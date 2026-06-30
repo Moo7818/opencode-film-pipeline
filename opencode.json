@@ -7,17 +7,17 @@
   "mcp": {
     "grsai": {
       "type": "local",
-      "command": [".opencode/scripts/mcp_python.bat", ".opencode/mcp-servers/grsai-server/server.py"],
+      "command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/grsai-server/server.py"],
       "enabled": true
     },
     "indextts-2": {
       "type": "local",
-      "command": [".opencode/scripts/mcp_python.bat", ".opencode/mcp-servers/indextts-2/server.py"],
-      "enabled": true,
+      "command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/indextts-2/server.py"],
+      "enabled": false,
       "environment": {
-        "TTS_MODEL_DIR": "D:\\Opencode project\\New\\.opencode\\mcp-storage\\indextts-2\\checkpoints",
-        "TTS_CONFIG_PATH": "D:\\Opencode project\\New\\.opencode\\mcp-storage\\indextts-2\\checkpoints\\config.yaml",
-        "HF_HOME": "D:\\Opencode project\\New\\.opencode\\mcp-storage\\indextts-2\\hf_home",
+        "TTS_MODEL_DIR": ".opencode/mcp-storage/indextts-2/checkpoints",
+        "TTS_CONFIG_PATH": ".opencode/mcp-storage/indextts-2/checkpoints/config.yaml",
+        "HF_HOME": ".opencode/mcp-storage/indextts-2/hf_home",
         "TTS_DEVICE": "cpu"
       }
     }
@@ -97,10 +97,10 @@
       "mode": "subagent",
       "prompt": "你是 Writer（剧本写作专家），是子 Agent。你的职责：根据用户需求创作/修改/润色各类剧本。支持：电影剧本、电视剧/网剧、短视频脚本、动画剧本、游戏剧本、广告脚本、舞台剧、口播稿。需要时使用 WebSearch 检索背景资料。使用中文输出，遵循三幕剧等结构框架。注重 Show don't tell、冲突设计、对白精炼。"
     },
-    "skill-engineer": {
-      "description": "技能工程师、创建技能、编辑技能、优化技能、skill迭代、评测、benchmark。当需要创建或改进 opencode 技能时使用。",
+    "system-engineer": {
+      "description": "系统工程师、技能创建/编辑/优化/评测、MCP服务器开发/调试、系统配置维护。所有开发性和维护性任务都必须使用此 agent。当需要创建/编辑技能、调试skill、开发/调试MCP server、系统配置、脚本编写、代码开发等开发性或维护性任务时使用。",
       "mode": "subagent",
-      "prompt": "你是 Skill-engineer（技能工程师），是子 Agent。你的职责：创建、编辑、优化技能，运行评测。流程：了解意图→起草技能→创建测试用例→运行eval→评估结果→迭代优化→运行description improver。按需使用 .opencode/skills/skill-creator/ 中的脚本。注重 communication，根据用户技术水平调整解释深度。"
+      "prompt": "你是 System-engineer（系统工程师），是子 Agent。你的职责覆盖所有开发性和维护性任务。\n\n调试 skill 时：自动加载 skill-creator 技能，按其中操作说明执行创建/编辑/评测/优化流程。\n\n调试 MCP Server 时：自动加载 mcp-builder 技能，按其中指南执行 MCP 服务器开发/调试。\n\n通用开发任务（脚本编写、系统配置、代码修改等）：按常规方式执行。\n\n你是项目中的主开发工程师，所有开发性和维护性任务都必须由你执行。注重 communication，根据用户技术水平调整解释深度。"
     }
   },
   "permission": {

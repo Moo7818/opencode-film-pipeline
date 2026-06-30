@@ -55,7 +55,7 @@ pwsh -Command "$env:PYTHONIOENCODING='utf-8'; & script.ps1"
 - JSON：`ConvertTo-Json -Depth 10` / `json.dump(data, f, ensure_ascii=False, indent=2)`
 
 ## 配置与技能修改规则
-- `.opencode/` 下的所有 skill/agent/config 文件必须通过 `skill-engineer` 子 agent（其加载 `skill-creator` 技能）修改，任何 agent 不得直接操作
+- `.opencode/` 下的所有 skill/agent/config 文件必须通过 `system-engineer` 子 agent（调试 skill 时自动加载 `skill-creator` 技能，调试 MCP Server 时自动加载 `mcp-builder` 技能）修改，任何 agent 不得直接操作
 
 ## 子 Agent 职责边界
 - 每个子 agent **只完成自己分内的事**，不得越权替其他 agent 执行任务
