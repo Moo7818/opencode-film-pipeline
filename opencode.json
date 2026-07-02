@@ -5,14 +5,14 @@
     "paths": [".opencode/skills"]
   },
   "mcp": {
-    "grsai": {
+    "grsai-mcp": {
       "type": "local",
-      "command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/grsai-server/server.py"],
+      "command": ["uv", "run", "--no-sync", ".opencode/mcp-servers/grsai-server/server.py"],
       "enabled": true
     },
     "indextts-2": {
       "type": "local",
-      "command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/indextts-2/server.py"],
+      "command": ["uv", "run", "--no-sync", ".opencode/mcp-servers/indextts-2/server.py"],
       "enabled": false,
       "environment": {
         "TTS_MODEL_DIR": ".opencode/mcp-storage/indextts-2/checkpoints",
@@ -44,7 +44,9 @@
         }
       },
       "tools": {
-        "grsai_*": true
+        "grsai_*": false,
+        "indextts-2_*": false,
+        "skill": false
       }
     },
     "coordinator": {

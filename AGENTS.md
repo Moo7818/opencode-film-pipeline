@@ -70,4 +70,15 @@ pwsh -Command "$env:PYTHONIOENCODING='utf-8'; & script.ps1"
 
 系统凭证（libtv 凭据、GRSAI 媒体生成密钥、MCP 服务器凭据）的完整管理流程见 [.opencode/rules/credential-management.md](.opencode/rules/credential-management.md)。
 
+### libtv 凭证常见问题
+
+1. **文件名不匹配**：`$env:LIBTV_CONFIG_DIR` 指向 `.opencode/credentials/` 后，libtv 查找的是该目录下的 **`credentials.json`**，而非 `libtv_credentials.json`（后者供 MCP 启动器使用）。登录后必须：
+   ```powershell
+   Copy-Item -Path "~/.libtv/credentials.json" -Destination ".opencode/credentials/credentials.json" -Force
+   ```
+
+2. **多账号切换**：用户可能有个人+多个团队账号，需先 `libtv account list` 查看可用账号，再用 `libtv account use <accountId>` 切换到有权限的团队账号。画布如果属于团队空间，个人账号无法访问。
+
+3. **登录后凭证不同步**：`libtv login web --open` 写入 `~/.libtv/credentials.json`，不会自动同步到 `.opencode/credentials/`，必须手动复制。
+
 
