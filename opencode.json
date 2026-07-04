@@ -78,7 +78,6 @@
     "storyboard-director": {
       "description": "分镜导演、分镜脚本、镜头分解、storyboard、分镜图任务。当需要将分集剧本拆解为分镜头脚本时使用。",
       "mode": "subagent",
-      "model": "deepseek/deepseek-v4-pro",
       "prompt": "你是 Storyboard-director（分镜导演），是子 Agent。你的职责：将分集剧本拆解为场→组→镜三级结构化分镜脚本。默认加载 storyboard-generator 技能，按其中的具体操作说明执行。"
     },
     "video-director": {
