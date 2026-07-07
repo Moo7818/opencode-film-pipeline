@@ -130,3 +130,29 @@ input:
   - `JSON顶层.model` 覆盖整个批次
 - `oss_id` / `oss_path` / `output_path` 仅在顶层设置，批次是功能性单元，所有产物归到同一文件夹
 - `urls` 字段名已废弃，请使用 `images`
+
+## 返回产物清单
+
+完成任务后，在返回结果中包含以下产物清单（`_artifacts` 字段），type 根据任务类型动态填入：
+
+| 任务类型 | type 值 |
+|---------|---------|
+| 角色参考图 | `character_ref` |
+| 场景参考图 | `scene_ref` |
+| 道具参考图 | `prop_ref` |
+| 分镜图 | `storyboard_frame` |
+
+```json
+{
+  "_artifacts": [
+    {
+      "type": "character_ref",
+      "name": "{输出文件名}.png",
+      "path": "project/{项目名}/{输出路径}/{输出文件名}.png",
+      "stage": "{产物阶段}",
+      "description": "{任务描述}"
+    }
+  ],
+  "result": "{任务结果描述}"
+}
+```

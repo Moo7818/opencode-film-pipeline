@@ -62,3 +62,22 @@ project/{项目名}/
 - 全局级角色参考生成规则：`rules/global.md`
 - 剧集级角色参考生成规则：`rules/episode.md`
 - 群像参考生成规则：`rules/group.md`
+
+## 步骤 N：返回产物清单
+
+完成任务后，在返回结果中包含以下产物清单（`_artifacts` 字段）：
+
+```json
+{
+  "_artifacts": [
+    {
+      "type": "character_ref",
+      "name": "{角色名}_基准.png",
+      "path": "project/{项目名}/全局依赖/角色参考图/{角色名}_基准.png",
+      "stage": "global_assets",
+      "description": "{角色名}角色基准资产"
+    }
+  ],
+  "result": "{任务结果描述}"
+}
+```

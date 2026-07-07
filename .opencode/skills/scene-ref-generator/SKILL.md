@@ -52,3 +52,22 @@ project/{项目名}/
 
 - 共享定义（Prompt 模板、参数表、校验规则）：`rules/common.md`
 - 全局级场景参考生成规则：`rules/global.md`
+
+## 步骤 N：返回产物清单
+
+完成任务后，在返回结果中包含以下产物清单（`_artifacts` 字段）：
+
+```json
+{
+  "_artifacts": [
+    {
+      "type": "scene_ref",
+      "name": "{场景名}_基准.png",
+      "path": "project/{项目名}/全局依赖/场景参考图/{场景名}_基准.png",
+      "stage": "global_assets",
+      "description": "{场景名}场景基准资产"
+    }
+  ],
+  "result": "{任务结果描述}"
+}
+```

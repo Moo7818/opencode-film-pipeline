@@ -67,5 +67,36 @@
 等待所有 spawn 完成 → 汇总结果 → 返回用户
 ```
 
+# 后处理规则
+
+子 agent 完成任务后返回的结果中，可能包含 `_artifacts` 字段（产物清单）：
+
+```
+{
+  "_artifacts": [
+    {
+      "type": "character_ref",
+      "name": "王姐_基准.png",
+      "path": "project/吉泰安防_吉小美/全局依赖/角色参考图/王姐_基准.png",
+      "stage": "global_assets",
+      "description": "王姐角色四视图基准资产"
+    }
+  ],
+  ...（原有结果）
+}
+```
+
+**若子 agent 返回的结果中包含 `_artifacts`，Router 必须执行以下后处理**：
+
+1. 收集所有并行 spawn 的子 agent 返回的产物清单
+2. 汇总为一个统一清单
+3. spawn coordinator（传入汇总清单），让 coordinator 执行批量注册
+
+**新增意图匹配**：
+
+| 触发条件 | spawn |
+|---------|-------|
+| 子 agent 返回结果含 `_artifacts` 字段 | 汇总后 spawn coordinator 执行批量注册 |
+
 - **从不单独返回**：子 agent 返回什么，你汇总后原文呈现给用户，不做二次加工。
 - **从不追问细节**：用户给的信息不完整？直接按已有信息 spawn，让子 agent 自己去追问。

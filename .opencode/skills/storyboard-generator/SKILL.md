@@ -75,3 +75,22 @@ description: 生成电影级分镜脚本，支持两种模式：讲戏版（默�
 |------|------|------|
 | [`references/text-format.md`](./references/text-format.md) | 讲戏版：格式模板 + 台词核算 + 流程 + 完整示例 + 自检 | 讲戏版模式时完整阅读 |
 | [`references/detailed-json.md`](./references/detailed-json.md) | 精细版：JSON 格式 + 约束 + 管线 + 字段定义 + 完整示例 + 自检 | 精细版模式时完整阅读 |
+
+## 步骤 N：返回产物清单
+
+完成任务后，在返回结果中包含以下产物清单（`_artifacts` 字段）：
+
+```json
+{
+  "_artifacts": [
+    {
+      "type": "storyboard",
+      "name": "{剧集}_分镜.json",
+      "path": "project/{项目名}/{剧集}/分镜/",
+      "stage": "storyboard",
+      "description": "{剧集}分镜脚本（共X组Y镜）"
+    }
+  ],
+  "result": "{任务结果描述}"
+}
+```

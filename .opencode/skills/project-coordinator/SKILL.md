@@ -297,6 +297,18 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
 3. 若产物已存在（同名 `path`），将旧条目标记 `deprecated`
 4. **使用 CLI 写入 events.jsonl**：`Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value "事件JSON"`
 
+### 批量注册产物（Router 后处理调用）
+
+当 Router 传入产物清单时，按以下流程执行：
+
+1. 读取产物清单（`_artifacts` 列表）
+2. 对每个产物项：
+   a. 验证文件是否存在
+   b. 调用 `register-artifact.ps1` 注册到 manifest.json
+   c. 调用 `append-event.ps1` 追加 `artifact.created` 事件
+3. 校验 manifest.json 和 events.jsonl 语法
+4. 返回注册结果摘要
+
 ### 产物归档
 
 其他 agent 将产物输出到临时路径后，统筹 agent 负责将产物移动到项目目录下的正确位置并注册。这是多 agent 协作中统一路径管理的核心机制。

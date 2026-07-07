@@ -59,7 +59,26 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
   4. 创建 video 节点             ← 一次性创建 或 两阶段（占位 → 查顺序 → 写引用）
   5. 批量分组运行                ← libtv group create + --run
   6. 轮询等待生成完成
-  7. 报告 Coordinator 归档
+  7. 返回产物清单            ← 包含 _artifacts 字段，供 Router 后处理
+```
+
+### 返回产物清单
+
+完成任务后，在返回结果中包含以下产物清单（`_artifacts` 字段），type 为 `video`：
+
+```json
+{
+  "_artifacts": [
+    {
+      "type": "video",
+      "name": "{组名}_视频.mp4",
+      "path": "project/{项目名}/{剧集}/视频/{组名}_视频.mp4",
+      "stage": "video",
+      "description": "{剧集}第{N}组视频片段（{时长}秒）"
+    }
+  ],
+  "result": "{任务结果描述}"
+}
 ```
 
 ## `{{Image N}}` 引用规则
