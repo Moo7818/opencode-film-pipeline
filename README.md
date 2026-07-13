@@ -30,7 +30,7 @@
 |------|-----------|------|
 | **① 项目初始化** | Coordinator | 项目结构、全局配置 (`project_config.json`) |
 | **② 监制提取设定** | Producer | 角色/场景/道具设定、分集剧本、原始剧本结构化 |
-| **③ 全局视觉资产生成** | Character/Set/Prop Director | 角色四视图、场景参考图、道具六视图任务 JSON |
+| **③ 全局视觉资产生成** | Character/Set/Prop Director | 角色七视图、场景参考图、道具六视图任务 JSON |
 | **④ 拆解分镜** | Storyboard Director | 场→组→镜三级结构化 JSON 分镜脚本 |
 | **⑤ 剧集级参考图** | Art Director | 基于分镜的角色/场景/道具剧集级参考图 |
 | **⑥ 视频生成** | Video Director | libtv 画布项目 → video 节点 → AI 视频成片 |
@@ -38,7 +38,7 @@
 ### Agent 架构
 
 ```
-Orchestrator（总指挥）── 调度分发，禁止越权
+Orchestrator（路由调度员）── 识别意图→spawn→汇总，禁止越权
   ├── Coordinator        项目统筹
   ├── Producer           监制（剧本解析+设定提取）
   ├── Writer             编剧（创作/润色）
@@ -56,7 +56,7 @@ Orchestrator（总指挥）── 调度分发，禁止越权
 |------|------|
 | **producer** | 原始剧本解析，提取角色/场景/道具设定，生成分集剧本，支持联网检索历史资料 |
 | **script-writer** | 剧本/脚本创作润色，支持电影/动画/短视频/广告/游戏等类型 |
-| **roles-ref-generator** | 角色四视图/群像展示图任务 JSON 生成，支持全局/剧集/群像三模式 |
+| **roles-ref-generator** | 角色七视图/群像展示图任务 JSON 生成，支持全局/剧集/群像三模式 |
 | **scene-ref-generator** | 场景俯瞰+三宫格参考图任务 JSON 生成 |
 | **prop-ref-generator** | 道具 2×2 四宫格/六视图参考图任务 JSON 生成 |
 | **art-director** | 图像生成执行器：通过 GRSAI 平台并发提交任务→轮询→下载→OSS 持久化 |

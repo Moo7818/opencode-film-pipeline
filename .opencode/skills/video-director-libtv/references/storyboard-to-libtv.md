@@ -22,7 +22,7 @@
 |--------------------------|-----------|------|
 | `aspect_ratio` | `--set ratio=<值>` | 如 `16:9` |
 | `resolution` | `--set resolution=<值>` | 映射为 `480p` / `720p` |
-| `model` | `--set model=<值>` | 视频模型 modelKey |
+| `model` | `--set model=<值>` | 视频模型 modelName（中文名，如 `Seedance 2.0 VIP`）；libtv 1.1.1+ 直接使用该字段值作为 modelName，**不做 modelKey → modelName 转换**。**禁止填 modelKey**（如 `kling-v3-omni`、`star-video2`），读取后直接用作 `--set model` 的值 |
 | `mode` | `--set modeType=<值>` | 生成模式，如 `mixed2video`、`text2video` |
 | `enable_sound` | `--set enableSound=on/off` | `true` → `on`，`false` → `off` |
 | — | `--set scene=<值>` | v1.1.1+ 模型 schema 可选业务场景字段，由 `libtv model <modelKey>` 决定

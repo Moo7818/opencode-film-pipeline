@@ -1,6 +1,6 @@
 ---
 name: storyboard-generator
-description: 将分集剧本拆解为电影级分镜头脚本（结构化JSON），输出独立组JSON格式的分镜任务表。[可选]按需生成分镜图生图任务表，配套AIGC视频模型实现分镜→视频桥接。分镜导演Agent依据此技能执行分镜制作。当任务涉及生成分镜脚本、镜头分解、分镜图任务表时加载此技能。注意：这是底层执行技能，由分镜导演 Agent 按需加载，不直接响应路由。
+description: 将分集剧本拆解为电影级分镜头脚本（结构化JSON），输出独立组JSON格式的分镜任务表。条件：仅当 project_config.json 中 use_storyboard_images=true 时生成分镜图生图任务表，配套AIGC视频模型实现分镜→视频桥接。分镜导演Agent依据此技能执行分镜制作。当任务涉及生成分镜脚本、镜头分解、分镜图任务表时加载此技能。注意：这是底层执行技能，由分镜导演 Agent 按需加载，不直接响应路由。
 ---
 
 # 分镜脚本生成
@@ -29,9 +29,13 @@ description: 将分集剧本拆解为电影级分镜头脚本（结构化JSON）
 │  3. 写文件                                               │
 │     → 直接写入 {剧集号}/分镜/分镜脚本.json                 │
 │                                                         │
-│  4. [可选] 机械拆分成组                                   │
-│     → 如需分组文件，调用 expand_scenes_to_groups.py        │
+│  4. 必选：机械拆分成组                                    │
+│     → 调用 expand_scenes_to_groups.py                      │
 │     → 输出到 {剧集号}/分镜/分组/组{N}.json                │
+│                                                         │
+│  5. 条件：仅当 use_storyboard_images=true 时              │
+│     → 调用 generate_task_table.py 生成分镜图任务表         │
+│     → 输出到 {剧集号}/分镜/分镜图_任务表.json             │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -51,7 +55,7 @@ description: 将分集剧本拆解为电影级分镜头脚本（结构化JSON）
 如需参考全局设定、角色/场景/道具设定，从以下路径读取：
 ```
 project/{项目名}/全局依赖/
-├── 全局设定/
+├── 全局设定.md
 ├── 角色设定/
 ├── 场景设定/
 └── 道具设定/
@@ -126,7 +130,7 @@ Agent 用自身 LLM 生成 JSON，必须为**场→组→镜**三级结构：
 3. **组镜头数**：每组 ≤ 9 个镜头
 4. **长镜头独占**：≥10 秒的镜头独占一组
 5. **快切独立成组**：快切镜头组单独成组
-6. **台词格式**：`台词` 字段以`旁白：`开头（本项目为旁白类商业片），与原始剧本逐字一致
+6. **台词格式**：`台词` 字段格式为 `角色名：台词内容` 或 `旁白：内容`，由分镜脚本根据场景灵活选择，与原始剧本逐字一致。下游 video-director 会从 `台词` 字段提取角色名做音色匹配，无法提取角色名时按旁白处理
 7. **字段完整**：每个镜头必须包含全部 17 个字段
 8. **时间连续**：同组内首镜从 0 开始
 9. **字数范围**：场景描述 20~40 字，站位/调度 25~50 字，人物心理活动 10~25 字，表演/微表情 15~30 字，光线 20~40 字，氛围 15~30 字
@@ -136,6 +140,7 @@ Agent 用自身 LLM 生成 JSON，必须为**场→组→镜**三级结构：
 13. **音频规则**：仅允许对白和音效，禁止背景音乐
 14. **禁止冗余描述**：去掉"仿佛""让观众感受到""传递出""营造出"等引导性修辞，描述像导演给摄影师的指令一样精炼
 15. **表演/微表情必须包含眼神方向**：每个镜头的`表演/微表情`字段必须描述角色眼神看向何处（如：望向镜头、看向产品、与对手对视、视线跟随物体移动等），建立明确的视线关系
+16. **妆造名标注**：当角色在某场戏中穿着非默认妆造时，在`场景描述`或`站位/调度`字段中标注妆造名，格式为 `[妆造:名]`。例如：`[妆造:战斗铠甲] 郑和立于旗舰船头`。默认妆造无需标注。该标注供下游角色参考图生成器匹配妆造衣橱使用
 
 ---
 
@@ -162,17 +167,49 @@ Agent 用自身 LLM 生成 JSON，必须为**场→组→镜**三级结构：
 
 ---
 
-## 第五步：[可选] 拆分为独立组文件
+## 第五步：必选：拆分为独立组文件
 
-如需独立组 JSON（供 video-director 逐组使用），调用 `expand_scenes_to_groups.py`：
+**必选：调用 expand_scenes_to_groups.py 拆分为独立组文件，供 video-director 逐组使用。** 下游 video-director 强依赖 `分组/组{N}.json`，此步骤不可跳过。
 
-```powershell
-.venv\Scripts\python.exe ".opencode/skills/storyboard-generator/scripts/expand_scenes_to_groups.py" `
-  --input "project/{项目名}/{剧集号}/分镜/分镜脚本.json" `
+```bash
+# Unix/macOS
+.venv/bin/python3 ".opencode/skills/storyboard-generator/scripts/expand_scenes_to_groups.py" \
+  --input "project/{项目名}/{剧集号}/分镜/分镜脚本.json" \
   --output-dir "project/{项目名}/{剧集号}/分镜/分组/"
 ```
 
+```powershell
+# Windows
+.venv\Scripts\python.exe ".opencode\skills\storyboard-generator\scripts\expand_scenes_to_groups.py" `
+  --input "project\{项目名}\{剧集号}\分镜\分镜脚本.json" `
+  --output-dir "project\{项目名}\{剧集号}\分镜\分组\"
+```
+
 这一步是纯机械拆分：将场级 `通用设定` 注入到每个组中，生成独立组 JSON 文件。
+
+---
+
+## 第六步：条件：仅当 use_storyboard_images=true 时生成分镜图任务表
+
+**条件步骤（仅当 project_config.json 中 use_storyboard_images=true 时）**：调用 `generate_task_table.py` 生成分镜图任务表，供美术指导绘制分镜图。`use_storyboard_images=false` 或未设置时跳过此步，video-director 将以角色/场景参考图为主要参考素材。
+
+```bash
+# Unix/macOS
+.venv/bin/python3 ".opencode/skills/storyboard-generator/scripts/generate_task_table.py" \
+  --groups-dir "project/{项目名}/{剧集号}/分镜/分组/" \
+  --output-dir "project/{项目名}/{剧集号}/分镜/" \
+  --output-name "分镜图_任务表.json"
+```
+
+```powershell
+# Windows
+.venv\Scripts\python.exe ".opencode\skills\storyboard-generator\scripts\generate_task_table.py" `
+  --groups-dir "project\{项目名}\{剧集号}\分镜\分组\" `
+  --output-dir "project\{项目名}\{剧集号}\分镜\" `
+  --output-name "分镜图_任务表.json"
+```
+
+此步骤从第五步产出的独立组 JSON 读取内容，机械转换为符合 `image-generation.json` schema 的任务表，不涉及 LLM 创作内容。
 
 ---
 
@@ -182,10 +219,11 @@ Agent 用自身 LLM 生成 JSON，必须为**场→组→镜**三级结构：
 {剧集号}/
 └── 分镜/
     ├── 分镜脚本.json              ← Agent 用 LLM 直接生成（完整场→组→镜）
-    └── 分组/                     ← [可选] expand_scenes_to_groups.py 拆出
-        ├── 组1.json
-        ├── 组2.json
-        └── ...
+    ├── 分组/                     ← 必选：expand_scenes_to_groups.py 拆出
+    │   ├── 组1.json
+    │   ├── 组2.json
+    │   └── ...
+    └── 分镜图_任务表.json         ← 条件：仅当 use_storyboard_images=true 时由 generate_task_table.py 生成
 ```
 
 ---

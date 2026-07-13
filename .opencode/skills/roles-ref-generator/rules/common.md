@@ -2,11 +2,12 @@
 
 三个定位模式（global / episode / group）共用以下规范。差异点在各自主文件中说明。
 
-## 四视图硬约束
+## 七视图硬约束
 
-- 一个角色 = 一个 task。每个角色只生成 1 个 task，该 task 的 prompt 描述 **一张网格图内包含 4 个视图**（左侧正面特写 + 右侧全身正/侧/背面）。
+- 一个角色 = 一个 task。每个角色只生成 1 个 task，该 task 的 prompt 描述 **一张网格图内包含 7 个视图**（左半侧半身正面照 + 右上表情三连图 + 右下全身三视图）。
 - **绝对禁止**为不同角度分别创建独立 task。
-- **aspectRatio 必须固定为 16:9**（横向构图才能容纳四视图并列排版）。
+- **aspectRatio 必须固定为 16:9**（横向构图才能容纳七视图并列排版）。
+- 此约束适用于 global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）。episode 模式不再生成七视图，仅做妆造匹配（见 `rules/episode.md`）。群像使用群像模板。
 
 ## 缺省值原则（重要）
 
@@ -107,14 +108,16 @@ AI 图像模型对某些视觉属性有统计偏见——如果 prompt 不明确
 - 保持模板原文的词汇关联性，不重新排列顺序
 - 如需额外补充，追加在末尾而非插入中间
 
-## Prompt 模板
+## 七视图 Prompt 模板
 
-Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12）。**禁止**自己编写新的 Prompt 格式，**禁止**改为单视图/单角度描述，**禁止**使用"角色参考图：XXX — 某视角"标题格式。
+global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）共用此模板。Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12）。**禁止**自己编写新的 Prompt 格式，**禁止**改为单视图/单角度描述，**禁止**使用"角色参考图：XXX — 某视角"标题格式。
 
 ```
 {string0}，
-{string1}，8K中超清，极致细节，影视级质感，85mm f1.4大光圈镜头，浅景深，焦点精准，{string2}人物设定图，人物四视图排版。
-画面左侧为人物上半身正面特写，展示人物面部、{string3}、{string4}、{string5}细节；画面右侧并列展示人物全身正面、全身侧面、全身背面三个视图，三视图人物服装、发型、头饰完全一致，完整站立，全身入镜，比例协调，高端{string6}角色设定海报质感。
+{string1}，8K中超清，极致细节，影视级质感，50mm f2.8镜头，浅景深，焦点精准，{string2}角色七视图设定图，七视图网格排版。
+画面左半侧为角色半身正面照，50mm焦段拍摄，自然微笑表情，展示人物面部、{string3}、{string4}、{string5}细节；
+画面右半侧上方三分之一区域为角色头部表情三连图，从左至右依次为：开心（灿烂笑容）、难过（悲伤神情）、愤怒（怒目而视），头部特写，表情生动自然，五官与半身照完全一致；
+画面右半侧下方三分之二区域为角色全身三视图，并列展示全身正面、全身侧面、全身背面三个视图，三视图人物服装、发型、头饰完全一致，完整站立，全身入镜，比例协调，高端{string6}角色设定海报质感。
 主体为一位{string7}，{string8}。
 {string9}，
 {string10}，
@@ -125,7 +128,7 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 
 ## 群像专用 Prompt 模板
 
-群像模式使用独立模板，不适用上述四视图模板。模板如下：
+群像模式使用独立模板，不适用上述七视图模板。模板如下：
 
 ```
 {string0}，
@@ -139,23 +142,27 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 
 ## 参数说明
 
-### 四视图参数
+### 七视图参数
+
+global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）使用以下参数。Tier 1 与 Tier 2 对参数的取值来源有差异，见 `rules/global.md`。
 
 | 参数 | 含义 | 说明 |
 |------|------|------|
 | string0 | 一致性引导词 | 由各模式自行定义（见 global/episode 规则） |
 | string1 | 质感类型 | 由角色视觉风格决定，从「string1 质感类型选择表」中选择对应值 |
 | string2 | 美学风格 | 如"东方古典仙侠美学"、"赛博朋克美学" |
-| string3 | 头饰（简述） | 从角色设定或分镜脚本提取 |
-| string4 | 妆容（简述） | 从角色设定或分镜脚本提取 |
-| string5 | 服装（简述） | 从角色设定或分镜脚本提取 |
+| string3 | 头饰（简述） | 从角色设定「造型设计」当前妆造名下提取 |
+| string4 | 妆容（简述） | 从角色设定「造型设计」当前妆造名下提取 |
+| string5 | 服装（简述） | Tier 1 选角固定为"白色短袖T恤"；Tier 2 从「造型设计」当前妆造名下提取 |
 | string6 | 剧集风格 | 如"森系仙侠"、"硬科幻" |
 | string7 | 性别+年龄 | 如"年轻女性"、"45岁男性" |
 | string8 | 角色特征 | 皮肤、五官、脸型、发型、胡须状态（有/无及类型）、身材、气质、性格等，≥80字。末尾追加风格化造型描述（从 reference 文件 `string8_style_injection` 字段提取） |
-| string9 | 头饰详述 | ≥80字详细描述 |
-| string10 | 服装详述 | ≥80字详细描述。推荐按结构化三段式编写：品类（如 oversized knitted sweaters, fluffy jackets, cropped tops, wide-leg jeans）+ 材质（wool, fleece, knit 等纹理面料）+ 色彩（显式指定色板，如 warm color palette with pastel and vibrant tones: orange, teal, purple, yellow），可选追加配件（backpack, sling bag, headphones, goggles）和同伴（cute animal companion on shoulder） |
-| string11 | 背景+光影 | 摄影棚氛围、光线方向、质感描述。必须使用中英双语并列格式，从 reference 文件 `string11` 章节提取 |
+| string9 | 头饰详述 | ≥80字详细描述。从角色设定「造型设计」当前妆造名下扩展 |
+| string10 | 服装详述 | ≥80字详细描述。推荐按结构化三段式编写：品类（如 oversized knitted sweaters, fluffy jackets, cropped tops, wide-leg jeans）+ 材质（wool, fleece, knit 等纹理面料）+ 色彩（显式指定色板，如 warm color palette with pastel and vibrant tones: orange, teal, purple, yellow），可选追加配件（backpack, sling bag, headphones, goggles）和同伴（cute animal companion on shoulder）。Tier 1 选角固定为"白色短袖T恤，简约干净，无图案无文字"；Tier 2 从「造型设计」当前妆造名下扩展 |
+| string11 | 背景+光影 | 摄影棚氛围、光线方向、质感描述。必须使用中英双语并列格式，从 reference 文件 `string11` 章节提取。Tier 1 选角固定为"工业级中灰无影墙，光线柔和自然，无色光，均匀照明无阴影" |
 | string12 | 整体质感 | 如"照片级真实质感"、"彩色铅笔画质感"。必须使用中英双语并列格式，从 reference 文件 `string12` 章节提取 |
+
+> **Tier 1 选角固定项**：string5 固定为"白色短袖T恤"，string10 固定为"白色短袖T恤，简约干净，无图案无文字"，string11 固定为"工业级中灰无影墙，光线柔和自然，无色光，均匀照明无阴影"。镜头固定为 50mm f2.8，半身照表情为自然微笑，表情三连图为开心/难过/愤怒。这些固定项仅在 Tier 1 选角资产中生效（见 `rules/global.md` 步骤 3a），Agent 不可覆盖。Tier 2 定妆/新妆造的 string5/10/11 从「造型设计」和 reference 文件提取，不使用固定值。
 
 ### 群像专属参数
 
@@ -167,11 +174,13 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 | 群组-C位描述 | C位角色及其视觉突出描述 | 如"女主角居中，服装颜色略深于其他队员以突出主理人身份" |
 | 群组-整体定位描述 | 群组的身份 / 角色定位 | 如"现代卫浴工厂操作员与街舞舞者融合的年轻团队" |
 
-> **注意**：群像模式使用「群像专用 Prompt 模板」，不适用四视图模板。上述四视图参数表中的 string3~string10 在群像模式中不适用（由 `{群组-` 前缀占位符替代）。
+> **注意**：群像模式使用「群像专用 Prompt 模板」，不适用七视图模板。上述七视图参数表中的 string3~string12 在群像模式中不适用（由 `{群组-` 前缀占位符替代）。
 
 ## Schema 校验
 
-调用 `scripts/validators.py` 的两个函数进行校验：
+调用 `scripts/validators.py` 的两个函数进行校验。
+
+> **适用范围**：Schema 校验仅适用于 **global 模式**和 **group 模式**（生成 task JSON 的模式）。episode 模式产出妆造匹配清单 JSON，不调用 validators。
 
 **任务级校验** — `validate_tasks(tasks, mode)`：
 
@@ -179,7 +188,7 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 |--------|------|
 | 基础字段 | 每个 task 必须包含：prompt, imageSize, aspectRatio, filename, images |
 | 类型检查 | imageSize **必须固定为** `1K`，aspectRatio **必须固定为** `16:9` |
-| images/模式一致性 | 由 mode 参数决定（见各模式规则） |
+| images/模式一致性 | 由 mode 参数决定：`global`（Tier 1 选角 + Tier 2 定妆）、`group`（群像） |
 | prompt 完整性 | 无模板占位符（string0~string12），长度 ≥ 50 字符 |
 | filename 合法性 | 必须以 .png 结尾 |
 
@@ -195,6 +204,10 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 
 ## 输出完成提示
 
+global 模式和 group 模式使用以下提示：
+
 ```
 任务 JSON 已生成，等待 Art-director 执行生图
 ```
+
+> episode 模式的完成提示见 `rules/episode.md`。

@@ -64,8 +64,7 @@ def build_prompt(group, shot_count, layout, image_refs=None):
         parts.append(f"通用设定：{json.dumps(common, ensure_ascii=False)}")
     parts.append("")
 
-    dump_group = {k: v for k, v in group.items()}
-    parts.append(json.dumps(dump_group, ensure_ascii=False, indent=2))
+    parts.append(json.dumps(group, ensure_ascii=False, indent=2))
 
     return "\n".join(parts)
 
@@ -116,6 +115,7 @@ def load_groups_from_file(storyboard_path):
 
 
 def generate_task_table(groups, output_dir, output_name, image_refs=None,
+                        ref_images=None,
                         model=DEFAULT_MODEL, image_size=DEFAULT_SIZE,
                         aspect_ratio=DEFAULT_ASPECT):
     if not groups:
@@ -130,13 +130,16 @@ def generate_task_table(groups, output_dir, output_name, image_refs=None,
         prompt = build_prompt(group, shot_count, layout, image_refs)
         group_no = group.get("组号", "?")
 
-        tasks.append({
+        task = {
             "prompt": prompt,
             "model": model,
             "imageSize": image_size,
             "aspectRatio": aspect_ratio,
             "filename": f"组{group_no}_{layout}.png",
-        })
+            "images": ref_images or [],
+        }
+
+        tasks.append(task)
 
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, output_name)
@@ -162,6 +165,9 @@ def main():
     parser.add_argument("--pipeline-dir")
     parser.add_argument("--image-refs", nargs="*", default=None,
                         help="参考图标注列表，如 --image-refs 校长角色 食堂场景 风格")
+    parser.add_argument("--ref-images", nargs="*", default=None,
+                        help="参考图路径列表（URL 或本地路径），写入 task 的 images 字段。"
+                             "顺序与 --image-refs 对应，作为生图模型的参考输入")
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help=f"模型（默认 {DEFAULT_MODEL}，视频推荐 doubao-seedance-2-0-fast-260128）")
     parser.add_argument("--image-size", default=DEFAULT_SIZE,
@@ -207,6 +213,7 @@ def main():
         output_dir=args.output_dir,
         output_name=args.output_name,
         image_refs=args.image_refs,
+        ref_images=args.ref_images,
         model=args.model,
         image_size=args.image_size,
         aspect_ratio=args.aspect_ratio,

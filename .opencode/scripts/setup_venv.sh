@@ -52,14 +52,12 @@ EOF
 
 echo "✓ 已生成 .env 文件"
 
-# 检查 setup_venv.sh 脚本自身完整性
-echo ""
-echo "✅ 如需配置 MCP 服务器，已将启动器指向 mcp_python.sh"
-echo "   确保 opencode.json 使用: .opencode/scripts/mcp_python.sh"
-
 echo ""
 echo "=== 初始化完成 ==="
 echo ""
 echo "下一步："
-echo "  1. 确保 .env 文件中的路径正确"
+echo "  1. 确认 .opencode/credentials/media_gen_config.json 已就位"
 echo "  2. 重启 opencode 使配置生效"
+echo ""
+echo "注意：MCP 服务器通过 'uv run' 启动（见 opencode.json），"
+echo "      无需手动配置 Python 路径。"

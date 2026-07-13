@@ -43,7 +43,11 @@ FORBIDDEN_SCENE_COMMON_FIELDS = ["人物", "关键道具", "images"]
 REQUIRED_GROUP_FIELDS = ["组号", "组时长", "组叙事概述", "组转场", "镜头列表"]
 
 # 组级禁止字段
-FORBIDDEN_GROUP_FIELDS = ["通用设定", "images"]
+# 注：通用设定 不在禁止列表——expand_scenes_to_groups.py 会将场级通用设定注入到
+# 扁平组级文件（分组/组N.json），供 video-director 读取 通用设定.场景名称 做场景过滤、
+# 供 generate_task_table.py 读取通用设定构建分镜图 prompt。场级结构（分镜脚本.json）
+# 中通用设定应场级统一定义（由 SKILL.md 硬约束 11 约束），此处不再重复禁止。
+FORBIDDEN_GROUP_FIELDS = ["images"]
 
 # 镜头必需字段
 REQUIRED_SHOT_FIELDS = [

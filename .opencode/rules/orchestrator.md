@@ -40,6 +40,60 @@
 
 若用户意图涉及上述多个领域，按"多意图并行"处理，同时 spawn 多个子 agent。
 
+# Spawn 上下文传递
+
+orchestrator spawn coordinator 时必须传递项目上下文，避免 coordinator 启动后不知操作哪个项目。本小节规范此流程。
+
+## 项目名传递强制要求
+
+- orchestrator spawn coordinator 前，必须从用户消息中提取明确的项目名（例如用户说"推进项目 实验01 的阶段"，则项目名为"实验01"）。
+- 如果用户消息中没有明确项目名，orchestrator **不得直接 spawn coordinator**，必须先追问用户"要操作哪个项目"。
+- 追问时如有必要，可结合下面的"最小化项目列表读取"列出当前可用项目供用户选择。
+
+## 最小化项目列表读取（例外允许）
+
+铁律第 2 条"禁止调研"在此有一个明确例外：允许 orchestrator 在 spawn coordinator 之前做**一次最小化**的 `.meta/projects/` 目录读取，仅用于项目定位，不读业务内容。
+
+允许的操作范围：
+- 列出 `.meta/projects/` 下的目录名
+- 扫描各项目 `project.json` 的 `name` 字段（仅 name 字段，不读其他字段）
+
+允许的用途：
+- 验证用户提到的项目名是否真实存在
+- 多项目共存时，列出所有 active 项目供用户选择
+- 在 spawn prompt 中附带项目 UUID 目录路径（`.meta/projects/{uuid}/`）
+
+禁止的操作：读取项目的 stages/manifest/events/产物文件等业务内容——这些属于 coordinator/专业子 agent 的职责。
+
+## Spawn prompt 模板
+
+spawn coordinator 时，orchestrator 必须在 prompt 中按以下模板传递上下文：
+
+```
+操作项目：{项目名}
+任务：{用户意图，如"推进阶段"/"注册产物"/"资产同步"}
+项目 UUID 目录：.meta/projects/{uuid}/（如 orchestrator 已知 uuid 则附带，否则由 coordinator 自行扫描定位）
+```
+
+说明：
+- 项目名与任务两项为必填，UUID 目录项为选填（orchestrator 已通过最小化读取拿到 uuid 则附带，否则由 coordinator 自行扫描定位）。
+- 若用户消息未指定项目名且 orchestrator 已追问得到答案，将追问结果填入"操作项目"。
+
+## 多项目处理规则
+
+coordinator 收到 spawn prompt 后的定位逻辑：
+
+- **单项目共存**：coordinator 自动定位该项目，无需向用户确认。
+- **多项目共存且用户指定项目名**：coordinator 按项目名扫描 `.meta/projects/*/project.json` 的 `name` 字段匹配，命中后操作该项目。
+- **多项目共存且用户未指定**：coordinator 列出所有 active 项目（`current_stage` 非 `delivery`/`cancelled`）供用户选择，**不猜测**，等用户明确后再操作。
+- **项目名歧义/不存在**：coordinator 向 orchestrator 返回错误说明，orchestrator 再向用户澄清。
+
+## 与铁律的关系
+
+- 保留铁律第 4 条"3 秒决策"：项目名明确时，orchestrator 仍应在 3 秒内 spawn，不犹豫。
+- 保留铁律第 2 条"禁止调研"：**项目定位是必要的前置步骤，不属于"调研"范畴**。仅允许上文定义的最小化读取，超出此范围的文件操作仍属违规。
+- 用户未指定项目名时，orchestrator 的追问属于必要澄清，不违反"3 秒决策"原则——决策已做出（即"需要先澄清项目"），只是执行需待用户补全信息。
+
 # 子 Agent 清单
 
 | Agent | 一句话职责 |

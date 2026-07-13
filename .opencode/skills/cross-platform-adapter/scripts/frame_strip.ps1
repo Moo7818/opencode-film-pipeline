@@ -24,11 +24,14 @@ $ErrorActionPreference = "Stop"
 
 # --- Helper: invoke Python with a script block ---
 function Invoke-PythonInline {
-    param([string]$ScriptBlock, [string[]]$Args)
+    param([string]$ScriptBlock, [string[]]$PyArgs)
     $tmpFile = Join-Path $env:TEMP "frame_strip_py_$([System.Guid]::NewGuid().ToString()).py"
     try {
         Set-Content -Path $tmpFile -Encoding UTF8 -Value $ScriptBlock
-        $result = & python @tmpFile @Args 2>&1
+        # Detect python3 first (Unix), fall back to python (Windows)
+        $pyCmd = "python3"
+        if (-not (Get-Command $pyCmd -ErrorAction SilentlyContinue)) { $pyCmd = "python" }
+        $result = & $pyCmd $tmpFile @PyArgs 2>&1
         return $result
     }
     finally {

@@ -11,7 +11,7 @@ param(
     [string]$ArtifactPath,
     [Parameter(Mandatory=$true)]
     [string]$Stage,
-    [string]$Actor = "coordinator",
+    [string]$Actor = "project-coordinator",
     [string]$ArtifactId,
     [string[]]$Tags,
     [string]$ProjectId,

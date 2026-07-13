@@ -27,19 +27,10 @@
     },
     "model": {
       "type": "string",
-      "description": "视频生成模型 modelKey",
+      "description": "libtv 视频生成模型的 modelName（中文名，libtv 1.1.1+ 要求），非 modelKey",
       "examples": [
-        "star-video2",
-        "star-video2-fast",
-        "kling-v3-omni",
-        "kling-video-o3",
-        "kling-video-o1",
-        "happy-horse-1",
-        "wanx2.7-video",
-        "MiniMax-Hailuo-2.3",
-        "seedance-1.5-pro",
-        "midjourney-video",
-        "viduq3-pro"
+        "Seedance 2.0 VIP",
+        "Kolors 1.5 Pro"
       ]
     },
     "use_storyboard_images": {

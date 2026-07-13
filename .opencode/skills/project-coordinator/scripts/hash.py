@@ -66,7 +66,6 @@ def compute_file_hash(file_path: str, fast: bool = False) -> tuple:
             if not chunk:
                 break
             sha256.update(chunk)
-            file_size += len(chunk)
     return f"sha256-{sha256.hexdigest()}", file_size
 
 

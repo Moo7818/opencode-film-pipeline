@@ -7,7 +7,7 @@
 | `project.created` | 新项目创建后 | `{"name":"山与鱼"}` |
 | `project.deleted` | 项目完全注销后 | `{"name":"山与鱼","id":"uuid","reason":"用户请求注销"}` |
 | `project.archived` | 项目打包归档后 | `{"name":"山与鱼","id":"uuid","zip_path":"temp/山与鱼_uuid_20260516.zip"}` |
-| `stage.transition` | 阶段推进后 | `{"from":"pre_production","to":"production","reason":"前期筹备完成"}` |
+| `stage.transition` | 阶段推进后 | `{"from":"project_init","to":"material_sorting","reason":"项目初始化完成"}` |
 | `artifact.created` | 新产物注册后 | `{"artifact_id":"art_001","type":"script","path":"..."}` |
 | `artifact.updated` | 产物更新后 | `{"artifact_id":"art_001","old_status":"draft","new_status":"final"}` |
 | `artifact.deprecated` | 产物废弃后 | `{"artifact_id":"art_001"}` |
@@ -28,7 +28,7 @@
 |------|------|------|
 | `timestamp` | 是 | ISO 8601 格式，含时区，如 `2026-05-16T10:00:00+08:00` |
 | `type` | 是 | 事件类型（见上表） |
-| `actor` | 是 | 触发者：`user` / `coordinator` / `{skill_name}` |
+| `actor` | 是 | 触发者：`user` / `project-coordinator` / `{skill_name}` |
 | `data` | 是 | 事件详情，自由结构对象 |
 | `project_id` | 否 | 关联的项目 UUID（与 `.meta/projects/{id}/` 一致） |
 | `batch_id` | 否 | 关联的批次 ID（与 `.logs/_index.json` 一致），用于跨日志追踪 |
@@ -43,10 +43,10 @@
 1. **每次操作必须记录**：所有对项目状态有变更的操作（创建、推进、注册、更新、废弃、归档）都必须包含对应事件
 2. **追加写入（使用 CLI）**：仅追加到 `.meta/projects/{id}/events.jsonl` 末尾，不修改已有行
    ```powershell
-   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value '{"timestamp":"...","type":"...","actor":"coordinator","data":{...}}'
+   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value '{"timestamp":"...","type":"...","actor":"project-coordinator","data":{...}}'
    ```
 3. **时间戳**：使用 ISO 8601 格式，含时区信息
-4. **actor 标识**：`coordinator` 表示统筹 agent 发起的操作，`user` 表示用户发起的操作
+4. **actor 标识**：`project-coordinator` 表示统筹 agent 发起的操作，`user` 表示用户发起的操作
 5. **写后校验**：每次追加写入后，调用 `validate.py` 校验 `events.jsonl` 语法，确保追加行格式正确
 
 ## 文件格式
@@ -54,8 +54,8 @@
 ```
 events.jsonl
 ├── 第 1 行: {"timestamp":"...","type":"project.created","actor":"user","data":{...}}
-├── 第 2 行: {"timestamp":"...","type":"stage.transition","actor":"coordinator","data":{...}}
-├── 第 3 行: {"timestamp":"...","type":"artifact.created","actor":"script_writer","data":{...}}
+├── 第 2 行: {"timestamp":"...","type":"stage.transition","actor":"project-coordinator","data":{...}}
+├── 第 3 行: {"timestamp":"...","type":"artifact.created","actor":"producer","data":{...}}
 └── ...
 ```
 

@@ -5,16 +5,17 @@
 
 用法:
   # 完整流程（上传素材 → 创建节点（一次性含引用行） → 建组）
+  # 注意: --model 传 modelName（中文名），如 "Seedance 2.0 VIP"；不要传 modelKey
   python run_video_pipeline.py --build ^
     --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
-    --groups 7 8 9 --model star-video2 --ratio 16:9 --resolution 480p ^
+    --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 --resolution 480p ^
     --refs "组7:场景_现代南京长江边,角色_一岛,角色_郑和,道具_平板" ^
     --refs "组8:场景_现代南京长江边,角色_一岛,角色_郑和"
 
   # 完整流程 + 音色参考
   python run_video_pipeline.py --build ^
     --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
-    --groups 7 8 9 --model star-video2 --ratio 16:9 ^
+    --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
     --refs "组7:场景_现代南京,角色_一岛" ^
     --voice-refs 吉小泰 妈妈 女儿
 
@@ -41,7 +42,9 @@ CONSTRAINT = "画面严禁出现任何字幕，无配乐"
 SEPARATOR = "---"
 
 CONFIG_DEFAULTS = {
-    "model": "star-video2",
+    # model 字段必须是 modelName（中文名），不是 modelKey
+    # libtv 1.1.1+ 直接使用该值作为 modelName，不做 modelKey → modelName 转换
+    "model": "Seedance 2.0 VIP",
     "modeType": "mixed2video",
     "count": 1,
     "ratio": "16:9",
@@ -52,10 +55,10 @@ CONFIG_DEFAULTS = {
 POLL_INTERVAL = 30
 POLL_TIMEOUT = 600
 
-REFRENCE_TYPE_PATHS = {
-    "角色": "全局依赖/角色参考图",
-    "场景": "全局依赖/场景参考图",
-    "道具": "全局依赖/道具参考图",
+REFERENCE_TYPE_PATHS = {
+    "角色": "全局依赖/角色设定/角色参考图",
+    "场景": "全局依赖/场景设定/场景参考图",
+    "道具": "全局依赖/道具设定/道具参考图",
     "风格": "前期采样/风格",
 }
 
@@ -119,7 +122,7 @@ def parse_refs(refs_args):
 def scan_project_refs(project_root):
     import re
     found = {}
-    for ref_type, rel_path in REFRENCE_TYPE_PATHS.items():
+    for ref_type, rel_path in REFERENCE_TYPE_PATHS.items():
         dir_path = os.path.join(project_root, rel_path)
         if not os.path.isdir(dir_path):
             continue
@@ -326,6 +329,8 @@ def build_pipeline(args):
     print("=" * 60)
 
     created_nodes = []
+    # model 字段已经是 modelName（中文名），libtv 1.1.1+ 直接使用，无需任何转换
+    # project_config.json 的 model 字段或 --model 命令行参数都应传 modelName
     model = args.model or CONFIG_DEFAULTS["model"]
     ratio = args.ratio or CONFIG_DEFAULTS["ratio"]
     resolution = args.resolution or CONFIG_DEFAULTS["resolution"]
@@ -498,7 +503,7 @@ def main():
     parser.add_argument("--output-dir", default=None, help="视频下载目录（默认: project/<项目>/<剧集>/视频/）")
     parser.add_argument("--poll-interval", type=int, default=POLL_INTERVAL, help="轮询间隔秒数（默认: 30）")
     parser.add_argument("--poll-timeout", type=int, default=POLL_TIMEOUT, help="轮询超时秒数（默认: 600）")
-    parser.add_argument("--model", default=None, help="视频模型")
+    parser.add_argument("--model", default=None, help='视频模型 modelName（中文名，如 "Seedance 2.0 VIP"）；libtv 1.1.1+ 直接使用该值，禁止传 modelKey')
     parser.add_argument("--ratio", default=None, help="画面比例")
     parser.add_argument("--resolution", default=None, help="分辨率")
     parser.add_argument("--sound", default=None, help="音频开关")

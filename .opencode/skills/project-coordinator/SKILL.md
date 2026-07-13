@@ -10,7 +10,7 @@ description: 项目统筹 agent，负责管理项目全生命周期的目录结�
 ## 规则
 
 1. **操作元数据 + 移动文件**：统筹 agent 写 `.meta/projects/{id}/` 下的元数据文件，并负责将产物文件移动到 `project/{name}/` 下的正确路径
-2. **绝不读产物内容**：统筹 agent 只操作文件路径和元数据（名称、大小、哈希、类型），绝对不打开、读取或显示任何产物的内部内容。这是控制 token 开销的核心约束
+2. **绝不读产物业务内容**：统筹 agent 只操作文件路径和元数据（名称、大小、哈希、类型），以及由其他 agent 显式产出的结构化阶段清单文件（如 `妆造匹配清单.json`，作为资产同步的元数据索引，非业务文本）。绝对不打开、读取或显示剧本/设定/图像/分镜脚本等产物的内部业务内容。这是控制 token 开销的核心约束
 3. **所有操作必须记录**：每次阶段推进、产物归档、项目变更必须追加到 `events.jsonl`
 4. **状态不可逆**：阶段一旦标记为 `completed`，不可回退
 5. **唯一推进者**：只有统筹 agent 可以推进 `stages.json` 的阶段流转
@@ -34,6 +34,8 @@ description: 项目统筹 agent，负责管理项目全生命周期的目录结�
 ## PowerShell 编码最佳实践（Windows）
 
 > 如果工作环境是 Windows + PowerShell 5，以下规则必须遵守，否则中文路径/内容会乱码报错。
+>
+> **跨平台提示**：在 Unix/macOS 上可跳过本章节，直接使用 bash 命令。所有 JSON 读写建议统一用 `python3 -c` 调用 json 库（跨平台最稳），避免 bash 的 locale 问题。各操作步骤的 PowerShell / bash 双套命令见下方具体章节。
 
 1. **避免使用 HERE-string（`@"..."@` / `@'...'@`）**：多行 HERE-string 在 PowerShell 5 中与 UTF-8 中文内容组合时，会因为代码页编码差异导致解析失败。改为逐条简单命令。
 2. **所有文件写入指定 `-Encoding UTF8`**：
@@ -91,9 +93,9 @@ python {scriptsDir}/validate.py <file_path>...
 用户请求 → CLI读取当前状态 → CLI执行操作 → CLI更新状态文件 → 校验 JSON 语法 → CLI写入事件日志 → 响应
 ```
 
-每次通过 CLI 写入 `.json` 或 `.jsonl` 后，立即用 `RunCommand` 调用校验脚本：
+每次通过 CLI 写入 `.json` 或 `.jsonl` 后，立即用 `RunCommand` 调用校验脚本（跨平台，python 命令在 Windows/Unix 通用）：
 
-```powershell
+```bash
 python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta/projects/{id}/stages.json" ".meta/projects/{id}/manifest.json" ".meta/projects/{id}/events.jsonl"
 ```
 
@@ -101,75 +103,217 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
 
 ### 批量操作脚本
 
-以下 PowerShell 脚本将常见的多步 CLI 调用链压缩为单条命令，减少 token 开销和中间步骤：
+以下 Python 脚本将常见的多步 CLI 调用链压缩为单条命令，减少 token 开销和中间步骤：
 
 | 脚本 | 功能 | 替代的调用链 |
 |------|------|-------------|
-| `write-validate.ps1` | 写文件 + 自动校验 | `Set-Content` + `validate.py` |
-| `append-event.ps1` | 追加事件到 events.jsonl + 自动校验 | `Add-Content` + `validate.py` |
-| `register-artifact.ps1` | 哈希 → 注册 → manifest 更新 → 写事件 → 全链校验 | `hash.py` + 读 manifest + 写 manifest + `validate.py` + 写事件 + `validate.py` |
+| `write_validate.py` | 写文件 + 自动校验 | `Set-Content` + `validate.py` |
+| `append_event.py` | 追加事件到 events.jsonl + 自动校验 | `Add-Content` + `validate.py` |
+| `register_artifact.py` | 哈希 → 注册 → manifest 更新 → 写事件 → 全链校验 | `hash.py` + 读 manifest + 写 manifest + `validate.py` + 写事件 + `validate.py` |
 
-#### `write-validate.ps1`
+#### `write_validate.py`
 
-```powershell
-& "{scriptsDir}/write-validate.ps1" -Path ".meta/projects/{id}/stages.json" -Value $jsonContent
+```bash
+python "{scriptsDir}/write_validate.py" --path ".meta/projects/{id}/stages.json" --value "$jsonContent"
 ```
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
-| `-Path` | 是 | 目标文件路径 |
-| `-Value` | 是 | 写入内容（字符串） |
-| `-Encoding` | 否 | 编码，默认 UTF8 |
-| `-PassThru` | 否 | 返回校验结果 |
+| `--path` | 是 | 目标文件路径 |
+| `--value` | 是 | 写入内容（字符串） |
+| `--encoding` | 否 | 编码，默认 utf-8 |
+| `--pass-thru` | 否 | 返回校验结果 |
 
-#### `append-event.ps1`
+#### `append_event.py`
 
-```powershell
-& "{scriptsDir}/append-event.ps1" -EventsPath ".meta/projects/{id}/events.jsonl" -Timestamp "2026-05-16T10:00:00+08:00" -Type "project.created" -Actor "user" -Data '{"name":"山与鱼"}' -ProjectId "uuid"
+```bash
+python "{scriptsDir}/append_event.py" --events-path ".meta/projects/{id}/events.jsonl" --timestamp "2026-05-16T10:00:00+08:00" --type "project.created" --actor "user" --data '{"name":"山与鱼"}' --project-id "uuid"
 ```
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
-| `-EventsPath` | 是 | events.jsonl 路径 |
-| `-Timestamp` | 是 | ISO 8601 时间戳 |
-| `-Type` | 是 | 事件类型 |
-| `-Actor` | 是 | 触发者 |
-| `-Data` | 是 | 事件详情 JSON |
-| `-ProjectId` | 否 | 关联项目 UUID |
-| `-BatchId` | 否 | 关联批次 ID |
-| `-PassThru` | 否 | 返回事件 JSON |
+| `--events-path` | 是 | events.jsonl 路径 |
+| `--timestamp` | 是 | ISO 8601 时间戳 |
+| `--type` | 是 | 事件类型 |
+| `--actor` | 是 | 触发者 |
+| `--data` | 是 | 事件详情 JSON |
+| `--project-id` | 否 | 关联项目 UUID |
+| `--batch-id` | 否 | 关联批次 ID |
+| `--pass-thru` | 否 | 返回事件 JSON |
 
-#### `register-artifact.ps1`
+#### `register_artifact.py`
 
-```powershell
-& "{scriptsDir}/register-artifact.ps1" -ManifestPath ".meta/projects/{id}/manifest.json" -EventsPath ".meta/projects/{id}/events.jsonl" -Type "script" -Name "01/剧本.md" -ArtifactPath "project/山与鱼/01/剧本.md" -Stage "production" -ProjectId "uuid"
+```bash
+python "{scriptsDir}/register_artifact.py" --manifest-path ".meta/projects/{id}/manifest.json" --events-path ".meta/projects/{id}/events.jsonl" --type "script" --name "01/剧本.md" --artifact-path "project/山与鱼/01/剧本.md" --stage "production" --project-id "uuid"
 ```
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
-| `-ManifestPath` | 是 | manifest.json 路径 |
-| `-EventsPath` | 是 | events.jsonl 路径 |
-| `-Type` | 是 | 产物类型 |
-| `-Name` | 是 | 产物名称 |
-| `-ArtifactPath` | 是 | 产物文件路径 |
-| `-Stage` | 是 | 所属阶段 |
-| `-Actor` | 否 | 触发者，默认 coordinator |
-| `-ArtifactId` | 否 | 产物 ID，自动生成 |
-| `-Tags` | 否 | 标签数组 |
-| `-ProjectId` | 否 | 关联项目 UUID |
+| `--manifest-path` | 是 | manifest.json 路径 |
+| `--events-path` | 是 | events.jsonl 路径 |
+| `--type` | 是 | 产物类型 |
+| `--name` | 是 | 产物名称 |
+| `--artifact-path` | 是 | 产物文件路径 |
+| `--stage` | 是 | 所属阶段 |
+| `--actor` | 否 | 触发者，默认 `project-coordinator`（必须是规范定义的 skill name，详见 `project_management.md` 的 events.jsonl 字段说明） |
+| `--artifact-id` | 否 | 产物 ID，自动生成 |
+| `--tags` | 否 | 标签列表 |
+| `--project-id` | 否 | 关联项目 UUID |
 
 该脚本自动执行：计算 SHA-256 → 标记旧条目 deprecated → 写入新条目 → 校验 manifest.json → 写入 artifact.created 事件 → 校验 events.jsonl。
+
+### 项目定位
+
+Coordinator 启动后，凡是针对**已存在项目**的操作（推进阶段、注销、打包、注册产物、归档、查询等），必须先定位到目标项目的 UUID。定位规则按以下优先级：
+
+1. **orchestrator 显式传入 UUID** → 直接使用该 UUID，跳过扫描（最高优先级，最快路径）
+2. **orchestrator 传入项目名** → 扫描 `.meta/projects/*/project.json`，按 `name` 字段匹配定位 UUID
+3. **多项目共存且未指定** → 列出所有 active 项目（`project.json` 中 `current_stage` 非 `delivery`/`cancelled`）供用户选择，等待用户明确选择后再继续
+4. **无任何项目存在** → 提示用户先执行"创建项目"流程
+
+**扫描命令（按项目名定位）**：
+
+```powershell
+# PowerShell (Windows)：扫描所有 project.json，按 name 字段匹配
+$targetName = "项目名"
+$matched = @()
+Get-ChildItem -Directory ".meta/projects" | ForEach-Object {
+  $pj = Join-Path $_.FullName "project.json"
+  if (Test-Path $pj) {
+    $obj = Get-Content -Encoding UTF8 -Raw $pj | ConvertFrom-Json
+    if ($obj.name -eq $targetName) {
+      $matched += [PSCustomObject]@{ uuid = $_.Name; name = $obj.name; current_stage = $obj.current_stage }
+    }
+  }
+}
+if ($matched.Count -eq 0) { throw "未找到 name='$targetName' 的项目" }
+if ($matched.Count -gt 1) { throw "项目名冲突：找到 $($matched.Count) 个同名项目，请改用 uuid 定位" }
+$projectId = $matched[0].uuid
+```
+
+```bash
+# bash (Unix/macOS)：用 python3 扫描，避免 locale 问题
+python3 -c "
+import json, os, sys
+target = '项目名'
+matched = []
+base = '.meta/projects'
+if not os.path.isdir(base):
+    print('ERROR: 无任何项目存在', file=sys.stderr); sys.exit(1)
+for d in os.listdir(base):
+    pj = os.path.join(base, d, 'project.json')
+    if not os.path.isfile(pj): continue
+    try:
+        with open(pj, 'r', encoding='utf-8') as f: obj = json.load(f)
+    except Exception: continue
+    if obj.get('name') == target:
+        matched.append({'uuid': d, 'name': obj.get('name'), 'current_stage': obj.get('current_stage')})
+if not matched:
+    print(f'ERROR: 未找到 name={target!r} 的项目', file=sys.stderr); sys.exit(1)
+if len(matched) > 1:
+    print(f'ERROR: 项目名冲突：找到 {len(matched)} 个同名项目，请改用 uuid 定位', file=sys.stderr); sys.exit(1)
+print(matched[0]['uuid'])
+"
+```
+
+**列出所有 active 项目（供用户选择）**：
+
+```powershell
+# PowerShell (Windows)
+Get-ChildItem -Directory ".meta/projects" | ForEach-Object {
+  $pj = Join-Path $_.FullName "project.json"
+  if (Test-Path $pj) {
+    $obj = Get-Content -Encoding UTF8 -Raw $pj | ConvertFrom-Json
+    if ($obj.current_stage -ne 'delivery' -and $obj.current_stage -ne 'cancelled') {
+      [PSCustomObject]@{ uuid = $_.Name; name = $obj.name; current_stage = $obj.current_stage }
+    }
+  }
+} | Format-Table -AutoSize
+```
+
+```bash
+# bash (Unix/macOS)
+python3 -c "
+import json, os
+base = '.meta/projects'
+for d in sorted(os.listdir(base)):
+    pj = os.path.join(base, d, 'project.json')
+    if not os.path.isfile(pj): continue
+    try:
+        with open(pj, 'r', encoding='utf-8') as f: obj = json.load(f)
+    except Exception: continue
+    cs = obj.get('current_stage')
+    if cs in ('delivery', 'cancelled'): continue
+    print(f\"uuid={d}  name={obj.get('name')}  current_stage={cs}\")
+"
+```
+
+> **重要**：定位 UUID 后，所有后续 CLI 操作中的 `{id}` 占位符都替换为该 UUID；`{name}` 占位符替换为 `project.json` 中的 `name` 字段值。多项目场景下未明确指定 UUID 或项目名时，**禁止猜测**，必须等待用户选择。
 
 ### 创建项目
 
 1. 生成 UUID v4
-2. 创建元数据目录：`RunCommand` → `New-Item -ItemType Directory -Force -Path ".meta/projects/{uuid}/"`
-3. 使用 CLI 创建 `project.json`、`stages.json`、`manifest.json`、`events.jsonl` 四个文件（`Set-Content -Encoding UTF8`）
+2. 创建元数据目录：
+   ```powershell
+   # PowerShell (Windows)
+   New-Item -ItemType Directory -Force -Path ".meta/projects/{uuid}/"
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   mkdir -p ".meta/projects/{uuid}/"
+   ```
+3. 使用 CLI 创建 `project.json`、`stages.json`、`manifest.json`、`events.jsonl` 四个文件：
+   ```powershell
+   # PowerShell (Windows)：用 Set-Content -Encoding UTF8 写入初始内容（空 manifest / 空 events / project 元数据 / stages 初始化）
+   Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/manifest.json" -Value '{"_version":1,"artifacts":[]}'
+   Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value ""
+   ```
+   ```bash
+   # bash (Unix/macOS)：建议用 python3 写入 JSON，避免 locale 问题
+   python3 -c "
+   import json, os
+   os.makedirs('.meta/projects/{id}', exist_ok=True)
+   with open('.meta/projects/{id}/manifest.json', 'w', encoding='utf-8') as f:
+     json.dump({'_version': 1, 'artifacts': []}, f, ensure_ascii=False, indent=2)
+   open('.meta/projects/{id}/events.jsonl', 'w', encoding='utf-8').close()
+   "
+   ```
+   `project.json` 与 `stages.json` 同样按规范初始化（`stages.json` 模板见下方）。
+
+   **`stages.json` 初始化模板**（必须按 stages.md 规范初始化为 16 阶段，每个阶段字段完整：`name` / `label` / `status` / `artifacts` / `started_at` / `completed_at`，初始 `status=pending`、`artifacts=[]`、`started_at=null`、`completed_at=null`；仅 `project_init` 初始为 `in_progress`）：
+
+   ```json
+   {
+     "_version": 1,
+     "current": "project_init",
+     "stages": [
+       { "name": "project_init",            "label": "项目初始化",            "status": "in_progress", "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "material_sorting",        "label": "前期素材归类",          "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "supervisor_extraction",   "label": "监制提取设定",          "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "global_character_tasks",  "label": "全局角色参考图任务生成", "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "global_character_art",    "label": "全局角色参考图绘制",    "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "global_prop_tasks",       "label": "全局道具参考图任务生成", "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "global_prop_art",         "label": "全局道具参考图绘制",    "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "global_scene_tasks",      "label": "全局场景参考图任务生成", "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "global_scene_art",        "label": "全局场景参考图绘制",    "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "episode_storyboard",      "label": "剧集分镜脚本与分镜图",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "episode_character_ref",   "label": "剧集级角色参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "episode_prop_ref",        "label": "剧集级道具参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "episode_scene_ref",       "label": "剧集级场景参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "asset_sync",              "label": "资产同步",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "video_generation",        "label": "视频生成",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "delivery",                "label": "交付归档",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null }
+     ]
+   }
+   ```
+
+   > **阶段顺序固定**：16 阶段必须严格按上方顺序排列，不得缺漏或调整。完整阶段链见 `rules/stages.md`。各字段语义详见 `rules/project_management.md` 的 stages.json schema 说明。
 4. 使用 CLI 创建项目完整骨架目录：
    ```powershell
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/角色参考图"
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/场景参考图"
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/道具参考图"
+   # PowerShell (Windows)
+   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/角色设定/角色参考图"
+   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/场景设定/场景参考图"
+   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/道具设定/道具参考图"
    New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/人物"
    New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/场景"
    New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/风格"
@@ -177,17 +321,31 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
    New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/角色设定/具体设定"
    New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/场景设定/具体设定"
    New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/道具设定/具体设定"
+   # 全局设定：不再创建 `全局设定/` 子目录，改为单一占位文件 `全局依赖/全局设定.md`
+   # 由 producer 在 supervisor_extraction 阶段输出（世界观、时间线、人物关系等所有全局设定合并到此文件）
+   New-Item -ItemType File -Force -Path "project/{name}/全局依赖/全局设定.md"
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   mkdir -p "project/{name}/全局依赖/角色设定/角色参考图" \
+            "project/{name}/全局依赖/场景设定/场景参考图" \
+            "project/{name}/全局依赖/道具设定/道具参考图" \
+            "project/{name}/前期采样/人物" \
+            "project/{name}/前期采样/场景" \
+            "project/{name}/前期采样/风格" \
+            "project/{name}/前期采样/道具" \
+            "project/{name}/全局依赖/角色设定/具体设定" \
+            "project/{name}/全局依赖/场景设定/具体设定" \
+            "project/{name}/全局依赖/道具设定/具体设定"
+   # 全局设定占位文件（不再创建 `全局设定/` 子目录）
+   touch "project/{name}/全局依赖/全局设定.md"
    ```
 5. **整理已存在的原始剧本**（如果用户提供了剧本文件）：
    - 用户指定的剧本路径 → `project/{name}/原始剧本.md`
    - 计算 SHA-256，注册到 `manifest.json`（type: `raw_script`）
    - 追加事件：`artifact.created`
-6. **整理已存在的前期素材**（如果用户提供了参考图）：
-   - 用户告知每个文件的分类（人物/场景/风格/道具），或按文件所在目录名判断
-   - 按分类移动到 `前期采样/{分类}/{文件名}`
-   - 计算 SHA-256，注册到 `manifest.json`（type: `reference`）
-   - 追加事件：`artifact.created`
- 7. 创建 `project_config.json`（项目运行时配置，记录用户选择的参数）：
+   > **注意**：创建项目时**只创建目录骨架**（`前期采样/人物|场景|道具|风格/`、`全局依赖/...`），**不整理前期素材**。前期素材的归类由独立的 `material_sorting` 阶段执行（见下方"material_sorting 阶段操作流程"章节）。
+6. 创建 `project_config.json`（项目运行时配置，记录用户选择的参数）：
     > **⚠️ 由你逐项询问用户填写**：Coordinator 负责向用户依次确认以下配置项。如用户不指定，使用默认值。
     > 记录用户选择后，用变量构建 JSON 写入。
 
@@ -198,21 +356,23 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
     | 字段 | 说明 | 默认值 |
     |------|------|--------|
     | `aspect_ratio` | 画幅比例 | `16:9` |
-    | `resolution` | 分辨率 | `480p` |
-    | `model` | 视频生成模型（见下方模型表） | — |
+    | `resolution` | 分辨率 | `720p` |
+    | `model` | 视频生成模型中文名（见下方模型表，填写 modelName 列的值） | — |
     | `use_storyboard_images` | 是否使用分镜图作为视频参考 | `false` |
     | `mode` | 生成模式 | `mixed2video` |
     | `enable_sound` | 是否生成音效 | `true` |
 
-    **模型选择列表**（如 `libtv node -t model -o json` 查询失败，回退到手动输入模型名，值写入 `project_config.json` 的 `model` 字段）：
+    **模型选择列表**（如 `libtv node -t model -o json` 查询失败，回退到手动输入模型名，**用户只需填写 modelName（中文名）**，值写入 `project_config.json` 的 `model` 字段）：
 
-    | modelKey | modelName | 说明 | VIP |
-    |----------|-----------|------|-----|
-    | `star-video2` | Seedance 2.0 VIP | 最强视频模型，15s音画同步 | ✅ |
-    | `star-video2-fast` | Seedance 2.0 Fast VIP | 最强视频模型快速版，15s音画同步 | ✅ |
-    | `happy-horse-1` | Happy Horse 1.0 | 阿里最新视频模型，支持多参生成 | |
-    | `kling-v3-omni` | **可灵 3.0 Omni** | 视频编辑模型，参考一致性，音画同出，多镜头 | ✅ |
-    | `kling-video-o3` | **可灵 3.0** | 视频生成模型，高质感，支持多镜头 | ✅ |
+    | modelName（用户填写此列） | 说明 | VIP | 参考 modelKey（仅排查时使用） |
+    |---------------------------|------|-----|------------------------------|
+    | `Seedance 2.0 VIP` | 最强视频模型，15s音画同步 | ✅ | `star-video2` |
+    | `Seedance 2.0 Fast VIP` | 最强视频模型快速版，15s音画同步 | ✅ | `star-video2-fast` |
+    | `Happy Horse 1.0` | 阿里最新视频模型，支持多参生成 | | `happy-horse-1` |
+    | `可灵 3.0 Omni` | 视频编辑模型，参考一致性，音画同出，多镜头 | ✅ | `kling-v3-omni` |
+    | `可灵 3.0` | 视频生成模型，高质感，支持多镜头 | ✅ | `kling-video-o3` |
+
+    > **重要**：`project_config.json` 的 `model` 字段直接写入上表第一列的 modelName（中文名，如 `Seedance 2.0 VIP`），**不要**写入 modelKey（如 `star-video2`）。modelKey 列仅作为内部参考，用于排查 libtv 调用问题时对照。
 
     `canvas_uuid` 在创建时为空，由 video-director 首次绑定时写入。
 
@@ -222,25 +382,66 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
      canvas_uuid = ""                         # 创建时为空，video-director 首次运行时写入
      aspect_ratio = "$aspectRatio"           # 用户确认，如 "16:9"
      resolution = "$resolution"              # 用户确认，如 "720p"
-     model = "$model"                        # 用户确认，如 "star-video2"
+     model = "$model"                        # 用户确认的 modelName，如 "Seedance 2.0 VIP"
      use_storyboard_images = $useStoryboard  # 用户确认，如 $false
      mode = "$mode"                          # 用户确认，如 "mixed2video"
      enable_sound = $enableSound             # 用户确认，如 $true
    } | ConvertTo-Json -Depth 10
    Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/project_config.json" -Value $config
    ```
+   ```bash
+   # bash (Unix/macOS)：建议统一用 python3 写 JSON，避免 locale 引起的中文乱码
+   python3 -c "
+   import json
+   config = {
+     'canvas_uuid': '',
+     'aspect_ratio': '$aspectRatio',
+     'resolution': '$resolution',
+     'model': '$model',
+     'use_storyboard_images': $useStoryboard,
+     'mode': '$mode',
+     'enable_sound': $enableSound
+   }
+   with open('.meta/projects/{id}/project_config.json', 'w', encoding='utf-8') as f:
+     json.dump(config, f, ensure_ascii=False, indent=2)
+   "
+   ```
    > `use_storyboard_images=true` 时建议同步设置 `reference_mode="multi_modal"`。
 
    **重要**：创建完成后，必须将 `project_config.json` 注册到 `manifest.json`（`type: "project_config"`），并追加一条 `artifact.created` 事件到 `events.jsonl`。
-8. 使用 CLI 写入事件：追加一行 `project.created` 到 `events.jsonl`
+7. 使用 CLI 写入事件：追加一行 `project.created` 到 `events.jsonl`
 
 ### 推进阶段
 
-1. 读取 `stages.json`，确认当前阶段已完成
-2. 验证前驱产物是否齐全（查 `manifest.json`）
-3. 更新 `stages.json`：将当前阶段标记 `completed`，下一阶段标记 `in_progress`
-4. 更新 `project.json` 中的 `current_stage`
-5. 写入事件：`stage.transition`
+1. **使用 CLI 读取 `stages.json`**，**先校验阶段完整性**：确认 `stages` 数组包含全部 16 阶段（顺序见 `rules/stages.md`），字段齐全（`name`/`label`/`status`/`artifacts`/`started_at`/`completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**，提示需修复 `stages.json` 后才能推进。
+
+   ```powershell
+   # PowerShell (Windows)
+   $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/stages.json"
+   $stages = $json | ConvertFrom-Json
+   # 校验：stages 数组长度必须为 16
+   if ($stages.stages.Count -ne 16) { throw "stages.json 阶段数异常: $($stages.stages.Count)，应为 16" }
+   ```
+   ```bash
+   # bash (Unix/macOS)：建议用 python3 解析 JSON，避免 locale 问题
+   python3 -c "
+   import json
+   with open('.meta/projects/{id}/stages.json', 'r', encoding='utf-8') as f:
+     s = json.load(f)
+   required = ['project_init','material_sorting','supervisor_extraction','global_character_tasks','global_character_art','global_prop_tasks','global_prop_art','global_scene_tasks','global_scene_art','episode_storyboard','episode_character_ref','episode_prop_ref','episode_scene_ref','asset_sync','video_generation','delivery']
+   actual = [x['name'] for x in s['stages']]
+   assert actual == required, f'stages.json 阶段不匹配: {actual}'
+   for x in s['stages']:
+     for k in ('name','label','status','artifacts','started_at','completed_at'):
+       assert k in x, f'阶段 {x.get(\"name\")} 缺字段 {k}'
+   print('OK')
+   "
+   ```
+2. 确认当前阶段 `status` 已为 `completed`
+3. 验证前驱产物是否齐全（查 `manifest.json`）
+4. 更新 `stages.json`：将当前阶段标记 `completed`（写 `completed_at`），下一阶段标记 `in_progress`（写 `started_at`）
+5. 更新 `project.json` 中的 `current_stage`
+6. 写入事件：`stage.transition`
 
 ### 注销项目
 
@@ -292,29 +493,66 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
 
 其他 agent 创建产物后，统筹 agent 在 `manifest.json` 中注册该产物。
 
-1. **使用 CLI 读取 manifest.json**：`Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/manifest.json"`
+1. **使用 CLI 读取 manifest.json**：
+   ```powershell
+   # PowerShell (Windows)
+   $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/manifest.json"
+   $manifest = $json | ConvertFrom-Json
+   ```
+   ```bash
+   # bash (Unix/macOS)：JSON 读写建议统一用 python3 调用 json 库，避免 locale 问题
+   python3 -c "
+   import json
+   with open('.meta/projects/{id}/manifest.json', 'r', encoding='utf-8') as f:
+     m = json.load(f)
+   "
+   ```
 2. 追加产物条目，计算 SHA-256（`python scripts/hash.py --fast "文件路径"`）
 3. 若产物已存在（同名 `path`），将旧条目标记 `deprecated`
-4. **使用 CLI 写入 events.jsonl**：`Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value "事件JSON"`
+4. **使用 CLI 写入 events.jsonl**：
+   ```powershell
+   # PowerShell (Windows)
+   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value "事件JSON"
+   ```
+   ```bash
+   # bash (Unix/macOS)：用 python3 追加，确保 UTF-8 编码与紧凑序列化
+   python3 -c "
+   import json
+   event = {'timestamp':'...','type':'artifact.created','actor':'project-coordinator','data':{...}}
+   with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
+     f.write(json.dumps(event, ensure_ascii=False, separators=(',', ':')) + '\n')
+   "
+   ```
 
 ### 产物归档
 
 其他 agent 将产物输出到临时路径后，统筹 agent 负责将产物移动到项目目录下的正确位置并注册。这是多 agent 协作中统一路径管理的核心机制。
 
 **前置约束**：
-- 绝不读取产物内容。归档操作只涉及文件路径级别的操作（移动、重命名、计算文件大小）
+- 绝不读取产物业务内容。归档操作只涉及文件路径级别的操作（移动、重命名、计算文件大小）
 - SHA-256 哈希只用于文件指纹识别，不用于 LLM 分析内容
 
 **归档流程**：
 
 1. 其他 agent 完成任务时，通知统筹 agent：产物在 `temp/{batch_id}/{filename}`，以及产物的 `type`、`name` 等元信息
 2. 根据 `type` 和 `stage`，按路径映射规则计算目标路径（详见 [统筹管理规范](rules/project_management.md#3-产物归档路径映射)）
-3. **使用 CLI 移动文件**：`RunCommand` → `Move-Item -Path "temp/{batch_id}/{filename}" -Destination "project/{name}/目标路径/{filename}" -Force`
-   - 若目标目录不存在，先创建：`New-Item -ItemType Directory -Force -Path "project/{name}/目标路径/"`
+3. **使用 CLI 移动文件**（若目标目录不存在，先创建）：
+
+   ```powershell
+   # PowerShell (Windows)
+   New-Item -ItemType Directory -Force -Path "project/{name}/目标路径/"
+   Move-Item -Path "temp/{batch_id}/{filename}" -Destination "project/{name}/目标路径/{filename}" -Force
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   mkdir -p "project/{name}/目标路径/"
+   mv "temp/{batch_id}/{filename}" "project/{name}/目标路径/{filename}"
+   ```
+
 4. 计算文件 SHA-256 和大小（使用内置脚本，只读二进制流，不做内容解析）
 
-   > **哈希计算**：
-   > ```powershell
+   > **哈希计算**（跨平台，python 脚本在 Windows/Unix 通用）：
+   > ```bash
    > python scripts/hash.py --fast "project/{name}/目标路径/{filename}"
    > ```
    > 输出格式：
@@ -327,8 +565,43 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
    > 
    > **`--fast` 说明**：图片文件（.png/.jpg/.jpeg/.gif/.webp）跳过全量 SHA-256 读取，改用修改时间+大小快速指纹，避免读入多 MB 图片文件造成 I/O 开销。文本文件始终使用完整 SHA-256。
 
-5. **使用 CLI 读写 manifest.json**：`Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/manifest.json"` → 解析 JSON → 修改 → `Set-Content -Encoding UTF8`
-6. **使用 CLI 追加 events.jsonl**：`Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value "{json行}"`
+5. **使用 CLI 读写 manifest.json**：
+
+   ```powershell
+   # PowerShell (Windows)
+   $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/manifest.json"
+   $manifest = $json | ConvertFrom-Json
+   # ... 追加新条目、标记旧条目 deprecated ...
+   $manifest | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/manifest.json"
+   ```
+   ```bash
+   # bash (Unix/macOS)：建议统一用 python3 调用 json 库读写，跨平台最稳
+   python3 -c "
+   import json
+   with open('.meta/projects/{id}/manifest.json', 'r', encoding='utf-8') as f:
+     m = json.load(f)
+   # ... 追加新条目、标记旧条目 deprecated ...
+   with open('.meta/projects/{id}/manifest.json', 'w', encoding='utf-8') as f:
+     json.dump(m, f, ensure_ascii=False, indent=2)
+   "
+   ```
+
+6. **使用 CLI 追加 events.jsonl**：
+
+   ```powershell
+   # PowerShell (Windows)
+   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value "{json行}"
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   python3 -c "
+   import json
+   event = {...}
+   with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
+     f.write(json.dumps(event, ensure_ascii=False, separators=(',', ':')) + '\n')
+   "
+   ```
+
 7. 写入更新后的 `manifest.json`
 8. **校验**：调用 `validate.py` 校验 `manifest.json`、`events.jsonl` 语法
 
@@ -338,15 +611,144 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
 |----------|----------|
 | `raw_script` | `project/{name}/原始剧本.md` |
 | `script` | `project/{name}/{episode}/剧本.md` |
-| `character_design` | `project/{name}/全局依赖/角色设定/{角色名}/角色设定.md` |
-| `character_ref` | `project/{name}/全局依赖/角色参考图/{角色名}.png` |
-| `scene_design` | `project/{name}/全局依赖/场景设定/{场景名}/场景设定.md` |
-| `scene_ref` | `project/{name}/全局依赖/场景参考图/{场景名}.png` |
-| `prop_design` | `project/{name}/全局依赖/道具设定/{道具名}/道具设定.md` |
-| `prop_ref` | `project/{name}/全局依赖/道具参考图/{道具名}.png` |
+| `character_design` | `project/{name}/全局依赖/角色设定/具体设定/{角色名}.md` |
+| `character_ref` | `project/{name}/全局依赖/角色设定/角色参考图/{角色名}.png` |
+| `scene_design` | `project/{name}/全局依赖/场景设定/具体设定/{场景名}.md` |
+| `scene_ref` | `project/{name}/全局依赖/场景设定/场景参考图/{场景名}.png` |
+| `prop_design` | `project/{name}/全局依赖/道具设定/具体设定/{道具名}.md` |
+| `prop_ref` | `project/{name}/全局依赖/道具设定/道具参考图/{道具名}.png` |
 | `storyboard` | `project/{name}/{episode}/分镜/{filename}` |
 | `poster` | `project/{name}/{episode}/海报设计/{filename}` |
-| `setting` | `project/{name}/全局依赖/全局设定/{filename}` |
+| `setting` | `project/{name}/全局依赖/全局设定.md`（单一文件，由 producer 在 supervisor_extraction 阶段输出，包含世界观、时间线、人物关系等所有全局设定） |
 | `audio_reference` | `project/{name}/全局依赖/音色参考/{filename}` |
 
 监控 `events.jsonl` 可以重建任意时刻的项目状态快照。
+
+### material_sorting 阶段操作流程
+
+`material_sorting` 是 `project_init` 之后的独立阶段，负责把用户上传到 `前期采样/` 下的原始素材按角色/场景/道具/风格归类，并在 manifest 中注册 `reference` 类型产物。
+
+> **职责边界**：创建项目时**只创建 `前期采样/人物|场景|道具|风格/` 空目录骨架**，不整理素材；素材归类统一在本阶段执行，避免与创建项目流程耦合。
+
+**前置条件**：
+- `stages.json` 中 `project_init` 已 `completed`，`material_sorting` 已 `in_progress`
+- 用户已把参考素材文件放入 `project/{name}/前期采样/人物|场景|道具|风格/` 目录
+
+**操作步骤**：
+
+1. **使用 CLI 扫描 `前期采样/` 下四个子目录**，获取所有文件列表（仅文件名，不读取内容）：
+
+   ```powershell
+   # PowerShell (Windows)
+   Get-ChildItem -Recurse -File "project/{name}/前期采样" | Select-Object FullName, Name
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   find "project/{name}/前期采样" -type f -print
+   ```
+
+2. **按文件名前缀归类**（约定：`{角色名/场景名/道具名/风格名}_序号.扩展名`，如 `张三_01.png` 归到 `人物/张三/`）：
+   - `前期采样/人物/{文件名}` → 解析前缀（`_` 之前的部分）→ 目标子目录 `前期采样/人物/{前缀}/`
+   - `前期采样/场景/{文件名}` → `前期采样/场景/{前缀}/`
+   - `前期采样/道具/{文件名}` → `前期采样/道具/{前缀}/`
+   - `前期采样/风格/{文件名}` → `前期采样/风格/{前缀}/`（风格可按主题归类，无前缀时整体归为 `风格/通用/`）
+
+   > **不读取文件内容**：仅依据文件名前缀归类，前缀解析失败时保留在原子目录并提示用户。
+
+3. **使用 CLI 移动文件**到归类后的子目录：
+
+   ```powershell
+   # PowerShell (Windows)
+   New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/人物/{前缀}"
+   Move-Item -Path "project/{name}/前期采样/人物/{原文件名}" -Destination "project/{name}/前期采样/人物/{前缀}/{原文件名}" -Force
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   mkdir -p "project/{name}/前期采样/人物/{前缀}"
+   mv "project/{name}/前期采样/人物/{原文件名}" "project/{name}/前期采样/人物/{前缀}/{原文件名}"
+   ```
+
+4. **在 manifest 注册 `reference` 类型产物**（每类一个条目，`path` 指向归类后的目录）：
+   - 每个 `前期采样/{分类}/{前缀}/` 目录注册为一个 `reference` 产物条目
+   - `tags` 字段标注分类与名称，如 `["人物", "张三"]`
+   - 调用 `python scripts/register_artifact.py` 完成注册（自动计算目录指纹、写 manifest、写事件、校验）
+
+5. **追加事件**：`artifact.created`（actor=`project-coordinator`，每注册一个目录写一条）
+
+6. **推进阶段**：完成后将 `material_sorting` 标记为 `completed`，下一阶段 `supervisor_extraction` 标记为 `in_progress`
+
+**特殊说明**：若用户未提供任何前期素材（`前期采样/` 全空），跳过归类步骤，但仍需推进阶段状态，并在 `events.jsonl` 记录一条 `material_sorting.skipped` 事件（`data.reason="无前期素材"`）。
+
+### 资产同步（asset_sync）
+
+`asset_sync` 阶段位于 `episode_scene_ref` 之后、`video_generation` 之前。Coordinator 读取本集 `episode_character_ref` 阶段产出的"妆造匹配清单.json"，按清单把所需角色/场景/道具参考图从全局依赖目录复制到 `temp/分组素材/{剧集号}/` 下，供 video-director 直接消费。
+
+> **铁律一致性说明**：本阶段 Coordinator 读取"妆造匹配清单.json"是铁律明确允许的行为——清单本身是其他 agent 显式产出的结构化阶段清单文件（角色名 → 参考图文件名映射），属于元数据索引，非业务文本。读取时只消费其结构化字段，不读取任何图像产物的二进制内容，也不读取剧本/分镜等业务文本内容。
+
+**前置条件**：
+- `stages.json` 中 `episode_scene_ref` 已 `completed`，`asset_sync` 已 `in_progress`
+- 本集 `episode_character_ref` 阶段产出的 `妆造匹配清单.json` 已就绪（路径：`project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json`）
+
+**操作步骤**：
+
+1. **使用 CLI 读取本集妆造匹配清单**（仅元数据，不读图像内容）：
+
+   ```powershell
+   # PowerShell (Windows)
+   $json = Get-Content -Encoding UTF8 -Raw "project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json"
+   $manifest = $json | ConvertFrom-Json
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   python3 -c "
+   import json
+   with open('project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json', 'r', encoding='utf-8') as f:
+     m = json.load(f)
+   print(json.dumps(m, ensure_ascii=False, indent=2))
+   "
+   ```
+
+2. **创建目标目录**：
+
+   ```powershell
+   # PowerShell (Windows)
+   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/角色参考"
+   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/场景参考"
+   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/道具参考"
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   mkdir -p "temp/分组素材/{剧集号}/角色参考" "temp/分组素材/{剧集号}/场景参考" "temp/分组素材/{剧集号}/道具参考"
+   ```
+
+3. **按清单复制角色参考图**：清单中每条记录形如 `{"角色名": "张三", "参考图文件名": "张三_剧集01.png"}`，从全局依赖目录复制：
+
+   ```powershell
+   # PowerShell (Windows)
+   Copy-Item -Path "project/{项目名}/全局依赖/角色设定/角色参考图/{参考图文件名}" -Destination "temp/分组素材/{剧集号}/角色参考/" -Force
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   cp "project/{项目名}/全局依赖/角色设定/角色参考图/{参考图文件名}" "temp/分组素材/{剧集号}/角色参考/"
+   ```
+
+4. **复制本集涉及的场景参考图、道具参考图**：
+   - 场景参考图来源：`project/{项目名}/全局依赖/场景设定/场景参考图/` → 目标 `temp/分组素材/{剧集号}/场景参考/`
+   - 道具参考图来源：`project/{项目名}/全局依赖/道具设定/道具参考图/` → 目标 `temp/分组素材/{剧集号}/道具参考/`
+   - 涉及清单：依据本集分镜脚本中场景/道具出场列表（由 storyboard-generator 在 episode_storyboard 阶段产出的"分组/组{N}.json"中给出，仅读取其中 `scene_refs` / `prop_refs` 字段，不读镜号描述等业务内容）
+
+5. **在 manifest 注册 `asset_sync` 类型产物**：
+   - 每个复制后的目录（`temp/分组素材/{剧集号}/角色参考/` 等）注册为一个 `asset_sync` 产物条目
+   - `path` 指向复制后的目录
+   - `stage`=`asset_sync`，`tags` 标注剧集号与素材类型（如 `["episode_01", "character_ref"]`）
+
+6. **追加事件**：`artifact.created`（actor=`project-coordinator`，每个目录一条）
+
+7. **校验**：调用 `validate.py` 校验 `manifest.json`、`events.jsonl` 语法
+
+8. **推进阶段**：将 `asset_sync` 标记为 `completed`，下一阶段 `video_generation` 标记为 `in_progress`
+
+**注意事项**：
+- 复制而非移动：全局依赖目录下的参考图必须保留原文件，供后续剧集继续使用
+- `temp/分组素材/` 下的文件由 video-director 在 `video_generation` 阶段消费，不归档到 `project/{name}/` 下
+- 若清单中某个参考图文件在全局依赖目录下不存在，**立即报错**并提示用户先补充对应参考图，不得跳过

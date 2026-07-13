@@ -1,4 +1,4 @@
-"""JSON/JSONL 校验脚本 — 在写入前检测语法错误
+"""JSON/JSONL 语法校验脚本 — 在写入前检测语法错误
 
 用法:
     python validate.py <file_path>...
@@ -8,6 +8,9 @@
     - 校验 .jsonl 文件每行语法
     - 报告精确到行号的错误信息
     - 退出码: 0 全部通过, 1 存在错误
+
+注意: 本脚本仅校验 JSON/JSONL 语法正确性，不校验字段完整性或类型约束。
+如需 schema 校验，请使用 .opencode/scripts/validators/image_task_validator.py。
 
 此脚本应内嵌在统筹 agent 的操作流程中，每次写 JSON 后自动调用。
 """

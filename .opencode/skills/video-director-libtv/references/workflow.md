@@ -137,30 +137,47 @@ libtv node "组1" --prompt "请参考场景氛围{{Node \"场景参考_01\"}}和
 
 ### 4.5 方式一：一次性创建
 
-直接在 `create` 命令中写入含引用行的完整 prompt：
+直接在 `create` 命令中写入含引用行的完整 prompt。**必须使用临时 Python 脚本**传递 prompt（避免引号嵌套和长度限制，跨平台通用）：
 
-```bash
-# 用临时脚本传递 prompt（避免引号嵌套和长度限制）
-$prompt = @"
-请参考场景氛围{{Image 1}}和角色形象{{Image 2}}进行画面生成
+```python
+# temp/create_group1.py
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+
+os.environ["LIBTV_CONFIG_DIR"] = os.path.abspath(".opencode/credentials")
+
+prompt = """请参考场景氛围{{Image 1}}和角色形象{{Image 2}}进行画面生成
 
 画面严禁出现任何字幕，无配乐
 ---
-{完整的组 JSON 内容}
-"@
+{完整的组 JSON 内容，原样拷贝}
+"""
 
-$script = @"
-`$env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
-libtv node create "组1" -t video `
-  --prompt "$prompt" `
-  --set model="Seedance 2.0 VIP" `
-  --set modeType=mixed2video `
-  --set count=1 `
-  --set ratio=16:9 `
-  --set duration=5 `
-  --set enableSound=on \
-  --left 场景参考_01 --left 角色参考_01 \
-  --left 音色_吉小泰   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
+cmd = [
+    "libtv", "node", "create", "组1", "-t", "video",
+    "--prompt", prompt,
+    "--set", "model=Seedance 2.0 VIP",
+    "--set", "modeType=mixed2video",
+    "--set", "count=1",
+    "--set", "ratio=16:9",
+    "--set", "duration=5",
+    "--set", "enableSound=on",
+    "--left", "场景参考_01", "--left", "角色参考_01",
+    "--left", "音色_吉小泰",  # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
+]
+
+result = subprocess.run(cmd, capture_output=True, text=True)
+print(result.stdout)
+if result.returncode != 0:
+    print(result.stderr, file=sys.stderr)
+    sys.exit(1)
+```
+
+执行命令（跨平台一致）：
+```bash
+python3 temp/create_group1.py
 ```
 
 ### 4.6 方式二：两阶段（推荐）

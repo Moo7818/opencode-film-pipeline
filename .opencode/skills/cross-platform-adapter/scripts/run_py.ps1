@@ -37,7 +37,7 @@ if (-not $scriptPath) {
     exit 1
 }
 
-# Invoke Python with the script and arguments
+# Invoke Python with the script and arguments — direct call preserves stdout/stderr
 $allArgs = @($scriptPath.Path) + $Arguments
-$proc = Start-Process -FilePath $pythonCmd -ArgumentList $allArgs -NoNewWindow -Wait -PassThru
-exit $proc.ExitCode
+& $pythonCmd @allArgs
+exit $LASTEXITCODE

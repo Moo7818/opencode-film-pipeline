@@ -27,25 +27,23 @@
 │   │   └── 道具/                          # 道具参考图
 │   │
 │   ├── 全局依赖/                           # 全剧共用的设定
-│   │   ├── 全局设定/                       # 世界观、时间线等
+│   │   ├── 全局设定.md                     # 单一文件：世界观、时间线、人物关系等所有全局设定（由 producer 在 supervisor_extraction 阶段输出，coordinator 创建项目时占位）
 │   │   ├── 角色设定/                       # 角色清单 + 按角色拆分的设定
 │   │   │   ├── 角色设定.md                # 入口文档：角色清单及路径索引
-│   │   │   ├── {角色名}/
-│   │   │   │   └── 角色设定.md
-│   │   │   └── ...
+│   │   │   ├── 具体设定/                  # 独立角色文档（扁平文件）
+│   │   │   │   ├── {角色名1}.md
+│   │   │   │   └── {角色名2}.md
+│   │   │   └── 角色参考图/                # 角色基准 PNG
 │   │   ├── 场景设定/
 │   │   │   ├── 场景设定.md                # 入口文档：场景清单及路径索引
-│   │   │   ├── {场景名}/
-│   │   │   │   └── 场景设定.md
-│   │   │   └── ...
+│   │   │   ├── 具体设定/                  # 独立场景文档（扁平文件）
+│   │   │   │   └── {场景名}.md
+│   │   │   └── 场景参考图/                # 场景参考 PNG
 │   │   ├── 道具设定/
 │   │   │   ├── 道具设定.md                # 入口文档：道具清单及路径索引
-│   │   │   ├── {道具名}/
-│   │   │   │   └── 道具设定.md
-│   │   │   └── ...
-│   │   ├── 角色参考图/                     # 角色基准 PNG
-│   │   ├── 场景参考图/                     # 场景参考 PNG
-│   │   └── 道具参考图/                     # 道具参考 PNG
+│   │   │   ├── 具体设定/                  # 独立道具文档（扁平文件）
+│   │   │   │   └── {道具名}.md
+│   │   │   └── 道具参考图/                # 道具参考 PNG
 │   │
 │   ├── 01/                                # 第 1 集
 │   │   ├── 剧本.md                        # 分集剧本（script 类型）
@@ -92,7 +90,7 @@
   "created_at": "2026-05-16T10:00:00+08:00",
   "updated_at": "2026-05-16T12:00:00+08:00",
   "description": "一部关于...的动画剧集",
-  "current_stage": "pre_production"
+  "current_stage": "supervisor_extraction"
 }
 ```
 
@@ -110,27 +108,123 @@
 ```json
 {
   "_version": 1,
-  "current": "pre_production",
+  "current": "supervisor_extraction",
   "stages": [
     {
-      "name": "pre_production",
-      "label": "前期筹备",
+      "name": "project_init",
+      "label": "项目初始化",
       "status": "completed",
       "started_at": "2026-05-16T10:00:00+08:00",
-      "completed_at": "2026-05-20T18:00:00+08:00",
-      "artifacts": ["原始剧本.md", "角色设定/", "场景设定/"]
+      "completed_at": "2026-05-16T10:30:00+08:00",
+      "artifacts": ["原始剧本.md"]
     },
     {
-      "name": "production",
-      "label": "制作中",
+      "name": "material_sorting",
+      "label": "前期素材归类",
+      "status": "completed",
+      "started_at": "2026-05-16T10:30:00+08:00",
+      "completed_at": "2026-05-16T11:00:00+08:00",
+      "artifacts": ["前期采样/"]
+    },
+    {
+      "name": "supervisor_extraction",
+      "label": "监制提取设定",
       "status": "in_progress",
-      "started_at": "2026-05-21T09:00:00+08:00",
+      "started_at": "2026-05-16T11:00:00+08:00",
       "completed_at": null,
-      "artifacts": ["01/剧本.md", "01/分镜/"]
+      "artifacts": ["角色设定/", "场景设定/", "道具设定/"]
     },
     {
-      "name": "post_production",
-      "label": "后期制作",
+      "name": "global_character_tasks",
+      "label": "全局角色参考图任务生成",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "global_character_art",
+      "label": "全局角色参考图绘制",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "global_prop_tasks",
+      "label": "全局道具参考图任务生成",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "global_prop_art",
+      "label": "全局道具参考图绘制",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "global_scene_tasks",
+      "label": "全局场景参考图任务生成",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "global_scene_art",
+      "label": "全局场景参考图绘制",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "episode_storyboard",
+      "label": "剧集分镜脚本与分镜图",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "episode_character_ref",
+      "label": "剧集级角色参考图生成",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "episode_prop_ref",
+      "label": "剧集级道具参考图生成",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "episode_scene_ref",
+      "label": "剧集级场景参考图生成",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "asset_sync",
+      "label": "资产同步",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "video_generation",
+      "label": "视频生成",
       "status": "pending",
       "started_at": null,
       "completed_at": null,
@@ -151,6 +245,31 @@
 **阶段状态流转：** `pending` → `in_progress` → `completed`
 
 只有统筹 agent 可以推进阶段状态。`completed` 的状态不可逆转。
+
+**stages.json schema 说明**：
+
+顶层字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `_version` | int | 是 | 数据格式版本，当前为 `1` |
+| `current` | string | 是 | 当前所处阶段的 `name`，与 `stages` 数组中某个元素的 `name` 一致；与 `project.json` 的 `current_stage` 同步 |
+| `stages` | array | 是 | 阶段数组，**必须严格按规范顺序包含 16 个阶段**（见 `rules/stages.md`），不得缺漏或调整顺序 |
+
+`stages` 数组元素字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 阶段标识，与 `stages.md` 阶段定义表一致（如 `project_init`、`material_sorting` 等 16 个） |
+| `label` | string | 是 | 阶段中文标签，用于展示 |
+| `status` | string | 是 | 阶段状态：`pending` / `in_progress` / `completed` |
+| `artifacts` | array<string> | 是 | 本阶段产出的产物路径或名称列表；初始为 `[]`，阶段完成后由 coordinator 填入 |
+| `started_at` | string\|null | 是 | 阶段开始时间（ISO 8601 含时区）；未开始时为 `null` |
+| `completed_at` | string\|null | 是 | 阶段完成时间（ISO 8601 含时区）；未完成时为 `null` |
+
+**初始化约束**：coordinator 创建项目时必须按 `rules/stages.md` 的 16 阶段顺序初始化 `stages.json`，每个阶段 `status="pending"`、`artifacts=[]`、`started_at=null`、`completed_at=null`，仅 `project_init` 初始为 `in_progress`。**禁止**只初始化部分阶段或省略字段。
+
+**推进时校验**：每次推进阶段前，coordinator 必须先读 `stages.json` 校验阶段完整性（16 阶段齐全、字段齐全），缺失或字段不全则**立即报错**，不得继续推进。
 
 ### 2.3 `manifest.json` — 产物清单
 
@@ -190,16 +309,16 @@ agent 在创建或更新产物时，应同步更新 `manifest.json`。`deprecate
 
 ```json
 {"timestamp":"2026-05-16T10:00:00+08:00","type":"project.created","actor":"user","data":{"name":"山与鱼"}}
-{"timestamp":"2026-05-16T10:05:00+08:00","type":"stage.transition","actor":"coordinator","data":{"from":"","to":"pre_production","reason":"项目初始化"}}
-{"timestamp":"2026-05-16T11:00:00+08:00","type":"artifact.created","actor":"script_writer","data":{"artifact_id":"art_001","type":"script","path":"project/山与鱼/01/剧本.md"}}
-{"timestamp":"2026-05-16T12:00:00+08:00","type":"stage.transition","actor":"coordinator","data":{"from":"pre_production","to":"production","reason":"前期筹备完成"}}
+{"timestamp":"2026-05-16T10:05:00+08:00","type":"stage.transition","actor":"project-coordinator","data":{"from":"","to":"project_init","reason":"项目初始化"}}
+{"timestamp":"2026-05-16T11:00:00+08:00","type":"artifact.created","actor":"producer","data":{"artifact_id":"art_001","type":"script","path":"project/山与鱼/01/剧本.md"}}
+{"timestamp":"2026-05-16T12:00:00+08:00","type":"stage.transition","actor":"project-coordinator","data":{"from":"project_init","to":"material_sorting","reason":"项目初始化完成"}}
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `timestamp` | string | ISO 8601 时间戳，含时区 |
 | `type` | string | `project.created` / `stage.transition` / `artifact.created` / `artifact.updated` / `artifact.deprecated` / `batch.submitted` / `batch.completed` / `error` / `其他自定义事件` |
-| `actor` | string | 触发者：`user` / `coordinator` / `{skill_name}` |
+| `actor` | string | 触发者，**必须是 opencode.json 中定义的 skill name**：`user` / `producer` / `storyboard-generator` / `roles-ref-generator` / `scene-ref-generator` / `prop-ref-generator` / `art-director` / `video-director-libtv` / `project-coordinator`。**禁止**使用 `script_writer`、`character-director`、`prop-maker`、`set-designer`、`storyboard-director`、`video-director`、`coordinator` 这类未在 skill 目录中定义的名（`character-director` 实际对应 skill 是 `roles-ref-generator`；`coordinator` 角色统一用 `project-coordinator`）。 |
 | `data` | object | 事件详情，自由结构 |
 
 ---
@@ -217,15 +336,15 @@ agent 在创建或更新产物时，应同步更新 `manifest.json`。`deprecate
 | `raw_script` | — | `project/{name}/原始剧本.md` |
 | `project_config` | — | `.meta/projects/{uuid}/project_config.json` |
 | `script` | `episode` | `project/{name}/{episode}/剧本.md` |
-| `character_design` | `character` | `project/{name}/全局依赖/角色设定/{character}/角色设定.md` |
-| `character_ref` | `character` | `project/{name}/全局依赖/角色参考图/{character}.png` |
-| `scene_design` | `scene` | `project/{name}/全局依赖/场景设定/{scene}/场景设定.md` |
-| `scene_ref` | `scene` | `project/{name}/全局依赖/场景参考图/{scene}.png` |
-| `prop_design` | `prop` | `project/{name}/全局依赖/道具设定/{prop}/道具设定.md` |
-| `prop_ref` | `prop` | `project/{name}/全局依赖/道具参考图/{prop}.png` |
+| `character_design` | `character` | `project/{name}/全局依赖/角色设定/具体设定/{character}.md` |
+| `character_ref` | `character` | `project/{name}/全局依赖/角色设定/角色参考图/{character}.png` |
+| `scene_design` | `scene` | `project/{name}/全局依赖/场景设定/具体设定/{scene}.md` |
+| `scene_ref` | `scene` | `project/{name}/全局依赖/场景设定/场景参考图/{scene}.png` |
+| `prop_design` | `prop` | `project/{name}/全局依赖/道具设定/具体设定/{prop}.md` |
+| `prop_ref` | `prop` | `project/{name}/全局依赖/道具设定/道具参考图/{prop}.png` |
 | `storyboard` | `episode` + `filename` | `project/{name}/{episode}/分镜/{filename}` |
 | `poster` | `episode` + `filename` | `project/{name}/{episode}/海报设计/{filename}` |
-| `setting` | `filename` | `project/{name}/全局依赖/全局设定/{filename}` |
+| `setting` | — | `project/{name}/全局依赖/全局设定.md`（单一文件，由 producer 在 supervisor_extraction 阶段输出，包含世界观、时间线、人物关系等所有全局设定；coordinator 创建项目时创建空文件占位） |
 | `reference` | `subtype` + `filename` | `project/{name}/前期采样/{subtype}/{filename}` |
 | `audio_reference` | `filename` | `project/{name}/全局依赖/音色参考/{filename}` |
 | `other` | 按 `path` 字段直接使用 | `project/{name}/{path}` |
@@ -290,7 +409,7 @@ agent 在创建或更新产物时，应同步更新 `manifest.json`。`deprecate
     {
       "task_index": 0,
       "status": "succeeded",
-      "output_path": "project/山与鱼/全局依赖/角色参考图/character_a.png",
+      "output_path": "project/山与鱼/全局依赖/角色设定/角色参考图/character_a.png",
       "seed": 12345
     },
     {

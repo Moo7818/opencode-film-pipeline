@@ -4,7 +4,7 @@
 
 ## 触发条件
 
-- 阶段：Phase 2 — 全局视觉资产生成
+- 阶段：全局视觉资产生成（global_character_tasks ~ global_scene_art）
 - 输入：全局设定 + 道具设定 + 前期采样（道具/风格）
 
 ## 执行步骤
@@ -104,7 +104,7 @@
       ]
     }
   ],
-  "output_path": "project/{项目名}/全局依赖/道具参考图/"
+  "output_path": "project/{项目名}/全局依赖/道具设定/道具参考图/"
 }
 ```
 

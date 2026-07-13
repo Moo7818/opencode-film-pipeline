@@ -41,6 +41,7 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 | 分辨率 | `project_config.json → resolution` | `--set resolution` | 读 |
 | 模型 | `project_config.json → model` | `--set model` | 读 |
 | ↳ 注意 | 1.1.1+ 要求填 **modelName**（中文名），如 `Seedance 2.0 VIP`，非 modelKey |
+| ↳ 硬约束 | `project_config.json` 中 `model` 字段**必须填 modelName**（中文名），**禁止填 modelKey**（如 `kling-v3-omni`、`star-video2`）。libtv 1.1.1+ 直接使用该字段值作为 modelName，**不做 modelKey → modelName 转换**。读取后直接用作 `--set model` 的值，无需任何映射 |
 | 生成模式 | `project_config.json → mode` | `--set modeType` | 读 |
 | 音频开关 | `project_config.json → enable_sound` | `--set enableSound` | 读 |
 | 分镜图模式 | `project_config.json → use_storyboard_images` | 决定参考素材选取策略 | 读 |
@@ -110,62 +111,90 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 ## Prompt 传递方式
 
 **禁止**将完整 prompt 直接作为 `--prompt "..."` 内联参数传递到 CLI。分镜 JSON 含大量特殊字符（引号、换行），直接内联会导致：
-- PowerShell 引号嵌套爆炸
-- Windows 命令行长度限制（8191 字符）
+- Shell 引号嵌套爆炸（PowerShell / bash 均受影响）
+- 命令行长度限制（Windows 8191 字符；Unix ARG_MAX 也会触发）
 
-**必须使用临时 PowerShell 脚本**传递 prompt。标准流程：
+**必须使用临时 Python 脚本**传递 prompt（跨平台方案，macOS / Linux / Windows 通用）。标准流程：
 
-```powershell
-# 1. 写临时脚本到 temp/ 目录
-$script = @"
-`$env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
+```python
+# temp/create_group1.py
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
 
-libtv node create "组1" -t video `
-  --prompt @"
-请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
+# 设置 libtv 凭证目录（指向工作空间 .opencode/credentials/）
+os.environ["LIBTV_CONFIG_DIR"] = os.path.abspath(".opencode/credentials")
+
+# Prompt 内容（Python 三引号字符串可自由包含 " 和换行）
+prompt = """请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
 
 画面严禁出现任何字幕，无配乐
 ---
 {组 JSON 内容，原样拷贝}
-"@ `
-  --set model="Seedance 2.0 VIP" `
-  --set modeType=mixed2video `
-  --set duration=5 `
-  --left 角色_一岛 `
-  --left 场景_现代南京长江边
-"@
+"""
 
-# 2. 写入 temp/ 目录（不在 temp/ 之外创建文件）
-Set-Content -Encoding UTF8 -Path "temp/create_group1.ps1" -Value $script
+cmd = [
+    "libtv", "node", "create", "组1", "-t", "video",
+    "--prompt", prompt,
+    "--set", "model=Seedance 2.0 VIP",
+    "--set", "modeType=mixed2video",
+    "--set", "duration=5",
+    "--left", "角色_一岛",
+    "--left", "场景_现代南京长江边",
+]
 
-# 3. 执行
-pwsh -File "temp/create_group1.ps1"
+result = subprocess.run(cmd, capture_output=True, text=True)
+print(result.stdout)
+if result.returncode != 0:
+    print(result.stderr, file=sys.stderr)
+    sys.exit(1)
+```
+
+执行命令（跨平台一致）：
+```bash
+# Unix/macOS 和 Windows 通用
+python3 temp/create_group1.py
 ```
 
 优势：
-- **无引号嵌套**：PowerShell `@""@` here-string 内可自由包含 `"` 和换行
-- **无长度限制**：脚本文件不受 8191 字符限制
+- **跨平台**：macOS / Linux / Windows 通用，无需依赖 PowerShell
+- **无引号嵌套**：Python 三引号字符串 `"""..."""` 内可自由包含 `"` 和换行
+- **无长度限制**：脚本文件不受命令行长度限制
 - **便于调试**：脚本文件可作为执行记录保留（`temp/` 目录文件禁止删除）
 
 ### 两阶段更新 prompt
 
-两阶段方式中，更新 prompt 同样使用 temp 脚本：
+两阶段方式中，更新 prompt 同样使用临时 Python 脚本：
 
-```powershell
-$script = @"
-`$env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
+```python
+# temp/update_prompt_group1.py
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
 
-libtv node "组1" --prompt @"
-请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
+os.environ["LIBTV_CONFIG_DIR"] = os.path.abspath(".opencode/credentials")
+
+prompt = """请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
 
 画面严禁出现任何字幕，无配乐
 ---
 {组 JSON 内容，原样拷贝}
-"@
-"@
+"""
 
-Set-Content -Encoding UTF8 -Path "temp/update_prompt_group1.ps1" -Value $script
-pwsh -File "temp/update_prompt_group1.ps1"
+cmd = ["libtv", "node", "组1", "--prompt", prompt]
+
+result = subprocess.run(cmd, capture_output=True, text=True)
+print(result.stdout)
+if result.returncode != 0:
+    print(result.stderr, file=sys.stderr)
+    sys.exit(1)
+```
+
+执行命令：
+```bash
+python3 temp/update_prompt_group1.py
 ```
 
 ### ⛔ Prompt 硬约束（必须遵守）

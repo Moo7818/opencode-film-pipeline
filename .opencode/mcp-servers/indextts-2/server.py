@@ -17,6 +17,55 @@ _tts = None
 _tts_lock = threading.Lock()
 _tts_error = None
 
+# ─── 路径安全 ──────────────────────────────────────────────────
+# 允许的根目录白名单：项目根目录和 temp 目录
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(server_dir)))
+_ALLOWED_BASES = [
+    _PROJECT_ROOT,
+    os.path.join(_PROJECT_ROOT, "temp"),
+    os.path.join(_PROJECT_ROOT, "project"),
+    os.path.join(os.getcwd(), "temp"),
+    os.getcwd(),
+]
+
+
+def _validate_path(path: str, allow_create: bool = False) -> str:
+    """校验路径安全性，防止路径遍历攻击
+
+    Args:
+        path: 待校验的路径
+        allow_create: 是否允许路径不存在（用于 output_dir 场景）
+
+    Returns:
+        解析后的绝对路径
+
+    Raises:
+        ValueError: 路径不在允许的根目录范围内
+    """
+    if not path or not path.strip():
+        raise ValueError("路径不能为空")
+
+    abs_path = os.path.realpath(os.path.abspath(path))
+
+    # 检查路径是否在允许的根目录范围内
+    in_allowed = False
+    for base in _ALLOWED_BASES:
+        base_abs = os.path.realpath(base)
+        if abs_path == base_abs or abs_path.startswith(base_abs + os.sep):
+            in_allowed = True
+            break
+
+    if not in_allowed:
+        raise ValueError(
+            f"路径超出允许范围: {abs_path}。"
+            f"仅允许在项目目录或 temp 目录下操作。"
+        )
+
+    if not allow_create and not os.path.exists(abs_path):
+        raise ValueError(f"路径不存在: {abs_path}")
+
+    return abs_path
+
 
 def _get_tts():
     global _tts, _tts_error
@@ -63,13 +112,28 @@ def tts_synthesize(
     except Exception as e:
         return {"error": f"模型加载失败: {e}"}
 
-    if not os.path.isfile(voice_ref):
+    # 路径安全校验
+    try:
+        voice_ref_safe = _validate_path(voice_ref)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    if not os.path.isfile(voice_ref_safe):
         return {"error": f"音色参考音频不存在: {voice_ref}"}
 
-    output_dir = output_dir or os.getcwd()
-    os.makedirs(output_dir, exist_ok=True)
+    try:
+        output_dir_resolved = output_dir or os.getcwd()
+        output_dir_safe = _validate_path(output_dir_resolved, allow_create=True)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    os.makedirs(output_dir_safe, exist_ok=True)
+
+    # 输出文件名增加时间戳避免覆盖
+    import time
     base_name = "".join(c for c in text[:20] if c.isalnum() or c in " _-") or "tts"
-    output_path = os.path.join(output_dir, f"{base_name}.wav")
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    output_path = os.path.join(output_dir_safe, f"{base_name}_{timestamp}.wav")
 
     kwargs = {}
     if emotion:
@@ -78,7 +142,7 @@ def tts_synthesize(
 
     try:
         result = tts.infer(
-            spk_audio_prompt=voice_ref,
+            spk_audio_prompt=voice_ref_safe,
             text=text,
             output_path=output_path,
             **kwargs,

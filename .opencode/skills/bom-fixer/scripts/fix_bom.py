@@ -38,12 +38,15 @@ from pathlib import Path
 
 # ─── BOM 签名 ──────────────────────────────────────────────────
 
+# 注意：UTF-32 签名（4字节）必须排在 UTF-16 签名（2字节）之前，
+# 因为 UTF-32 LE 的前2字节与 UTF-16 LE 相同（\xff\xfe），
+# startswith 会先匹配到更短的签名导致误判。
 BOM_SIGNATURES = {
-    b'\xef\xbb\xbf': 'UTF-8 BOM',
-    b'\xff\xfe':     'UTF-16 LE BOM',
-    b'\xfe\xff':     'UTF-16 BE BOM',
     b'\xff\xfe\x00\x00': 'UTF-32 LE BOM',
     b'\x00\x00\xfe\xff': 'UTF-32 BE BOM',
+    b'\xef\xbb\xbf':     'UTF-8 BOM',
+    b'\xff\xfe':         'UTF-16 LE BOM',
+    b'\xfe\xff':         'UTF-16 BE BOM',
 }
 
 # 默认扫描的文件扩展名
