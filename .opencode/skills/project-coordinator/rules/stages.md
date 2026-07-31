@@ -6,8 +6,8 @@
 
 | `type` | 阶段链 |
 |--------|--------|
-| `animation_series` | `project_init` → `material_sorting` → `supervisor_extraction` → `global_character_tasks` → `global_character_art` → `global_prop_tasks` → `global_prop_art` → `global_scene_tasks` → `global_scene_art` → `episode_storyboard` → `episode_character_ref` → `episode_prop_ref` → `episode_scene_ref` → `asset_sync` → `video_generation` → `delivery` |
-| `film` | `project_init` → `material_sorting` → `supervisor_extraction` → `global_character_tasks` → `global_character_art` → `global_prop_tasks` → `global_prop_art` → `global_scene_tasks` → `global_scene_art` → `episode_storyboard` → `episode_character_ref` → `episode_prop_ref` → `episode_scene_ref` → `asset_sync` → `video_generation` → `delivery` |
+| `animation_series` | `project_init` → `material_sorting` → `supervisor_extraction` → `global_character_tasks` → `global_character_art` → `global_prop_tasks` → `global_prop_art` → `global_scene_tasks` → `global_scene_art` → `episode_storyboard_script` → `episode_character_ref` → `episode_prop_ref` → `episode_scene_ref` → `episode_storyboard_images` → `asset_sync` → `video_generation` → `delivery` |
+| `film` | `project_init` → `material_sorting` → `supervisor_extraction` → `global_character_tasks` → `global_character_art` → `global_prop_tasks` → `global_prop_art` → `global_scene_tasks` → `global_scene_art` → `episode_storyboard_script` → `episode_character_ref` → `episode_prop_ref` → `episode_scene_ref` → `episode_storyboard_images` → `asset_sync` → `video_generation` → `delivery` |
 
 各阶段说明（通用）：
 
@@ -22,12 +22,13 @@
 | `global_prop_art` | 全局道具参考图绘制 | 美术指导根据任务表绘制所有道具的全局参考图 | Art-director |
 | `global_scene_tasks` | 全局场景参考图任务生成 | 置景师结合全局设定+场景设定+特征采样生成场景参考图任务表 | Set-designer |
 | `global_scene_art` | 全局场景参考图绘制 | 美术指导根据任务表绘制所有场景的全局参考图 | Art-director |
-| `episode_storyboard` | 剧集分镜脚本与分镜图 | 分镜导演制作分镜脚本；**必选**调用 `expand_scenes_to_groups.py` 拆分为独立组文件，产出物包含 `{剧集号}/分镜/分组/组{N}.json`（供 video-director 使用，不再视为可选）；按 project_config.json 中 use_storyboard_images 决定是否生成分镜图任务表并由美术指导执行绘制 | Storyboard-director → [可选] Art-director |
+| `episode_storyboard_script` | 剧集分镜脚本 | 分镜导演先经 storytelling pipeline 精简版创作分镜稿（分镜稿_临时.md），再基于分镜稿创作分镜脚本 JSON；**必选**调用 `expand_scenes_to_groups.py` 拆分为独立组文件，产出物包含 `{剧集号}/分镜/分组/组{N}.json`（供 video-director 使用，不再视为可选） | Storyboard-director |
 | `episode_character_ref` | 剧集级角色妆造匹配清单 | 角色导演参考全局设定+角色设定+本集剧本，仅产出 `{剧集号}/角色参考图/妆造匹配清单.json`（不产出图片任务表，Art-director 本阶段不参与）；该清单由 coordinator 在 `asset_sync` 阶段消费 | Character-director |
 | `episode_prop_ref` | 剧集级道具参考图生成 | 道具师参考全局设定+道具设定+本集分镜脚本中道具使用描述，生成剧集级道具参考图；美术指导执行绘制 | Prop-maker → Art-director |
 | `episode_scene_ref` | 剧集级场景参考图生成 | 置景师参考全局设定+场景设定+本集分镜脚本中场景变化描述，生成剧集级场景参考图；美术指导执行绘制 | Set-designer → Art-director |
-| `asset_sync` | 资产同步 | Coordinator 读取本集"妆造匹配清单.json"，将所需角色/场景/道具参考图从 `全局依赖/...` 复制到 `temp/分组素材/{剧集号}/角色参考|场景参考|道具参考/`，供 video-director 使用 | Coordinator |
-| `video_generation` | 视频生成 | 前置依赖：分镜组 JSON 已就绪（`{剧集号}/分镜/分组/组{N}.json`）、资产同步已完成（`temp/分组素材/{剧集号}/` 下三类参考图齐全）。视频导演基于分镜组 JSON 生成视频；如有下集回到 `episode_storyboard`，否则进入交付 | Video-director |
+| `episode_storyboard_images` | 剧集分镜图绘制 | 仅当 `use_storyboard_images=true` 时执行；分镜导演调用 `generate_task_table.py` 生成分镜图任务表（注入剧集级参考图），美术指导执行绘制 | Storyboard-director → Art-director |
+| `asset_sync` | 资产同步 | Coordinator 读取本集"妆造匹配清单.json"，将所需角色/场景/道具参考图从 `全局依赖/...` 复制到 `temp/分组素材/{剧集号}/角色参考|场景参考|道具参考/`，供 video-director 使用。**降级策略**：若妆造匹配清单不存在，降级为复制全部全局角色参考图并记录 `asset_sync.degraded` 事件，不阻断后续流程 | Coordinator |
+| `video_generation` | 视频生成 | 前置依赖：分镜组 JSON 已就绪（`{剧集号}/分镜/分组/组{N}.json`）、分镜图已就绪（如 `use_storyboard_images=true`）、资产同步已完成（`temp/分组素材/{剧集号}/` 下三类参考图齐全）。视频导演基于分镜组 JSON 生成视频；如有下集回到 `episode_storyboard_script`，否则进入交付。**产物注册**：video-director 完成后须将视频文件（`video` 类型）和 `_manifest.json`（`video_manifest` 类型）注册到 manifest，Coordinator 推进 delivery 前须校验 `_manifest.json` 的 `status` 字段为 `success` 或 `partial`（`failed=0` 方可推进） | Video-director |
 | `delivery` | 交付归档 | 最终打包、阶段标记 complete | Coordinator |
 
 ## 操作规则
@@ -41,13 +42,13 @@
 
 **禁止使用 `Read`/`Write` 文件工具。所有文件操作必须通过 `RunCommand` CLI 执行。**
 
-1. **使用 CLI 读取 stages.json**，**先校验阶段完整性**：确认 `stages` 数组包含全部 16 阶段（顺序见上方"阶段定义"表），且每个阶段字段齐全（`name` / `label` / `status` / `artifacts` / `started_at` / `completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**。
+1. **使用 CLI 读取 stages.json**，**先校验阶段完整性**：确认 `stages` 数组包含全部 17 阶段（顺序见上方"阶段定义"表），且每个阶段字段齐全（`name` / `label` / `status` / `artifacts` / `started_at` / `completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**。
 
    ```powershell
    # PowerShell (Windows)
    $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/stages.json"
    $stages = $json | ConvertFrom-Json
-   if ($stages.stages.Count -ne 16) { throw "stages.json 阶段数异常: $($stages.stages.Count)，应为 16" }
+   if ($stages.stages.Count -ne 17) { throw "stages.json 阶段数异常: $($stages.stages.Count)，应为 17" }
    ```
    ```bash
    # bash (Unix/macOS)：建议用 python3 解析 JSON
@@ -55,7 +56,7 @@
    import json
    with open('.meta/projects/{id}/stages.json', 'r', encoding='utf-8') as f:
      s = json.load(f)
-   assert len(s['stages']) == 16, f'阶段数异常: {len(s[\"stages\"])}'
+   assert len(s['stages']) == 17, f'阶段数异常: {len(s[\"stages\"])}'
    for x in s['stages']:
      for k in ('name','label','status','artifacts','started_at','completed_at'):
        assert k in x, f'阶段 {x.get(\"name\")} 缺字段 {k}'

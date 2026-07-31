@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """凭证加载模块
 
-加载优先级：环境变量 > 系统级凭证 .opencode/credentials/media_gen_config.json
+查找优先级（按顺序）：
+1. GRSAI_CONFIG_PATH 环境变量（最高优先）
+2. ~/.config/grsai/media_gen_config.json（用户级，跨项目共享）
+3. 项目内 .opencode/credentials/media_gen_config.json（cwd 向上查找）
+4. __file__ parents fallback（最后兜底）
 """
 
 import json
@@ -9,12 +13,30 @@ import os
 import sys
 from pathlib import Path
 
-# 环境变量优先，否则使用相对于脚本位置的默认路径
+_config_name = "media_gen_config.json"
+
+# 查找优先级 1：GRSAI_CONFIG_PATH 环境变量
 _env_config_path = os.environ.get("GRSAI_CONFIG_PATH")
 if _env_config_path:
     CONFIG_FILE = Path(_env_config_path)
 else:
-    CONFIG_FILE = Path(__file__).resolve().parents[2] / "credentials" / "media_gen_config.json"
+    # 查找优先级 2：用户 home 目录标准位置（跨项目共享）
+    _user_config = Path.home() / ".config" / "grsai" / _config_name
+    if _user_config.exists():
+        CONFIG_FILE = _user_config
+    else:
+        # 查找优先级 3：从 cwd 向上查找项目级配置
+        _found = None
+        for _parent in [Path.cwd(), *Path.cwd().parents]:
+            _candidate = _parent / ".opencode" / "credentials" / _config_name
+            if _candidate.exists():
+                _found = _candidate
+                break
+
+        # 查找优先级 4：__file__ parents fallback
+        # src layout: .opencode/mcp-servers/grsai-server/src/grsai_server/config.py
+        # parents[4] = .opencode/
+        CONFIG_FILE = _found or Path(__file__).resolve().parents[4] / "credentials" / _config_name
 
 # 环境变量 key 名
 CFG_API_KEY = "GRSAI_API_KEY"

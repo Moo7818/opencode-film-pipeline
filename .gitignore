@@ -17,6 +17,7 @@
 .opencode/**/__pycache__/**
 .opencode/**/*.pyc
 .opencode/temp/**
+**/*.egg-info/**
 
 # Jupyter 检查点文件
 .ipynb_checkpoints/

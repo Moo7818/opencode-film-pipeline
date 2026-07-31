@@ -11,26 +11,38 @@
 | `--episode <号>` | ✅ | 剧集号，如 `EP01` |
 | `--canvas-uuid <UUID>` | ✅ | 画布项目 UUID |
 | `--groups <N...>` | ✅ | 组号列表，如 `7 8 9` |
-| `--refs "组N:类型_名,类型_名"` | ❌ | 参考图映射，可重复 |
-| `--voice-refs <角色1,角色2,...>` | ❌ | 音色参考角色列表，如 `吉小泰,妈妈,女儿`；自动在 `全局依赖/音色参考/` 下查找对应 WAV 文件并上传连线 |
+| `--refs "组N:类型_名,类型_名"` | ❌ | 参考图映射，可重复；仅上传指定的参考图（按需上传） |
+| `--voice-refs <角色1,角色2,...>` | ❌ | 音色参考角色列表，如 `吉小泰,妈妈,女儿`；仅上传指定角色的音色参考，未指定时跳过 |
 | `--run` | ❌ | 建组后执行运行 |
 | `--download` | ❌ | 运行后自动轮询并下载视频到 `project/<项目>/<剧集>/视频/` |
 | `--output-dir <路径>` | ❌ | 自定义下载目录（默认见 `--download`） |
 | `--poll-interval <秒>` | ❌ | 轮询间隔（默认 30） |
 | `--poll-timeout <秒>` | ❌ | 轮询超时（默认 600） |
-| `--model <key>` | ❌ | 视频模型（默认 `star-video2`） |
+| `--model <modelName>` | ❌ | 视频模型中文名（如 `Seedance 2.0 VIP`）；libtv 1.1.1+ 直接使用该值，禁止传 modelKey |
 | `--ratio <值>` | ❌ | 画面比例（默认 `16:9`） |
 | `--resolution <值>` | ❌ | 分辨率（默认 `480p`） |
 | `--sound <on/off>` | ❌ | 音频开关（默认 `on`） |
+| `--storyboard-mode <模式>` | ❌ | 分镜模式：`detailed`（组{N}.json）或 `simplified`（组{N}.md），覆盖 project_config.json |
+| `--no-group` | ❌ | 跳过建组步骤，仅创建独立节点不创建编组；与 `--run` 不兼容 |
 
 ## 使用示例
 
 ```bash
 python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
   --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
-  --groups 7 8 9 --model star-video2 --ratio 16:9 ^
+  --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
   --refs "组7:场景_现代南京,角色_一岛" ^
   --run --download
+```
+
+仅创建节点不建组（`--no-group`）：
+
+```bash
+python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
+  --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+  --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
+  --refs "组7:场景_现代南京,角色_一岛" ^
+  --no-group
 ```
 
 ## 输出产物

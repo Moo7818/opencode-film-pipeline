@@ -14,7 +14,7 @@ import urllib.parse
 import asyncio
 import httpx
 
-from config import _cfg, get_api_key, get_host
+from .config import _cfg, get_api_key, get_host
 
 # ─── 图像生成 ─────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ async def _process_urls(urls, cos_config, timestamp=None):
         if os.path.exists(url) and os.path.isfile(url):
             if not cos_config:
                 raise ValueError("检测到本地文件但未配置 COS 凭证")
-            from cos_client import upload_to_cos
+            from .cos_client import upload_to_cos
             public_url = await upload_to_cos(
                 url,
                 secret_id=cos_config['secret_id'],
@@ -205,7 +205,7 @@ async def submit_image(prompt, model, aspect_ratio=None, image_size=None,
             "message": f"任务已提交，task_id={task_id}，请使用 poll_image() 查询结果"}
 
 
-async def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interval=3, max_poll_rounds=20):
+async def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interval=3, max_poll_rounds=60):
     """异步轮询图像生成结果"""
     host = host or get_host()
     api_key = api_key or get_api_key()
@@ -246,7 +246,7 @@ async def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interv
 async def generate_image(prompt, model, aspect_ratio=None, image_size=None,
                          reference_images=None, oss_id=None, oss_path=None,
                          cos_config=None, timestamp=None,
-                         poll_delay=5, poll_interval=3, max_poll_rounds=20):
+                         poll_delay=5, poll_interval=3, max_poll_rounds=60):
     """异步单张图像生成（submit + poll 组合）"""
     submit_result = await submit_image(
         prompt=prompt, model=model, aspect_ratio=aspect_ratio, image_size=image_size,

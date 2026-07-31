@@ -43,7 +43,7 @@
 │   │   │   ├── 道具设定.md                # 入口文档：道具清单及路径索引
 │   │   │   ├── 具体设定/                  # 独立道具文档（扁平文件）
 │   │   │   │   └── {道具名}.md
-│   │   │   └── 道具参考图/                # 道具参考 PNG
+│   │   │   └── 道具参考图/                # 道具参考 PNG（{道具名}_{出现场合}_基准.png）
 │   │
 │   ├── 01/                                # 第 1 集
 │   │   ├── 剧本.md                        # 分集剧本（script 类型）
@@ -183,8 +183,8 @@
       "artifacts": []
     },
     {
-      "name": "episode_storyboard",
-      "label": "剧集分镜脚本与分镜图",
+      "name": "episode_storyboard_script",
+      "label": "剧集分镜脚本",
       "status": "pending",
       "started_at": null,
       "completed_at": null,
@@ -209,6 +209,14 @@
     {
       "name": "episode_scene_ref",
       "label": "剧集级场景参考图生成",
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null,
+      "artifacts": []
+    },
+    {
+      "name": "episode_storyboard_images",
+      "label": "剧集分镜图绘制",
       "status": "pending",
       "started_at": null,
       "completed_at": null,
@@ -254,22 +262,22 @@
 |------|------|------|------|
 | `_version` | int | 是 | 数据格式版本，当前为 `1` |
 | `current` | string | 是 | 当前所处阶段的 `name`，与 `stages` 数组中某个元素的 `name` 一致；与 `project.json` 的 `current_stage` 同步 |
-| `stages` | array | 是 | 阶段数组，**必须严格按规范顺序包含 16 个阶段**（见 `rules/stages.md`），不得缺漏或调整顺序 |
+| `stages` | array | 是 | 阶段数组，**必须严格按规范顺序包含 17 个阶段**（见 `rules/stages.md`），不得缺漏或调整顺序 |
 
 `stages` 数组元素字段：
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `name` | string | 是 | 阶段标识，与 `stages.md` 阶段定义表一致（如 `project_init`、`material_sorting` 等 16 个） |
+| `name` | string | 是 | 阶段标识，与 `stages.md` 阶段定义表一致（如 `project_init`、`material_sorting` 等 17 个） |
 | `label` | string | 是 | 阶段中文标签，用于展示 |
 | `status` | string | 是 | 阶段状态：`pending` / `in_progress` / `completed` |
 | `artifacts` | array<string> | 是 | 本阶段产出的产物路径或名称列表；初始为 `[]`，阶段完成后由 coordinator 填入 |
 | `started_at` | string\|null | 是 | 阶段开始时间（ISO 8601 含时区）；未开始时为 `null` |
 | `completed_at` | string\|null | 是 | 阶段完成时间（ISO 8601 含时区）；未完成时为 `null` |
 
-**初始化约束**：coordinator 创建项目时必须按 `rules/stages.md` 的 16 阶段顺序初始化 `stages.json`，每个阶段 `status="pending"`、`artifacts=[]`、`started_at=null`、`completed_at=null`，仅 `project_init` 初始为 `in_progress`。**禁止**只初始化部分阶段或省略字段。
+**初始化约束**：coordinator 创建项目时必须按 `rules/stages.md` 的 17 阶段顺序初始化 `stages.json`，每个阶段 `status="pending"`、`artifacts=[]`、`started_at=null`、`completed_at=null`，仅 `project_init` 初始为 `in_progress`。**禁止**只初始化部分阶段或省略字段。
 
-**推进时校验**：每次推进阶段前，coordinator 必须先读 `stages.json` 校验阶段完整性（16 阶段齐全、字段齐全），缺失或字段不全则**立即报错**，不得继续推进。
+**推进时校验**：每次推进阶段前，coordinator 必须先读 `stages.json` 校验阶段完整性（17 阶段齐全、字段齐全），缺失或字段不全则**立即报错**，不得继续推进。
 
 ### 2.3 `manifest.json` — 产物清单
 
@@ -341,12 +349,14 @@ agent 在创建或更新产物时，应同步更新 `manifest.json`。`deprecate
 | `scene_design` | `scene` | `project/{name}/全局依赖/场景设定/具体设定/{scene}.md` |
 | `scene_ref` | `scene` | `project/{name}/全局依赖/场景设定/场景参考图/{scene}.png` |
 | `prop_design` | `prop` | `project/{name}/全局依赖/道具设定/具体设定/{prop}.md` |
-| `prop_ref` | `prop` | `project/{name}/全局依赖/道具设定/道具参考图/{prop}.png` |
+| `prop_ref` | `prop` | `project/{name}/全局依赖/道具设定/道具参考图/{prop}_{出现场合}_基准.png` |
 | `storyboard` | `episode` + `filename` | `project/{name}/{episode}/分镜/{filename}` |
 | `poster` | `episode` + `filename` | `project/{name}/{episode}/海报设计/{filename}` |
 | `setting` | — | `project/{name}/全局依赖/全局设定.md`（单一文件，由 producer 在 supervisor_extraction 阶段输出，包含世界观、时间线、人物关系等所有全局设定；coordinator 创建项目时创建空文件占位） |
 | `reference` | `subtype` + `filename` | `project/{name}/前期采样/{subtype}/{filename}` |
 | `audio_reference` | `filename` | `project/{name}/全局依赖/音色参考/{filename}` |
+| `video` | `episode` + `filename` | `project/{name}/{episode}/视频/{filename}` |
+| `video_manifest` | `episode` | `project/{name}/{episode}/视频/_manifest.json` |
 | `other` | 按 `path` 字段直接使用 | `project/{name}/{path}` |
 
 ### 3.2 变量说明

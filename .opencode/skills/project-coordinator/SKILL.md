@@ -280,7 +280,7 @@ for d in sorted(os.listdir(base)):
    ```
    `project.json` 与 `stages.json` 同样按规范初始化（`stages.json` 模板见下方）。
 
-   **`stages.json` 初始化模板**（必须按 stages.md 规范初始化为 16 阶段，每个阶段字段完整：`name` / `label` / `status` / `artifacts` / `started_at` / `completed_at`，初始 `status=pending`、`artifacts=[]`、`started_at=null`、`completed_at=null`；仅 `project_init` 初始为 `in_progress`）：
+   **`stages.json` 初始化模板**（必须按 stages.md 规范初始化为 17 阶段，每个阶段字段完整：`name` / `label` / `status` / `artifacts` / `started_at` / `completed_at`，初始 `status=pending`、`artifacts=[]`、`started_at=null`、`completed_at=null`；仅 `project_init` 初始为 `in_progress`）：
 
    ```json
    {
@@ -296,10 +296,11 @@ for d in sorted(os.listdir(base)):
        { "name": "global_prop_art",         "label": "全局道具参考图绘制",    "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "global_scene_tasks",      "label": "全局场景参考图任务生成", "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "global_scene_art",        "label": "全局场景参考图绘制",    "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
-       { "name": "episode_storyboard",      "label": "剧集分镜脚本与分镜图",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "episode_storyboard_script", "label": "剧集分镜脚本",         "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "episode_character_ref",   "label": "剧集级角色参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "episode_prop_ref",        "label": "剧集级道具参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "episode_scene_ref",       "label": "剧集级场景参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "episode_storyboard_images", "label": "剧集分镜图绘制",       "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "asset_sync",              "label": "资产同步",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "video_generation",        "label": "视频生成",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "delivery",                "label": "交付归档",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null }
@@ -307,7 +308,7 @@ for d in sorted(os.listdir(base)):
    }
    ```
 
-   > **阶段顺序固定**：16 阶段必须严格按上方顺序排列，不得缺漏或调整。完整阶段链见 `rules/stages.md`。各字段语义详见 `rules/project_management.md` 的 stages.json schema 说明。
+   > **阶段顺序固定**：17 阶段必须严格按上方顺序排列，不得缺漏或调整。完整阶段链见 `rules/stages.md`。各字段语义详见 `rules/project_management.md` 的 stages.json schema 说明。
 4. 使用 CLI 创建项目完整骨架目录：
    ```powershell
    # PowerShell (Windows)
@@ -358,7 +359,7 @@ for d in sorted(os.listdir(base)):
     | `aspect_ratio` | 画幅比例 | `16:9` |
     | `resolution` | 分辨率 | `720p` |
     | `model` | 视频生成模型中文名（见下方模型表，填写 modelName 列的值） | — |
-    | `use_storyboard_images` | 是否使用分镜图作为视频参考 | `false` |
+    | `use_storyboard_images` | 是否使用分镜图作为视频参考（为 true 时将额外执行 `episode_storyboard_images` 阶段） | `false` |
     | `mode` | 生成模式 | `mixed2video` |
     | `enable_sound` | 是否生成音效 | `true` |
 
@@ -413,14 +414,14 @@ for d in sorted(os.listdir(base)):
 
 ### 推进阶段
 
-1. **使用 CLI 读取 `stages.json`**，**先校验阶段完整性**：确认 `stages` 数组包含全部 16 阶段（顺序见 `rules/stages.md`），字段齐全（`name`/`label`/`status`/`artifacts`/`started_at`/`completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**，提示需修复 `stages.json` 后才能推进。
+1. **使用 CLI 读取 `stages.json`**，**先校验阶段完整性**：确认 `stages` 数组包含全部 17 阶段（顺序见 `rules/stages.md`），字段齐全（`name`/`label`/`status`/`artifacts`/`started_at`/`completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**，提示需修复 `stages.json` 后才能推进。
 
    ```powershell
    # PowerShell (Windows)
    $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/stages.json"
    $stages = $json | ConvertFrom-Json
-   # 校验：stages 数组长度必须为 16
-   if ($stages.stages.Count -ne 16) { throw "stages.json 阶段数异常: $($stages.stages.Count)，应为 16" }
+   # 校验：stages 数组长度必须为 17
+   if ($stages.stages.Count -ne 17) { throw "stages.json 阶段数异常: $($stages.stages.Count)，应为 17" }
    ```
    ```bash
    # bash (Unix/macOS)：建议用 python3 解析 JSON，避免 locale 问题
@@ -428,7 +429,7 @@ for d in sorted(os.listdir(base)):
    import json
    with open('.meta/projects/{id}/stages.json', 'r', encoding='utf-8') as f:
      s = json.load(f)
-   required = ['project_init','material_sorting','supervisor_extraction','global_character_tasks','global_character_art','global_prop_tasks','global_prop_art','global_scene_tasks','global_scene_art','episode_storyboard','episode_character_ref','episode_prop_ref','episode_scene_ref','asset_sync','video_generation','delivery']
+   required = ['project_init','material_sorting','supervisor_extraction','global_character_tasks','global_character_art','global_prop_tasks','global_prop_art','global_scene_tasks','global_scene_art','episode_storyboard_script','episode_character_ref','episode_prop_ref','episode_scene_ref','episode_storyboard_images','asset_sync','video_generation','delivery']
    actual = [x['name'] for x in s['stages']]
    assert actual == required, f'stages.json 阶段不匹配: {actual}'
    for x in s['stages']:
@@ -439,9 +440,13 @@ for d in sorted(os.listdir(base)):
    ```
 2. 确认当前阶段 `status` 已为 `completed`
 3. 验证前驱产物是否齐全（查 `manifest.json`）
-4. 更新 `stages.json`：将当前阶段标记 `completed`（写 `completed_at`），下一阶段标记 `in_progress`（写 `started_at`）
-5. 更新 `project.json` 中的 `current_stage`
-6. 写入事件：`stage.transition`
+4. **特殊校验 — 推进到 `delivery` 时**：若当前阶段为 `video_generation`，**必须**读取 `project/{项目名}/{剧集号}/视频/_manifest.json`，校验 `status` 字段：
+   - `status` 为 `success`（`failed=0`）→ 正常推进
+   - `status` 为 `partial`（`failed>0`）→ **禁止推进**，提示用户处理失败组后再推进
+   - `_manifest.json` 不存在（未执行 `--download`）→ **禁止推进**，提示用户先执行视频下载
+5. 更新 `stages.json`：将当前阶段标记 `completed`（写 `completed_at`），下一阶段标记 `in_progress`（写 `started_at`）
+6. 更新 `project.json` 中的 `current_stage`
+7. 写入事件：`stage.transition`
 
 ### 注销项目
 
@@ -616,11 +621,13 @@ for d in sorted(os.listdir(base)):
 | `scene_design` | `project/{name}/全局依赖/场景设定/具体设定/{场景名}.md` |
 | `scene_ref` | `project/{name}/全局依赖/场景设定/场景参考图/{场景名}.png` |
 | `prop_design` | `project/{name}/全局依赖/道具设定/具体设定/{道具名}.md` |
-| `prop_ref` | `project/{name}/全局依赖/道具设定/道具参考图/{道具名}.png` |
+| `prop_ref` | `project/{name}/全局依赖/道具设定/道具参考图/{道具名}_{出现场合}_基准.png` |
 | `storyboard` | `project/{name}/{episode}/分镜/{filename}` |
 | `poster` | `project/{name}/{episode}/海报设计/{filename}` |
 | `setting` | `project/{name}/全局依赖/全局设定.md`（单一文件，由 producer 在 supervisor_extraction 阶段输出，包含世界观、时间线、人物关系等所有全局设定） |
 | `audio_reference` | `project/{name}/全局依赖/音色参考/{filename}` |
+| `video` | `project/{name}/{episode}/视频/{filename}` |
+| `video_manifest` | `project/{name}/{episode}/视频/_manifest.json` |
 
 监控 `events.jsonl` 可以重建任意时刻的项目状态快照。
 
@@ -689,22 +696,45 @@ for d in sorted(os.listdir(base)):
 - `stages.json` 中 `episode_scene_ref` 已 `completed`，`asset_sync` 已 `in_progress`
 - 本集 `episode_character_ref` 阶段产出的 `妆造匹配清单.json` 已就绪（路径：`project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json`）
 
+> **妆造匹配清单缺失降级策略**：若 `妆造匹配清单.json` 不存在（`episode_character_ref` 阶段异常或被跳过），**不得直接报错阻断**，改为执行降级流程：
+> 1. 输出告警：`⚠️ 妆造匹配清单.json 不存在，降级为复制全部全局角色参考图`
+> 2. 将 `全局依赖/角色设定/角色参考图/` 下的**所有** `.png` 文件复制到 `temp/分组素材/{剧集号}/角色参考/`
+> 3. 在 `events.jsonl` 追加 `asset_sync.degraded` 事件，记录降级原因
+> 4. 继续执行后续场景/道具参考图复制步骤
+>
+> 此降级策略确保 video-director 至少有角色参考图可用，避免单点依赖导致整条管线阻塞。
+
 **操作步骤**：
 
-1. **使用 CLI 读取本集妆造匹配清单**（仅元数据，不读图像内容）：
+1. **检查妆造匹配清单是否存在并读取**（仅元数据，不读图像内容）：
+
+   > **降级触发**：若 `妆造匹配清单.json` 文件不存在，跳过步骤 1 的读取，直接执行降级流程：
+   > - 输出告警 `⚠️ 妆造匹配清单.json 不存在，降级为复制全部全局角色参考图`
+   > - 步骤 3 改为：将 `全局依赖/角色设定/角色参考图/` 下所有 `.png` 复制到 `temp/分组素材/{剧集号}/角色参考/`
+   > - 在 `events.jsonl` 追加 `asset_sync.degraded` 事件（data 含 `reason: "妆造匹配清单缺失"`）
+   > - 继续执行步骤 2 及后续
 
    ```powershell
-   # PowerShell (Windows)
-   $json = Get-Content -Encoding UTF8 -Raw "project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json"
-   $manifest = $json | ConvertFrom-Json
+   # PowerShell (Windows)：检查文件是否存在
+   $manifestPath = "project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json"
+   if (Test-Path $manifestPath) {
+     $json = Get-Content -Encoding UTF8 -Raw $manifestPath
+     $manifest = $json | ConvertFrom-Json
+   } else {
+     Write-Host "⚠️ 妆造匹配清单.json 不存在，降级为复制全部全局角色参考图"
+   }
    ```
    ```bash
    # bash (Unix/macOS)
    python3 -c "
-   import json
-   with open('project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json', 'r', encoding='utf-8') as f:
-     m = json.load(f)
-   print(json.dumps(m, ensure_ascii=False, indent=2))
+   import json, os
+   p = 'project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json'
+   if os.path.exists(p):
+     with open(p, 'r', encoding='utf-8') as f:
+       m = json.load(f)
+     print(json.dumps(m, ensure_ascii=False, indent=2))
+   else:
+     print('⚠️ 妆造匹配清单.json 不存在，降级为复制全部全局角色参考图')
    "
    ```
 
@@ -715,13 +745,16 @@ for d in sorted(os.listdir(base)):
    New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/角色参考"
    New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/场景参考"
    New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/道具参考"
+   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/分镜图"
    ```
    ```bash
    # bash (Unix/macOS)
-   mkdir -p "temp/分组素材/{剧集号}/角色参考" "temp/分组素材/{剧集号}/场景参考" "temp/分组素材/{剧集号}/道具参考"
+   mkdir -p "temp/分组素材/{剧集号}/角色参考" "temp/分组素材/{剧集号}/场景参考" "temp/分组素材/{剧集号}/道具参考" "temp/分组素材/{剧集号}/分镜图"
    ```
 
-3. **按清单复制角色参考图**：清单中每条记录形如 `{"角色名": "张三", "参考图文件名": "张三_剧集01.png"}`，从全局依赖目录复制：
+3. **按清单复制角色参考图**：
+
+   **正常模式**（清单存在）：清单中每条记录形如 `{"角色名": "张三", "参考图文件名": "张三_剧集01.png"}`，从全局依赖目录复制：
 
    ```powershell
    # PowerShell (Windows)
@@ -732,10 +765,25 @@ for d in sorted(os.listdir(base)):
    cp "project/{项目名}/全局依赖/角色设定/角色参考图/{参考图文件名}" "temp/分组素材/{剧集号}/角色参考/"
    ```
 
-4. **复制本集涉及的场景参考图、道具参考图**：
-   - 场景参考图来源：`project/{项目名}/全局依赖/场景设定/场景参考图/` → 目标 `temp/分组素材/{剧集号}/场景参考/`
-   - 道具参考图来源：`project/{项目名}/全局依赖/道具设定/道具参考图/` → 目标 `temp/分组素材/{剧集号}/道具参考/`
-   - 涉及清单：依据本集分镜脚本中场景/道具出场列表（由 storyboard-generator 在 episode_storyboard 阶段产出的"分组/组{N}.json"中给出，仅读取其中 `scene_refs` / `prop_refs` 字段，不读镜号描述等业务内容）
+   **降级模式**（清单不存在）：复制全部全局角色参考图：
+
+   ```powershell
+   # PowerShell (Windows)
+   Copy-Item -Path "project/{项目名}/全局依赖/角色设定/角色参考图/*.png" -Destination "temp/分组素材/{剧集号}/角色参考/" -Force
+   ```
+   ```bash
+   # bash (Unix/macOS)
+   cp "project/{项目名}/全局依赖/角色设定/角色参考图/"*.png "temp/分组素材/{剧集号}/角色参考/"
+   ```
+
+4. **复制本集涉及的场景参考图、道具参考图**（优先使用剧集级参考图，无剧集级时回退全局基准图）：
+   - 场景参考图来源（优先）：`project/{项目名}/{剧集号}/场景参考图/*.png` → 目标 `temp/分组素材/{剧集号}/场景参考/`（覆盖同名全局基准图）
+   - 场景参考图来源（回退）：`project/{项目名}/全局依赖/场景设定/场景参考图/` → 目标 `temp/分组素材/{剧集号}/场景参考/`（仅复制剧集级目录中不存在的场景）
+   - 道具参考图来源（优先）：`project/{项目名}/{剧集号}/道具参考图/*.png` → 目标 `temp/分组素材/{剧集号}/道具参考/`（覆盖同名全局基准图）
+   - 道具参考图来源（回退）：`project/{项目名}/全局依赖/道具设定/道具参考图/` → 目标 `temp/分组素材/{剧集号}/道具参考/`（仅复制剧集级目录中不存在的道具）
+   > **道具基准文件名含出现场合**：全局基准资产文件名格式为 `{道具名}_{出现场合}_基准.png`。回退复制时需读取 `具体设定/{道具名}.md` 中的 `出现场合` 字段，匹配正确的基准文件。仅复制该道具 `出现场合` 包含当前剧集号的基准图，**禁止**复制不属于本集的道具资产。
+   - 涉及清单：依据本集分镜脚本中场景/道具出场列表（由 storyboard-generator 在 `episode_storyboard_script` 阶段产出的"分组/组{N}.json"中给出，仅读取其中 `scene_refs` / `prop_refs` 字段，不读镜号描述等业务内容）
+   - **复制分镜图**（仅当 `use_storyboard_images=true` 时）：分镜图来源 `project/{项目名}/{剧集号}/分镜/分镜图_*.png` → 目标 `temp/分组素材/{剧集号}/分镜图/`。分镜图由 storyboard-director 在 `episode_storyboard_images` 阶段产出、art-director 绘制
 
 5. **在 manifest 注册 `asset_sync` 类型产物**：
    - 每个复制后的目录（`temp/分组素材/{剧集号}/角色参考/` 等）注册为一个 `asset_sync` 产物条目

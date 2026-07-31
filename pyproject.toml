@@ -7,6 +7,8 @@ dependencies = [
     "mcp>=1.27.0",
     "httpx",
     "pydantic",
+    "python-docx>=1.2.0",
+    "pillow>=12.3.0",
 ]
 
 [build-system]

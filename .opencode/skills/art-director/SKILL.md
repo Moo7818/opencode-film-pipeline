@@ -17,7 +17,7 @@ description: 使用GRSAI MCP 工具生成AI图像。支持 JSON 任务列表，�
 
 ## 图像生成执行
 
-通过 MCP tool `grsai_batch_generate` 执行批量生图。
+通过 MCP tool `grsai_submit_image` 提交任务 + `grsai_poll_result` 轮询结果，两步完成生图。
 
 ### 输入格式
 
@@ -28,54 +28,18 @@ description: 使用GRSAI MCP 工具生成AI图像。支持 JSON 任务列表，�
 - `aspectRatio` → MCP tool `aspect_ratio`
 - `imageSize` → MCP tool `image_size`
 - `images` → MCP tool `reference_images`
-- `filename` → MCP tool `filename`
 
 ### 调用示例
-
-```
-tool: grsai_batch_generate
-input:
-  tasks:
-    - prompt: "生成全局角色参考图，..."
-      model: "gpt-image-2"
-      aspect_ratio: "2048x1152"
-      image_size: "4K"
-      filename: "character_01.png"
-  output_dir: "./output/角色参考图"
-  concurrency: 10
-```
-
-### 返回格式
-
-```json
-{
-  "batch_id": "batch_20260616_120000",
-  "total": 5,
-  "succeeded": 5,
-  "failed": 0,
-  "results": [
-    {
-      "index": 0,
-      "status": "completed",
-      "image_url": "https://...",
-      "local_path": "./output/角色参考图/character_01.png"
-    }
-  ]
-}
-```
-
-### 单张生成
-
-如需生成单张图片（而非批量），使用两步工作流：
 
 **第一步 — 提交任务**：`grsai_submit_image` → 返回 `task_id`
 ```
 tool: grsai_submit_image
 input:
-  prompt: "..."
+  prompt: "生成全局角色参考图，..."
   model: "gpt-image-2"
   aspect_ratio: "2048x1152"
   image_size: "4K"
+  reference_images: ["https://..."]
 ```
 
 **第二步 — 轮询结果**：`grsai_poll_result(task_id)` → 返回生成结果
@@ -85,32 +49,51 @@ input:
   task_id: "从提交步骤获得的 task_id"
   poll_delay: 5
   poll_interval: 3
-  max_poll_rounds: 20
+  max_poll_rounds: 60
+```
+
+### 返回格式
+
+提交返回：
+```json
+{
+  "status": "submitted",
+  "task_id": "abc123",
+  "uploaded_refs": [{"local": "...", "remote": "https://..."}]
+}
+```
+
+轮询返回：
+```json
+{
+  "status": "completed",
+  "image_url": "https://...",
+  "oss_url": "https://...",
+  "task_id": "abc123"
+}
 ```
 
 ### MCP 调用规范
 
 #### a) MCP 工具执行超时
 - 当前 MCP 框架超时已设为 `experimental.mcp_timeout=600000ms`（10分钟），见 opencode.json
-- 单次生图轮询默认参数：`poll_delay=5, poll_interval=3, max_poll_rounds=20`（总最长约 65s）
-- 在此超时范围内可安全执行单张或小批量（≤10 张）任务
+- 单次生图轮询默认参数：`poll_delay=5, poll_interval=3, max_poll_rounds=60`（总最长约 185s）
+- 在此超时范围内可安全执行单张任务
 
 #### b) 批量任务策略
-- **小批量（≤10 张）**：使用 `grsai_batch_generate`（默认模式，一次性提交+轮询+下载）
-- **大批量（>10 张）**：使用 `batch_type="submit_only"` 仅提交拿到 task_id，然后分多次调用 `grsai_poll_result` 分批轮询
-- 或逐个调用 `grsai_submit_image` + `grsai_poll_result` 分批处理
-- `concurrency` 建议值：10（默认），可根据网络状况调整
+- 逐个调用 `grsai_submit_image` 拿到所有 task_id，再逐个调用 `grsai_poll_result` 轮询
+- 多张任务可交叉提交：先连续提交多个 `grsai_submit_image`（拿到多个 task_id），再逐个轮询，缩短总等待时间
+- 单个 task 轮询超时后，可先轮询其他已提交的 task，最后回来增加 `max_poll_rounds` 重试
 
 #### c) 错误处理规范
-- **轮询超时**（返回 status="timeout"）：建议等待后重试 `grsai_poll_result`
+- **轮询超时**（返回 status="timeout"）：增加 `max_poll_rounds` 后重试 `grsai_poll_result`
+- **生成失败**（返回 status="failed"）：【终态】不可重试同一 task_id，检查 prompt 和参数合法性
 - **连续失败**（返回连续失败错误）：检查网络/凭证后重试
-- **API 错误**（返回 status="failed"）：检查 prompt 和参数合法性
 - 所有错误应记录到事件日志，不静默吞掉
 
 #### d) 禁止行为
 - 禁止自行构造 HTTP 请求调用 GRSAI API（必须通过 MCP tool）
 - 禁止修改用户提示词
-- 禁止在单次 `grsai_batch_generate` 中提交超过 30 个任务（避免超时）
 
 ## 模型差异说明
 

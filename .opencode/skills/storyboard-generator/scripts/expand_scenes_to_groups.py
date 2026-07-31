@@ -25,8 +25,11 @@ def expand_scenes_to_groups(input_path, output_dir):
         sys.exit(1)
 
     # 检测是否已是组级结构（无场级包装）
+    # 详细模式：有 镜头列表 ；精简模式：有 分镜描述
     first = data[0]
-    is_flat = isinstance(first, dict) and "组列表" not in first and "镜头列表" in first
+    is_flat = isinstance(first, dict) and "组列表" not in first and (
+        "镜头列表" in first or "分镜描述" in first
+    )
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -43,10 +46,14 @@ def expand_scenes_to_groups(input_path, output_dir):
             group_out["组号"] = global_group_no
             group_out["镜号起始"] = global_shot_offset + 1
 
-            # 重排镜号
-            for i, shot in enumerate(shots):
-                shot["镜号"] = global_shot_offset + i + 1
-            global_shot_offset += len(shots)
+            if shots:
+                # 详细模式：重排镜号
+                for i, shot in enumerate(shots):
+                    shot["镜号"] = global_shot_offset + i + 1
+                global_shot_offset += len(shots)
+            else:
+                # 精简模式：用 镜头数 字段推进偏移
+                global_shot_offset += group.get("镜头数", 1)
 
             filename = f"组{global_group_no}.json"
             filepath = os.path.join(output_dir, filename)
@@ -62,6 +69,7 @@ def expand_scenes_to_groups(input_path, output_dir):
             for group in groups:
                 global_group_no += 1
                 shots = group.get("镜头列表", [])
+                has_narrative = "分镜描述" in group
 
                 group_out = {
                     "组号": global_group_no,
@@ -70,15 +78,21 @@ def expand_scenes_to_groups(input_path, output_dir):
                     "组叙事概述": group.get("组叙事概述", ""),
                     "组转场": group.get("组转场", ""),
                     "通用设定": dict(scene_common),
-                    "镜头列表": [],
                 }
 
-                for i, shot in enumerate(shots):
-                    shot_out = dict(shot)
-                    shot_out["镜号"] = global_shot_offset + i + 1
-                    group_out["镜头列表"].append(shot_out)
-
-                global_shot_offset += len(shots)
+                if has_narrative:
+                    # 精简模式：保留分镜描述和镜头数
+                    group_out["镜头数"] = group.get("镜头数", 1)
+                    group_out["分镜描述"] = group.get("分镜描述", "")
+                    global_shot_offset += group_out["镜头数"]
+                else:
+                    # 详细模式：保留镜头列表
+                    group_out["镜头列表"] = []
+                    for i, shot in enumerate(shots):
+                        shot_out = dict(shot)
+                        shot_out["镜号"] = global_shot_offset + i + 1
+                        group_out["镜头列表"].append(shot_out)
+                    global_shot_offset += len(shots)
 
                 filename = f"组{global_group_no}.json"
                 filepath = os.path.join(output_dir, filename)

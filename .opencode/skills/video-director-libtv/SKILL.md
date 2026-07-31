@@ -5,7 +5,7 @@ description: 基于 libtv CLI 的视频导演 Skill。覆盖：分镜视频化�
 
 # video-director-libtv — 基于 libtv CLI 的视频导演 Skill
 
-影视生产管线中的**「视频导演」**，负责将分镜组 JSON 通过 **libtv CLI** 转化为画布上的 video 节点并触发生成。
+影视生产管线中的**「视频导演」**，负责将分镜组（JSON 或 MD 格式）通过 **libtv CLI** 转化为画布上的 video 节点。
 
 ## 前置依赖
 
@@ -13,7 +13,7 @@ description: 基于 libtv CLI 的视频导演 Skill。覆盖：分镜视频化�
 - 凭证文件已就位：`.opencode/credentials/libtv_credentials.json`
 - 已在画布上创建项目并已绑定画布：`libtv project use <画布UUID>`
 - `libtv` CLI 版本 ≥ **1.1.1**（使用 `libtv --version` 确认；关键变化见文末）
-- 分镜组 JSON 已就绪（`分组/组{N}.json`）
+- 分镜组文件已就绪（`分组/组{N}.json` 或 `分组/组{N}.md` 格式均可）
 - `project_config.json` 已配置（字段定义见 `.opencode/schemas/project-config.json`）
 
 ## 凭证路径配置
@@ -48,20 +48,34 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 | 画布 UUID | `.libtv/project.json → projectUuid` | `libtv project use <值>` | **写**入 `.meta/projects/{uuid}/project_config.json` |
 | ↳ `project use` 副作用 | v1.1.1+ 同时将画布所属项目 `workspaceId` 与团队 `teamId` 同步写入 `.libtv/project.json` | — |
 | 组时长 | `组{N}.json → 组时长` | `--set duration` | 读 |
+| 音色参考目录 | `project_config.json → has_audio_reference` | 仅作参考；音色参考由 Agent 通过 `--voice-refs` 显式指定上传 | 读 |
+| 禁止运行 | `project_config.json → suppress_run` | `true` 时**无条件拒绝** `--run`，只做准备工作 | 读 |
 
 `use_storyboard_images` 影响参考素材的连线策略（详见 `references/storyboard-to-libtv.md` 第 6 节）：为 `true` 时优先选取分镜图作为主要参考，否则以角色/场景参考图为主。
 
 ## 工作流总览
 
 ```
-  1. 读取上下文                  ← project_config.json + 分组 JSON
+  1. 读取上下文                  ← project_config.json + 分组文件（JSON 或 MD）
   2. 绑定画布项目                ← libtv project use <UUID>
-  3. 上传参考素材为资源节点       ← libtv upload
+  3. 上传参考素材为资源节点       ← libtv upload（按需上传，仅上传 --refs/--voice-refs 指定的素材）
   4. 创建 video 节点             ← 一次性创建 或 两阶段（占位 → 查顺序 → 写引用）
-  5. 批量分组运行                ← libtv group create + --run
-  6. 轮询等待生成完成
-  7. 报告 Coordinator 归档
+  5. [可选] 批量建组             ← libtv group create（--no-group 可跳过；默认只建组，不运行）
+  6. [可选] 运行视频生成         ← libtv group --run（仅当用户明确要求时）
+  7. 轮询等待生成完成
+  8. 报告 Coordinator 归档       ← 含产物注册要求（见下方）
 ```
+
+### 步骤 8 产物注册要求
+
+video-director 完成视频生成后，须向 Coordinator 报告并确保以下产物被注册到 `manifest.json`：
+
+| 产物 | type | 路径 | 注册条件 |
+|------|------|------|---------|
+| 每个视频文件 | `video` | `project/{项目名}/{剧集号}/视频/组{N}.mp4` | `--download` 执行后 |
+| 下载清单 | `video_manifest` | `project/{项目名}/{剧集号}/视频/_manifest.json` | `--download` 执行后 |
+
+> **Coordinator 推进校验**：Coordinator 在将 `video_generation` 标记为 `completed` 并推进到 `delivery` 前，**必须**读取 `_manifest.json`，校验 `status` 字段。仅当 `status` 为 `success`（`failed=0`）时方可推进；`partial` 时须提示用户处理失败组后再推进。
 
 ## `{{Image N}}` 引用规则
 
@@ -91,22 +105,42 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 
 **引用描述行**由 agent 根据参考图文件名中的语义信息，用自然语言描述每个参考图的用途，后接 `{{Image N}}` 占位符。N 编号与 `--left` 传入顺序一致（第1个 → `{{Image 1}}`）。
 
+**分组文件格式支持**：
+- **JSON 格式**（`组{N}.json`）：原样拷贝完整 JSON 内容到 prompt
+- **MD 格式**（`组{N}.md`）：读取 MD 文件的全部内容作为视频生成提示词
+
 有参考图时：
 ```
-请参考{自然描述}{{Image 1}}、{自然描述}{{Image 2}}进行画面生成
+{名称}{类型}参考{{Image 1}}、{名称}{类型}参考{{Image 2}}
 
 画面严禁出现任何字幕，无配乐
 ---
-{完整的组 JSON 内容，原样拷贝}
+{完整的组文件内容：JSON 格式原样拷贝 / MD 格式读取全部内容}
 ```
 
-自然描述示例：
-- 文件名 `角色_一岛` → `一岛角色相貌、造型参考{{Image 1}}`
-- 文件名 `场景_现代南京长江边` → `现代南京长江边场景参考{{Image 2}}`
+引用行格式统一为 `{名称}{类型}参考{{Image N}}`：
+- 文件名 `角色_掌柜` → `掌柜角色参考{{Image 1}}`
+- 文件名 `场景_茶馆` → `茶馆场景参考{{Image 2}}`
 - 文件名 `道具_平板` → `平板道具参考{{Image 3}}`
-- 文件名 `场景_星空光影氛围` → `星空光影、色调氛围参考{{Image 1}}`
+- 文件名 `分镜_组1` → `分镜图仅作辅助参考（光影、色调）{{Image 1}}`（含分镜图时追加 `具体细节以角色/场景/道具参考图为准`）
 
-无参考图时跳过引用行和空行，直接用约束行 + 分隔线 + JSON。
+无参考图时跳过引用行和空行，直接用约束行 + 分隔线 + 组文件内容。
+
+**MD 格式示例**（当分组文件为 `组1.md` 时）：
+```
+场景参考{{Image 1}}、角色参考{{Image 2}}
+
+画面严禁出现任何字幕，无配乐
+---
+# 组1
+
+## 组叙事概述
+城市天际线航拍，镜头从高空俯瞰逐渐下降
+
+## 镜头列表
+1. **镜头1**：5秒，航拍城市全景
+2. **镜头2**：3秒，镜头下降至街道
+```
 
 ## Prompt 传递方式
 
@@ -127,7 +161,7 @@ import sys
 os.environ["LIBTV_CONFIG_DIR"] = os.path.abspath(".opencode/credentials")
 
 # Prompt 内容（Python 三引号字符串可自由包含 " 和换行）
-prompt = """请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
+prompt = """一岛角色参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}
 
 画面严禁出现任何字幕，无配乐
 ---
@@ -176,7 +210,7 @@ import sys
 
 os.environ["LIBTV_CONFIG_DIR"] = os.path.abspath(".opencode/credentials")
 
-prompt = """请参考一岛角色相貌、造型参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}进行画面生成
+prompt = """一岛角色参考{{Image 1}}、现代南京长江边场景参考{{Image 2}}
 
 画面严禁出现任何字幕，无配乐
 ---
@@ -199,12 +233,14 @@ python3 temp/update_prompt_group1.py
 
 ### ⛔ Prompt 硬约束（必须遵守）
 
-1. **引用描述用自然语言**：根据参考图文件名中的语义信息（场景/角色/道具/光影等）写出自然的描述，不要使用"角色形象参考"等固定短语
+1. **引用格式统一**：引用行格式为 `{名称}{类型}参考{{Image N}}`（如 `掌柜角色参考{{Image 1}}`），分镜图为 `分镜图仅作辅助参考（光影、色调）{{Image N}}`，含分镜图时追加 `具体细节以角色/场景/道具参考图为准`
 2. **禁止概括 JSON**：`{完整的组 JSON 内容，原样拷贝}` 必须从分镜组 JSON 文件完整读取、原样粘贴，不得用任何形式的概括、摘要、改写替代
 3. **禁止省略约束行**：`画面严禁出现任何字幕，无配乐` 和 `---` 分隔线必须保留，不得省略
 4. **禁止修改引用格式**：引用行必须使用 `{{Image N}}` 格式（如 `{{Image 1}}`），不得替换为 `{{Node uuid}}` 等其他格式。`{{Image N}}` 由 libtv 服务端自动解析为节点引用
 5. **禁止擅自截断**：不得以任何理由（字符限制、长度限制等）截断或省略 JSON 内容
-6. **违规后果**：违反上述任一条款将导致视频生成质量下降，视为 agent 执行错误
+6. **⛔ 禁止使用选角参考图**：`{角色名}_选角.png` 是 Tier 1 选角资产（白T恤+灰背景），**绝对不能**用于视频生成。脚本已自动过滤，Agent 在手动指定 `--refs` 时也必须确保不引用选角资产。应使用 Tier 2 妆造资产（`{角色名}_默认.png` 或 `{角色名}_{妆造名}.png`）
+7. **参考选取由 Agent 判断**：脚本不做自动匹配，Agent 必须读取每个分组的实际内容，判断出场的角色/场景/道具，通过 `--refs` 显式指定。未指定 `--refs` 的分组将以纯文生视频模式生成（无参考图）
+8. **违规后果**：违反上述任一条款将导致视频生成质量下降，视为 agent 执行错误
 
 ## 文档地图
 

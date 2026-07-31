@@ -47,6 +47,22 @@
       "type": "boolean",
       "description": "是否开启视频音频生成。video-director 映射为 libtv --set enableSound=on/off",
       "default": true
+    },
+    "storyboard_mode": {
+      "type": "string",
+      "enum": ["detailed", "simplified"],
+      "description": "分镜脚本输出模式。detailed（默认）：结构化 JSON（17字段×N镜头）；simplified：线性描述 Markdown（讲戏式叙事，组JSON用分镜描述文本替代镜头列表）",
+      "default": "detailed"
+    },
+    "has_audio_reference": {
+      "type": "boolean",
+      "description": "项目是否已准备音色参考文件（位于 全局依赖/音色参考/）。为 true 时 video-director 自动扫描该目录并连线音色节点",
+      "default": false
+    },
+    "suppress_run": {
+      "type": "boolean",
+      "description": "是否永久禁止 video-director 执行视频生成（group --run）。为 true 时 video-director 只做节点创建和建组，永不执行 --run，即使用户要求运行也拒绝",
+      "default": false
     }
   },
   "additionalProperties": true
