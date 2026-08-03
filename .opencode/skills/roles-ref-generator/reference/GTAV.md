@@ -1,13 +1,34 @@
 ---
 name: GTAV
-description: GTA V / Rockstar写实游戏风角色参考图
-string1: AAA级游戏CG角色渲染
-string2: 现代都市写实游戏美学
-string8_style_injection: GTAV风格化造型：sharp facial features锐利五官轮廓，satirical modern urban styling讽刺幽默都市风格，detailed textured clothing高度纹理化服装质感，expressive weathered face表情丰富饱经风霜面容
+description: GTA V / Rockstar 写实游戏风格角色参考图
+opening_decl: AAA game character continuity reference image
+opening_type: game character casting and costume reference
+opening_neg_1: a photorealistic photograph
+opening_neg_2: a live-action reference
+opening_neg_3: a 2D illustration or hand-drawn animation
+layout_portrait_style: a Rockstar Games character showcase render
+output_format: a collection of high-quality game character render references
+photo_style: >-
+  AAA game CG character render, Rockstar Games style,
+  Unreal Engine 5 quality, realistic textures, cinematic game lighting,
+  high-fidelity character model, ultra-detailed 4K game asset quality
+lighting: >-
+  Cinematic dramatic lighting, strong rim light, moody atmosphere,
+  high contrast, game engine lighting, bold saturated color grading
+background: >-
+  Neutral studio environment with subtle gradient,
+  minimal visual elements, urban atmosphere hint
+avoid_style: >-
+  photorealistic photography, live-action, real human,
+  plastic skin, anime style, 2D illustration, traditional painting style,
+  hand-drawn, watercolor
+style_injection: >-
+  Sharp facial features, satirical modern urban styling,
+  detailed textured clothing, expressive weathered face,
+  slightly stylized realism
 ---
 
-## string11（背景+光影）
-电影级RAGE引擎照明 cinematic RAGE engine lighting，加州烈日 harsh golden California sun shadow contrast，棕榈树摩天楼都市背景 palm tree & skyscraper backdrop，劫案海报式构图 heist poster composition，大胆饱和调色 bold saturated color grading
+## 适用场景
 
-## string12（整体质感）
-Rockstar Games写实游戏CG渲染 Rockstar Games realistic game CGI render，超精细4K游戏资产品质 ultra-detailed 4K game asset quality，略风格化写实 slightly stylized realism，真实服装纹理详细面部细节 realistic textured clothing with detailed facial features
+角色设定中「视觉参考风格」字段包含以下关键词时匹配此风格：
+GTA V、Rockstar、侠盗猎车手、洛圣都、gta_v

@@ -21,8 +21,8 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_MODEL = "gpt-image-2-vip"
-DEFAULT_SIZE = "1K"
+DEFAULT_MODEL = "nano-banana-pro"
+DEFAULT_SIZE = "4K"
 DEFAULT_ASPECT = "16:9"
 
 
@@ -153,10 +153,17 @@ def build_prompt(group, shot_count, layout, image_refs=None):
     transition = group.get("组转场", "")
     common = group.get("通用设定", {})
 
+    anchor_map = {
+        "角色": "Character Identity Anchor",
+        "场景": "Environment Anchor",
+        "道具": "Prop Detail Anchor",
+        "风格": "Visual Style Anchor",
+    }
+
     parts = []
     header = f"【第{group_no}组】"
     if image_refs:
-        ref_labels = [f"{label}参考image {i+1}" for i, label in enumerate(image_refs)]
+        ref_labels = [f"Image {i+1}: {anchor_map.get(label, label)}" for i, label in enumerate(image_refs)]
         header += "，".join(ref_labels) + "。"
     header += overview
     parts.append(header)

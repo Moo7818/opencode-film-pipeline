@@ -42,8 +42,13 @@
 
 1. **每次操作必须记录**：所有对项目状态有变更的操作（创建、推进、注册、更新、废弃、归档）都必须包含对应事件
 2. **追加写入（使用 CLI）**：仅追加到 `.meta/projects/{id}/events.jsonl` 末尾，不修改已有行
-   ```powershell
-   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value '{"timestamp":"...","type":"...","actor":"project-coordinator","data":{...}}'
+   ```bash
+   python -c "
+   import json
+   event = {'timestamp':'...','type':'...','actor':'project-coordinator','data':{...}}
+   with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
+     f.write(json.dumps(event, ensure_ascii=False, separators=(',', ':')) + '\n')
+   "
    ```
 3. **时间戳**：使用 ISO 8601 格式，含时区信息
 4. **actor 标识**：`project-coordinator` 表示统筹 agent 发起的操作，`user` 表示用户发起的操作

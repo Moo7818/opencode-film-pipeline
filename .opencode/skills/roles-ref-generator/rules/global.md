@@ -21,12 +21,21 @@
 | `project/{项目名}/前期采样/人物/{角色名}*.png` | 角色采样图（可选，决定模式 A/B） |
 | `project/{项目名}/前期采样/风格/*.png` | 风格参考图（所有角色共用） |
 
-## 步骤 2：模式判断
+## 步骤 2：模式判断 + 风格匹配
+
+### 模式判断
 
 | 模式 | 条件 | 参考图 | 说明 |
 |------|------|--------|------|
 | **模式 A** | `前期采样/人物/{角色名}*.png` 存在 | 人物采样图 + 风格参考图 | 有采样图时，Agent 以采样图人物特征为基准 |
 | **模式 B** | `前期采样/人物/{角色名}*.png` 不存在 | 仅风格参考图 | 无采样图时，Agent 仅依据角色设定文字描述 |
+
+### 风格匹配
+
+1. 从角色设定文件的「视觉参考风格」或整体描述中提取风格关键词
+2. 匹配 `rules/common.md` 中的「风格匹配表」
+3. 若匹配成功 → 加载 `reference/{风格名}.md`，提取 front-matter 参数
+4. 若未匹配 → 加载 `reference/PhotoRealistic.md`（默认写实风格）
 
 ## 步骤 3a：生成 Tier 1 选角资产
 
@@ -36,21 +45,22 @@
 
 | 参数 | 来源 |
 |------|------|
-| string0 | 模式 A：`"人物特征严格参考图片1-图片n"`；模式 B：空字符串 |
-| string1 | 从「设计参考」的「视觉参考风格」字段匹配「string1 质感类型选择表」 |
-| string2 | 从角色设定或 reference 文件提取 |
-| string3 | 从「造型设计」默认妆造提取（选角仅需头饰信息） |
-| string4 | 从「造型设计」默认妆造提取（选角仅需妆容信息） |
-| **string5** | **固定值：`"白色短袖T恤"`** |
-| string6 | 从全局设定提取 |
-| string7 | 从 `角色设定.md` 提取 |
-| string8 | 从 `角色设定.md` 详细扩展，末尾追加风格化造型注入 |
-| string9 | 从 `角色设定.md` 详细扩展 |
-| **string10** | **固定值：`"白色短袖T恤，简约干净，无图案无文字"`** |
-| **string11** | **固定值：`"工业级中灰无影墙，光线柔和自然，无色光，均匀照明无阴影"`** |
-| string12 | 从 reference 文件提取 |
+| `{opening_decl}` | reference 文件 front-matter |
+| `{opening_type}` | reference 文件 front-matter |
+| `{opening_neg_1~3}` | reference 文件 front-matter |
+| `{identity_ref}` | 模式 A：`"Character features strictly reference Image 1 through Image N."`；模式 B：空字符串 |
+| `{layout_portrait_style}` | reference 文件 front-matter |
+| `{output_format}` | reference 文件 front-matter |
+| `{character}` | 从 `角色设定.md` 提取身份、时代、定位 |
+| `{appearance}` | 从 `角色设定.md` 详细扩展 + `{style_injection}` 追加末尾。需含缺省值防范（胡须/皱纹/发型/体态） |
+| `{hair_costume}` | **固定值：`"Plain white short-sleeve T-shirt, minimal, no patterns, no text. Natural hairstyle as described in character setting."`** |
+| `{photo_style}` | reference 文件 front-matter |
+| `{lighting}` | **固定值：`"Soft studio lighting with even illumination, no color cast, minimal shadows."`** |
+| `{background}` | **固定值：`"Industrial mid-grey seamless backdrop, clean neutral studio environment, minimal visual elements."`** |
+| `{avoid_style}` | reference 文件 front-matter |
+| `{style_injection}` | reference 文件 front-matter，追加到 `{appearance}` 末尾 |
 
-> **固定项不可覆盖**：string5/string10/string11 在 Tier 1 选角资产中固定为上述值。选角资产的目的是排除服装与环境干扰，聚焦角色本体的面部特征、表情表现力和体型轮廓。
+> **固定项不可覆盖**：`{hair_costume}`、`{lighting}`、`{background}` 在 Tier 1 选角资产中固定为上述值。选角资产的目的是排除服装与环境干扰，聚焦角色本体的面部特征、表情表现力和体型轮廓。
 
 **Tier 1 产出：**
 - filename: `{角色名}_选角.png`
@@ -58,25 +68,26 @@
 
 ## 步骤 3b：生成 Tier 2 默认定妆
 
-使用同一七视图模板，但 string5/10/11 不再固定，从角色设定「造型设计」的「默认」妆造提取。
+使用同一七视图模板，但 `{hair_costume}`、`{lighting}`、`{background}` 不再固定，从角色设定「造型设计」和 reference 文件提取。
 
 **Tier 2 参数取值来源：**
 
 | 参数 | 来源 |
 |------|------|
-| string0 | 固定为 `"人物特征严格参考图片1"` |
-| string1 | 同 Tier 1 |
-| string2 | 同 Tier 1 |
-| string3 | 从「造型设计」默认妆造提取（头饰简述） |
-| string4 | 从「造型设计」默认妆造提取（妆容简述） |
-| **string5** | 从「造型设计」默认妆造提取（服装简述） |
-| string6 | 同 Tier 1 |
-| string7 | 同 Tier 1 |
-| string8 | 同 Tier 1 |
-| string9 | 从「造型设计」默认妆造扩展（头饰详述，≥80字） |
-| **string10** | 从「造型设计」默认妆造扩展（服装+妆容详述，≥80字） |
-| **string11** | 从 reference 文件提取（非固定值） |
-| string12 | 从 reference 文件提取 |
+| `{opening_decl}` | 同 Tier 1 |
+| `{opening_type}` | 同 Tier 1 |
+| `{opening_neg_1~3}` | 同 Tier 1 |
+| `{identity_ref}` | 固定为 `"Character features strictly reference Image 1."` |
+| `{layout_portrait_style}` | 同 Tier 1 |
+| `{output_format}` | 同 Tier 1 |
+| `{character}` | 同 Tier 1 |
+| `{appearance}` | 同 Tier 1 |
+| `{hair_costume}` | 从「造型设计」默认妆造提取发型和服装描述 |
+| `{photo_style}` | 同 Tier 1 |
+| `{lighting}` | 从 reference 文件 front-matter 提取（非固定值） |
+| `{background}` | 从 reference 文件 front-matter 提取（非固定值） |
+| `{avoid_style}` | 同 Tier 1 |
+| `{style_injection}` | 同 Tier 1 |
 
 **Tier 2 产出：**
 - filename: `{角色名}_默认.png`
@@ -96,8 +107,8 @@
 当 orchestrator 报告"发现新妆造需求"时，按以下步骤生成：
 
 1. 从角色设定「造型设计」中找到对应妆造名的描述
-2. 使用七视图模板，string3/4/5/9/10 从该妆造名下的描述提取
-3. string11 从 reference 文件提取（如有场景特殊色调由 orchestrator 补充）
+2. 使用七视图模板，`{hair_costume}` 从该妆造名下的发型和服装描述提取
+3. `{lighting}` 和 `{background}` 从 reference 文件提取（如有场景特殊色调由 orchestrator 补充）
 4. 参考图为 Tier 1 选角资产 + 风格参考图
 5. filename: `{角色名}_{妆造名}.png`
 6. output_path: `project/{项目名}/全局依赖/角色设定/角色参考图/`
@@ -110,18 +121,18 @@
 
 ```json
 {
-  "model": "gpt-image-2",
+  "model": "nano-banana-2",
   "tasks": [
     {
-      "prompt": "...",
-      "imageSize": "1K",
+      "prompt": "Create a live-action historical drama actor continuity reference image...",
+      "imageSize": "4K",
       "aspectRatio": "16:9",
       "filename": "{角色名}_选角.png",
       "images": ["project/{项目名}/前期采样/人物/{角色名}.png", "project/{项目名}/前期采样/风格/{风格文件}.png"]
     },
     {
-      "prompt": "...",
-      "imageSize": "1K",
+      "prompt": "Create a live-action historical drama actor continuity reference image...",
+      "imageSize": "4K",
       "aspectRatio": "16:9",
       "filename": "{角色名}_默认.png",
       "images": ["project/{项目名}/全局依赖/角色设定/角色参考图/{角色名}_选角.png", "project/{项目名}/前期采样/风格/{风格文件}.png"]
@@ -135,11 +146,15 @@
 
 **自检清单（每一项必须通过）：**
 - □ 每个角色生成 2 个 task（Tier 1 选角 + Tier 2 默认定妆）
-- □ Tier 1 的 prompt 中 string5 为"白色短袖T恤"，string10 包含"白色短袖T恤"，string11 包含"工业级中灰无影墙"和"光线柔和自然，无色光"
-- □ Tier 2 的 prompt 中 string5/10/11 从「造型设计」提取，不包含白T恤和灰墙
-- □ string1 已从角色设定「设计参考」的「视觉参考风格」字段匹配选择
-- □ prompt 中无 string0~string12 占位符残留
+- □ Tier 1 的 prompt 中 `{hair_costume}` 包含"Plain white short-sleeve T-shirt"
+- □ Tier 1 的 prompt 中 `{lighting}` 包含"even illumination, no color cast"
+- □ Tier 1 的 prompt 中 `{background}` 包含"mid-grey seamless backdrop"
+- □ Tier 2 的 prompt 中 `{hair_costume}`/`{lighting}`/`{background}` 从「造型设计」和 reference 文件提取，不包含白T恤和灰墙
+- □ `{appearance}` 段已包含缺省值防范（胡须/皱纹/发型/体态显式声明）
+- □ `{appearance}` 段末尾已追加 `{style_injection}`
+- □ prompt 中无 `{}` 占位符残留
 - □ Tier 2 的 images[0] 指向 Tier 1 产出物路径
+- □ prompt 末尾 Avoid 段包含"text, labels, captions, logos, watermarks, frames, decorative elements, graphic layout, beauty retouching, perfect symmetry"
 
 ## 步骤 5：初始化妆造衣橱
 

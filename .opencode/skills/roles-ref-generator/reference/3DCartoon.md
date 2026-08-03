@@ -1,29 +1,35 @@
 ---
 name: 3DCartoon
-description: Pixar/Disney卡通动画风格角色参考图，Pixar/Disney融合方向
-string1: 3D卡通渲染
-string2: Pixar/Disney卡通美学，adorable and wholesome aesthetic可爱健康美学
-string8_style_injection: 3DCartoon风格化造型：
-  soft rounded facial features柔和圆润五官，
-  big expressive eyes大而有神眼睛，
-  smooth porcelain skin光滑瓷肌，
-  playful proportions俏皮卡通比例，
-  adorable and wholesome aesthetic可爱健康美学
+description: Pixar/Disney 卡通动画风格角色参考图
+opening_decl: 3D stylized character continuity reference image
+opening_type: 3D stylized character casting and costume reference
+opening_neg_1: a photorealistic photograph
+opening_neg_2: a live-action reference
+opening_neg_3: a 2D illustration or hand-drawn animation
+layout_portrait_style: a Pixar/Disney feature animation character showcase
+output_format: a high-quality 3D render reference sheet
+photo_style: >-
+  3D cartoon render, Pixar/Disney-inspired style,
+  Octane/Arnold style rendering, ultra-high-quality 3D render,
+  realistic subsurface scattering, polished toy-like finish,
+  highly detailed fabric textures, 8K resolution
+lighting: >-
+  Soft studio lighting, smooth gradients, clean and bright atmosphere,
+  warm color palette, cinematic composition
+background: >-
+  Clean solid background colors, crisp depth of field,
+  minimal visual elements
+avoid_style: >-
+  photorealistic photography, live-action, real human,
+  CGI human, anime style, 2D illustration, traditional painting style,
+  plastic skin
+style_injection: >-
+  Soft rounded facial features, big expressive eyes,
+  smooth porcelain skin, playful proportions,
+  adorable and wholesome aesthetic
 ---
 
-## string11（背景+光影）
-柔和影棚布光 soft studio lighting，
-平滑渐变 smooth gradients，
-干净纯色背景 clean solid background colors，
-清晰景深 crisp depth of field，
-温暖色系 warm color palette，
-电影级构图 cinematic composition
+## 适用场景
 
-## string12（整体质感）
-超高品3D渲染 ultra-high-quality 3D render，
-Octane/Arnold风格渲染 Octane/Arnold style render，
-真实次表面散射 realistic subsurface scattering，
-抛光玩具质感 polished toy-like finish，
-高品质角色艺术 premium character art，
-超精细织物纹理 highly detailed fabric textures，
-8K分辨率 8K resolution
+角色设定中「视觉参考风格」字段包含以下关键词时匹配此风格：
+3D卡通、皮克斯、迪士尼、Pixar、Pixar/Disney-inspired、modern feature-animation、3D stylized character、三维动画、软萌3D、3d_cartoon

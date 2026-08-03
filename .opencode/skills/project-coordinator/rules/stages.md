@@ -44,15 +44,8 @@
 
 1. **使用 CLI 读取 stages.json**，**先校验阶段完整性**：确认 `stages` 数组包含全部 17 阶段（顺序见上方"阶段定义"表），且每个阶段字段齐全（`name` / `label` / `status` / `artifacts` / `started_at` / `completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**。
 
-   ```powershell
-   # PowerShell (Windows)
-   $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/stages.json"
-   $stages = $json | ConvertFrom-Json
-   if ($stages.stages.Count -ne 17) { throw "stages.json 阶段数异常: $($stages.stages.Count)，应为 17" }
-   ```
    ```bash
-   # bash (Unix/macOS)：建议用 python3 解析 JSON
-   python3 -c "
+   python -c "
    import json
    with open('.meta/projects/{id}/stages.json', 'r', encoding='utf-8') as f:
      s = json.load(f)
@@ -68,13 +61,8 @@
 5. 将下一阶段的 `status` 设为 `in_progress`，`started_at` 设为当前时间
 6. 更新 `project.json` 中的 `current_stage`
 7. **使用 CLI 追加 events.jsonl**：
-   ```powershell
-   # PowerShell (Windows)
-   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value '{"timestamp":"...","type":"stage.transition","actor":"project-coordinator","data":{...}}'
-   ```
    ```bash
-   # bash (Unix/macOS)
-   python3 -c "
+   python -c "
    import json
    event = {'timestamp':'...','type':'stage.transition','actor':'project-coordinator','data':{...}}
    with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
@@ -82,13 +70,8 @@
    "
    ```
 8. **使用 CLI 写回 stages.json**：
-   ```powershell
-   # PowerShell (Windows)
-   $stages | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/stages.json"
-   ```
    ```bash
-   # bash (Unix/macOS)
-   python3 -c "
+   python -c "
    import json
    with open('.meta/projects/{id}/stages.json', 'w', encoding='utf-8') as f:
      json.dump(stages, f, ensure_ascii=False, indent=2)

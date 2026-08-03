@@ -48,8 +48,8 @@ project/{项目名}/
 | 字段 | 类型 | 固定值 | 说明 |
 |------|------|--------|------|
 | `prompt` | string | — | 生图提示词（必填） |
-| `model` | string | `"gpt-image-2"` | 固定为 gpt-image-2，不可变 |
-| `imageSize` | string | `"1K"` | 固定为 1K，不可变 |
+| `model` | string | `"nano-banana-2"` | 固定为 nano-banana-2，不可变 |
+| `imageSize` | string | `"4K"` | 固定为 4K，不可变 |
 | `aspectRatio` | string | `"16:9"` | 固定为 16:9，不可变 |
 | `filename` | string | — | 输出文件名，以 .png 结尾 |
 | `images` | string[] | — | 参考图路径列表 |
@@ -68,3 +68,14 @@ project/{项目名}/
 - global 模式（Tier 1 选角 + Tier 2 定妆 + 新妆造 + 衣橱初始化）：`rules/global.md`
 - episode 模式（妆造匹配 + 只读衣橱 + 新妆造报告）：`rules/episode.md`
 - group 模式（群像参考）：`rules/group.md`
+
+### 风格参考文件
+
+| 风格 | 文件 | 匹配关键词 |
+|------|------|-----------|
+| 写实影视（默认） | `reference/PhotoRealistic.md` | 真人摄影、写真、live-action、historical drama |
+| 3D 卡通 | `reference/3DCartoon.md` | Pixar、迪士尼、3D stylized、三维动画 |
+| 吉卜力手绘 | `reference/Ghibli.md` | 吉卜力、宫崎骏、ghibli |
+| GTA V 游戏风 | `reference/GTAV.md` | GTA V、Rockstar、侠盗猎车手 |
+
+> 角色设定未指定视觉参考风格时，默认使用 `reference/PhotoRealistic.md`。

@@ -76,7 +76,7 @@
 > - 将产物文件从临时路径移动到 `project/{name}/` 下的正确路径
 > - **绝不读取产物文件的内容**（详见 [manifest.md](manifest.md#核心约束)）
 >
-> **操作约束**：所有文件操作必须通过 `RunCommand` CLI 执行（`Get-Content`/`Set-Content`/`Move-Item`/`Remove-Item` 等），**禁止使用 `Read`/`Write`/`DeleteFile` 等文件工具**，否则会触发 IDE 交互确认对话框，破坏自动化流程。
+> **操作约束**：所有文件操作必须通过 `RunCommand` CLI 执行（`python -c` 或其他 shell 命令），**禁止使用 `Read`/`Write`/`DeleteFile` 等文件工具**，否则会触发 IDE 交互确认对话框，破坏自动化流程。
 
 ### 2.1 `project.json` — 项目元数据
 

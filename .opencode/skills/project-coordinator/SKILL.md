@@ -23,45 +23,15 @@ description: 项目统筹 agent，负责管理项目全生命周期的目录结�
 
 | 操作类型 | 允许方式 | 禁止方式 |
 |---------|---------|---------|
-| 读取文件内容（非产物） | `RunCommand` → `Get-Content -Encoding UTF8` | `Read` 工具 |
-| 写入文件 | `RunCommand` → `Set-Content -Encoding UTF8` 或 `New-Item` | `Write` 工具 |
-| 创建目录 | `RunCommand` → `New-Item -ItemType Directory -Force` | — |
-| 移动/复制文件 | `RunCommand` → `Move-Item` / `Copy-Item` | — |
-| 删除文件/目录 | `RunCommand` → `Remove-Item -Force` | `DeleteFile` 工具 |
-| 读取 JSON（解析用） | 先用 CLI 读取文件内容，或使用 `python -c "import json; ..."` | `Read` 工具直接读 .json |
-| 写 JSON/JSONL | `RunCommand` → `Set-Content -Encoding UTF8` | `Write` 工具 |
+| 读取文件内容（非产物） | `RunCommand` CLI | `Read` 工具 |
+| 写入文件 | `RunCommand` CLI | `Write` 工具 |
+| 创建目录 | `RunCommand` CLI | — |
+| 移动/复制文件 | `RunCommand` CLI | — |
+| 删除文件/目录 | `RunCommand` CLI | `DeleteFile` 工具 |
+| 读取 JSON（解析用） | `RunCommand` CLI 或 `python -c` | `Read` 工具直接读 .json |
+| 写 JSON/JSONL | `RunCommand` CLI | `Write` 工具 |
 
-## PowerShell 编码最佳实践（Windows）
-
-> 如果工作环境是 Windows + PowerShell 5，以下规则必须遵守，否则中文路径/内容会乱码报错。
->
-> **跨平台提示**：在 Unix/macOS 上可跳过本章节，直接使用 bash 命令。所有 JSON 读写建议统一用 `python3 -c` 调用 json 库（跨平台最稳），避免 bash 的 locale 问题。各操作步骤的 PowerShell / bash 双套命令见下方具体章节。
-
-1. **避免使用 HERE-string（`@"..."@` / `@'...'@`）**：多行 HERE-string 在 PowerShell 5 中与 UTF-8 中文内容组合时，会因为代码页编码差异导致解析失败。改为逐条简单命令。
-2. **所有文件写入指定 `-Encoding UTF8`**：
-   ```powershell
-   Set-Content -Path "文件路径" -Value "内容" -Encoding UTF8
-   # 或写入多行：
-   @"
-   第1行
-   第2行
-   "@ | Set-Content -Path "文件路径" -Encoding UTF8
-   ```
-   使用管道输入时可规避 HERE-string 变量展开问题。
-3. **含中文的路径用双引号包裹**：
-   ```powershell
-   Get-Content -Path "project/清悠居_思辰龙飞凤舞/剧本.md" -Encoding UTF8
-   ```
-4. **读取文件用 `-Encoding UTF8`**：
-   ```powershell
-   $content = Get-Content -Path "文件路径" -Encoding UTF8 -Raw
-   ```
-5. **检测编码**：如果 `Get-Content` 返回乱码，尝试：
-   ```powershell
-   $content = Get-Content -Path "文件路径" -Encoding UTF8 -Raw
-   # 如果还有问题，文件可能是 BOM 格式：
-   $bytes = [System.IO.File]::ReadAllBytes("文件路径")
-   ```
+> **编码提示**：写入含中文内容的文件时，始终指定 UTF-8 编码。JSON 读写建议统一用 `python -c` 调用 json 库，跨平台最稳。
 
 ### 校验脚本
 
@@ -107,8 +77,8 @@ python {scriptsDir}/validate.py ".meta/projects/{id}/project_config.json" ".meta
 
 | 脚本 | 功能 | 替代的调用链 |
 |------|------|-------------|
-| `write_validate.py` | 写文件 + 自动校验 | `Set-Content` + `validate.py` |
-| `append_event.py` | 追加事件到 events.jsonl + 自动校验 | `Add-Content` + `validate.py` |
+| `write_validate.py` | 写文件 + 自动校验 | CLI 写文件 + `validate.py` |
+| `append_event.py` | 追加事件到 events.jsonl + 自动校验 | CLI 追加 + `validate.py` |
 | `register_artifact.py` | 哈希 → 注册 → manifest 更新 → 写事件 → 全链校验 | `hash.py` + 读 manifest + 写 manifest + `validate.py` + 写事件 + `validate.py` |
 
 #### `write_validate.py`
@@ -173,27 +143,8 @@ Coordinator 启动后，凡是针对**已存在项目**的操作（推进阶段�
 
 **扫描命令（按项目名定位）**：
 
-```powershell
-# PowerShell (Windows)：扫描所有 project.json，按 name 字段匹配
-$targetName = "项目名"
-$matched = @()
-Get-ChildItem -Directory ".meta/projects" | ForEach-Object {
-  $pj = Join-Path $_.FullName "project.json"
-  if (Test-Path $pj) {
-    $obj = Get-Content -Encoding UTF8 -Raw $pj | ConvertFrom-Json
-    if ($obj.name -eq $targetName) {
-      $matched += [PSCustomObject]@{ uuid = $_.Name; name = $obj.name; current_stage = $obj.current_stage }
-    }
-  }
-}
-if ($matched.Count -eq 0) { throw "未找到 name='$targetName' 的项目" }
-if ($matched.Count -gt 1) { throw "项目名冲突：找到 $($matched.Count) 个同名项目，请改用 uuid 定位" }
-$projectId = $matched[0].uuid
-```
-
 ```bash
-# bash (Unix/macOS)：用 python3 扫描，避免 locale 问题
-python3 -c "
+python -c "
 import json, os, sys
 target = '项目名'
 matched = []
@@ -218,22 +169,8 @@ print(matched[0]['uuid'])
 
 **列出所有 active 项目（供用户选择）**：
 
-```powershell
-# PowerShell (Windows)
-Get-ChildItem -Directory ".meta/projects" | ForEach-Object {
-  $pj = Join-Path $_.FullName "project.json"
-  if (Test-Path $pj) {
-    $obj = Get-Content -Encoding UTF8 -Raw $pj | ConvertFrom-Json
-    if ($obj.current_stage -ne 'delivery' -and $obj.current_stage -ne 'cancelled') {
-      [PSCustomObject]@{ uuid = $_.Name; name = $obj.name; current_stage = $obj.current_stage }
-    }
-  }
-} | Format-Table -AutoSize
-```
-
 ```bash
-# bash (Unix/macOS)
-python3 -c "
+python -c "
 import json, os
 base = '.meta/projects'
 for d in sorted(os.listdir(base)):
@@ -254,23 +191,12 @@ for d in sorted(os.listdir(base)):
 
 1. 生成 UUID v4
 2. 创建元数据目录：
-   ```powershell
-   # PowerShell (Windows)
-   New-Item -ItemType Directory -Force -Path ".meta/projects/{uuid}/"
-   ```
    ```bash
-   # bash (Unix/macOS)
-   mkdir -p ".meta/projects/{uuid}/"
+   python -c "import os; os.makedirs('.meta/projects/{uuid}', exist_ok=True)"
    ```
 3. 使用 CLI 创建 `project.json`、`stages.json`、`manifest.json`、`events.jsonl` 四个文件：
-   ```powershell
-   # PowerShell (Windows)：用 Set-Content -Encoding UTF8 写入初始内容（空 manifest / 空 events / project 元数据 / stages 初始化）
-   Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/manifest.json" -Value '{"_version":1,"artifacts":[]}'
-   Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value ""
-   ```
    ```bash
-   # bash (Unix/macOS)：建议用 python3 写入 JSON，避免 locale 问题
-   python3 -c "
+   python -c "
    import json, os
    os.makedirs('.meta/projects/{id}', exist_ok=True)
    with open('.meta/projects/{id}/manifest.json', 'w', encoding='utf-8') as f:
@@ -310,37 +236,28 @@ for d in sorted(os.listdir(base)):
 
    > **阶段顺序固定**：17 阶段必须严格按上方顺序排列，不得缺漏或调整。完整阶段链见 `rules/stages.md`。各字段语义详见 `rules/project_management.md` 的 stages.json schema 说明。
 4. 使用 CLI 创建项目完整骨架目录：
-   ```powershell
-   # PowerShell (Windows)
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/角色设定/角色参考图"
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/场景设定/场景参考图"
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/道具设定/道具参考图"
-   New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/人物"
-   New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/场景"
-   New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/风格"
-   New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/道具"
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/角色设定/具体设定"
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/场景设定/具体设定"
-   New-Item -ItemType Directory -Force -Path "project/{name}/全局依赖/道具设定/具体设定"
-   # 全局设定：不再创建 `全局设定/` 子目录，改为单一占位文件 `全局依赖/全局设定.md`
-   # 由 producer 在 supervisor_extraction 阶段输出（世界观、时间线、人物关系等所有全局设定合并到此文件）
-   New-Item -ItemType File -Force -Path "project/{name}/全局依赖/全局设定.md"
-   ```
    ```bash
-   # bash (Unix/macOS)
-   mkdir -p "project/{name}/全局依赖/角色设定/角色参考图" \
-            "project/{name}/全局依赖/场景设定/场景参考图" \
-            "project/{name}/全局依赖/道具设定/道具参考图" \
-            "project/{name}/前期采样/人物" \
-            "project/{name}/前期采样/场景" \
-            "project/{name}/前期采样/风格" \
-            "project/{name}/前期采样/道具" \
-            "project/{name}/全局依赖/角色设定/具体设定" \
-            "project/{name}/全局依赖/场景设定/具体设定" \
-            "project/{name}/全局依赖/道具设定/具体设定"
-   # 全局设定占位文件（不再创建 `全局设定/` 子目录）
-   touch "project/{name}/全局依赖/全局设定.md"
+   python -c "
+   import os
+   dirs = [
+     'project/{name}/全局依赖/角色设定/角色参考图',
+     'project/{name}/全局依赖/场景设定/场景参考图',
+     'project/{name}/全局依赖/道具设定/道具参考图',
+     'project/{name}/前期采样/人物',
+     'project/{name}/前期采样/场景',
+     'project/{name}/前期采样/风格',
+     'project/{name}/前期采样/道具',
+     'project/{name}/全局依赖/角色设定/具体设定',
+     'project/{name}/全局依赖/场景设定/具体设定',
+     'project/{name}/全局依赖/道具设定/具体设定',
+   ]
+   for d in dirs:
+     os.makedirs(d, exist_ok=True)
+   # 全局设定占位文件（不再创建 全局设定/ 子目录）
+   open('project/{name}/全局依赖/全局设定.md', 'a', encoding='utf-8').close()
+   "
    ```
+   > 全局设定由 producer 在 supervisor_extraction 阶段输出（世界观、时间线、人物关系等所有全局设定合并到此文件）。
 5. **整理已存在的原始剧本**（如果用户提供了剧本文件）：
    - 用户指定的剧本路径 → `project/{name}/原始剧本.md`
    - 计算 SHA-256，注册到 `manifest.json`（type: `raw_script`）
@@ -378,21 +295,8 @@ for d in sorted(os.listdir(base)):
     `canvas_uuid` 在创建时为空，由 video-director 首次绑定时写入。
 
     用用户确认的变量构建 JSON 并写入：
-   ```powershell
-   $config = @{
-     canvas_uuid = ""                         # 创建时为空，video-director 首次运行时写入
-     aspect_ratio = "$aspectRatio"           # 用户确认，如 "16:9"
-     resolution = "$resolution"              # 用户确认，如 "720p"
-     model = "$model"                        # 用户确认的 modelName，如 "Seedance 2.0 VIP"
-     use_storyboard_images = $useStoryboard  # 用户确认，如 $false
-     mode = "$mode"                          # 用户确认，如 "mixed2video"
-     enable_sound = $enableSound             # 用户确认，如 $true
-   } | ConvertTo-Json -Depth 10
-   Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/project_config.json" -Value $config
-   ```
    ```bash
-   # bash (Unix/macOS)：建议统一用 python3 写 JSON，避免 locale 引起的中文乱码
-   python3 -c "
+   python -c "
    import json
    config = {
      'canvas_uuid': '',
@@ -416,16 +320,8 @@ for d in sorted(os.listdir(base)):
 
 1. **使用 CLI 读取 `stages.json`**，**先校验阶段完整性**：确认 `stages` 数组包含全部 17 阶段（顺序见 `rules/stages.md`），字段齐全（`name`/`label`/`status`/`artifacts`/`started_at`/`completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**，提示需修复 `stages.json` 后才能推进。
 
-   ```powershell
-   # PowerShell (Windows)
-   $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/stages.json"
-   $stages = $json | ConvertFrom-Json
-   # 校验：stages 数组长度必须为 17
-   if ($stages.stages.Count -ne 17) { throw "stages.json 阶段数异常: $($stages.stages.Count)，应为 17" }
-   ```
    ```bash
-   # bash (Unix/macOS)：建议用 python3 解析 JSON，避免 locale 问题
-   python3 -c "
+   python -c "
    import json
    with open('.meta/projects/{id}/stages.json', 'r', encoding='utf-8') as f:
      s = json.load(f)
@@ -458,11 +354,13 @@ for d in sorted(os.listdir(base)):
 2. （可选建议）推荐用户先执行打包操作
 3. 记录一条 `project.deleted` 事件到 `events.jsonl`（必须在删除文件前写入）
 4. 删除 `project/{name}/` 整个实际项目目录
-   - Windows: `Remove-Item -Recurse -Force project/{name}/`
-   - Unix: `rm -rf project/{name}/`
+   ```bash
+   python -c "import shutil; shutil.rmtree('project/{name}', ignore_errors=True)"
+   ```
 5. 删除 `.meta/projects/{id}/` 整个元数据目录
-   - Windows: `Remove-Item -Recurse -Force .meta/projects/{id}/`
-   - Unix: `rm -rf .meta/projects/{id}/`
+   ```bash
+   python -c "import shutil; shutil.rmtree('.meta/projects/{id}', ignore_errors=True)"
+   ```
 6. 返回操作结果摘要（项目名称、UUID、删除的文件路径列表）
 
 ### 打包项目
@@ -499,14 +397,8 @@ for d in sorted(os.listdir(base)):
 其他 agent 创建产物后，统筹 agent 在 `manifest.json` 中注册该产物。
 
 1. **使用 CLI 读取 manifest.json**：
-   ```powershell
-   # PowerShell (Windows)
-   $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/manifest.json"
-   $manifest = $json | ConvertFrom-Json
-   ```
    ```bash
-   # bash (Unix/macOS)：JSON 读写建议统一用 python3 调用 json 库，避免 locale 问题
-   python3 -c "
+   python -c "
    import json
    with open('.meta/projects/{id}/manifest.json', 'r', encoding='utf-8') as f:
      m = json.load(f)
@@ -515,13 +407,8 @@ for d in sorted(os.listdir(base)):
 2. 追加产物条目，计算 SHA-256（`python scripts/hash.py --fast "文件路径"`）
 3. 若产物已存在（同名 `path`），将旧条目标记 `deprecated`
 4. **使用 CLI 写入 events.jsonl**：
-   ```powershell
-   # PowerShell (Windows)
-   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value "事件JSON"
-   ```
    ```bash
-   # bash (Unix/macOS)：用 python3 追加，确保 UTF-8 编码与紧凑序列化
-   python3 -c "
+   python -c "
    import json
    event = {'timestamp':'...','type':'artifact.created','actor':'project-coordinator','data':{...}}
    with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
@@ -543,15 +430,12 @@ for d in sorted(os.listdir(base)):
 2. 根据 `type` 和 `stage`，按路径映射规则计算目标路径（详见 [统筹管理规范](rules/project_management.md#3-产物归档路径映射)）
 3. **使用 CLI 移动文件**（若目标目录不存在，先创建）：
 
-   ```powershell
-   # PowerShell (Windows)
-   New-Item -ItemType Directory -Force -Path "project/{name}/目标路径/"
-   Move-Item -Path "temp/{batch_id}/{filename}" -Destination "project/{name}/目标路径/{filename}" -Force
-   ```
    ```bash
-   # bash (Unix/macOS)
-   mkdir -p "project/{name}/目标路径/"
-   mv "temp/{batch_id}/{filename}" "project/{name}/目标路径/{filename}"
+   python -c "
+   import os, shutil
+   os.makedirs('project/{name}/目标路径', exist_ok=True)
+   shutil.move('temp/{batch_id}/{filename}', 'project/{name}/目标路径/{filename}')
+   "
    ```
 
 4. 计算文件 SHA-256 和大小（使用内置脚本，只读二进制流，不做内容解析）
@@ -572,16 +456,8 @@ for d in sorted(os.listdir(base)):
 
 5. **使用 CLI 读写 manifest.json**：
 
-   ```powershell
-   # PowerShell (Windows)
-   $json = Get-Content -Encoding UTF8 -Raw ".meta/projects/{id}/manifest.json"
-   $manifest = $json | ConvertFrom-Json
-   # ... 追加新条目、标记旧条目 deprecated ...
-   $manifest | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 -Path ".meta/projects/{id}/manifest.json"
-   ```
    ```bash
-   # bash (Unix/macOS)：建议统一用 python3 调用 json 库读写，跨平台最稳
-   python3 -c "
+   python -c "
    import json
    with open('.meta/projects/{id}/manifest.json', 'r', encoding='utf-8') as f:
      m = json.load(f)
@@ -593,13 +469,8 @@ for d in sorted(os.listdir(base)):
 
 6. **使用 CLI 追加 events.jsonl**：
 
-   ```powershell
-   # PowerShell (Windows)
-   Add-Content -Encoding UTF8 -Path ".meta/projects/{id}/events.jsonl" -Value "{json行}"
-   ```
    ```bash
-   # bash (Unix/macOS)
-   python3 -c "
+   python -c "
    import json
    event = {...}
    with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
@@ -645,13 +516,14 @@ for d in sorted(os.listdir(base)):
 
 1. **使用 CLI 扫描 `前期采样/` 下四个子目录**，获取所有文件列表（仅文件名，不读取内容）：
 
-   ```powershell
-   # PowerShell (Windows)
-   Get-ChildItem -Recurse -File "project/{name}/前期采样" | Select-Object FullName, Name
-   ```
    ```bash
-   # bash (Unix/macOS)
-   find "project/{name}/前期采样" -type f -print
+   python -c "
+   import os
+   base = 'project/{name}/前期采样'
+   for root, dirs, files in os.walk(base):
+     for f in files:
+       print(os.path.join(root, f))
+   "
    ```
 
 2. **按文件名前缀归类**（约定：`{角色名/场景名/道具名/风格名}_序号.扩展名`，如 `张三_01.png` 归到 `人物/张三/`）：
@@ -664,15 +536,12 @@ for d in sorted(os.listdir(base)):
 
 3. **使用 CLI 移动文件**到归类后的子目录：
 
-   ```powershell
-   # PowerShell (Windows)
-   New-Item -ItemType Directory -Force -Path "project/{name}/前期采样/人物/{前缀}"
-   Move-Item -Path "project/{name}/前期采样/人物/{原文件名}" -Destination "project/{name}/前期采样/人物/{前缀}/{原文件名}" -Force
-   ```
    ```bash
-   # bash (Unix/macOS)
-   mkdir -p "project/{name}/前期采样/人物/{前缀}"
-   mv "project/{name}/前期采样/人物/{原文件名}" "project/{name}/前期采样/人物/{前缀}/{原文件名}"
+   python -c "
+   import os, shutil
+   os.makedirs('project/{name}/前期采样/人物/{前缀}', exist_ok=True)
+   shutil.move('project/{name}/前期采样/人物/{原文件名}', 'project/{name}/前期采样/人物/{前缀}/{原文件名}')
+   "
    ```
 
 4. **在 manifest 注册 `reference` 类型产物**（每类一个条目，`path` 指向归类后的目录）：
@@ -714,19 +583,8 @@ for d in sorted(os.listdir(base)):
    > - 在 `events.jsonl` 追加 `asset_sync.degraded` 事件（data 含 `reason: "妆造匹配清单缺失"`）
    > - 继续执行步骤 2 及后续
 
-   ```powershell
-   # PowerShell (Windows)：检查文件是否存在
-   $manifestPath = "project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json"
-   if (Test-Path $manifestPath) {
-     $json = Get-Content -Encoding UTF8 -Raw $manifestPath
-     $manifest = $json | ConvertFrom-Json
-   } else {
-     Write-Host "⚠️ 妆造匹配清单.json 不存在，降级为复制全部全局角色参考图"
-   }
-   ```
    ```bash
-   # bash (Unix/macOS)
-   python3 -c "
+   python -c "
    import json, os
    p = 'project/{项目名}/{剧集号}/角色参考图/妆造匹配清单.json'
    if os.path.exists(p):
@@ -740,40 +598,36 @@ for d in sorted(os.listdir(base)):
 
 2. **创建目标目录**：
 
-   ```powershell
-   # PowerShell (Windows)
-   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/角色参考"
-   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/场景参考"
-   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/道具参考"
-   New-Item -ItemType Directory -Force -Path "temp/分组素材/{剧集号}/分镜图"
-   ```
    ```bash
-   # bash (Unix/macOS)
-   mkdir -p "temp/分组素材/{剧集号}/角色参考" "temp/分组素材/{剧集号}/场景参考" "temp/分组素材/{剧集号}/道具参考" "temp/分组素材/{剧集号}/分镜图"
+   python -c "
+   import os
+   for d in ['temp/分组素材/{剧集号}/角色参考', 'temp/分组素材/{剧集号}/场景参考', 'temp/分组素材/{剧集号}/道具参考', 'temp/分组素材/{剧集号}/分镜图']:
+     os.makedirs(d, exist_ok=True)
+   "
    ```
 
 3. **按清单复制角色参考图**：
 
    **正常模式**（清单存在）：清单中每条记录形如 `{"角色名": "张三", "参考图文件名": "张三_剧集01.png"}`，从全局依赖目录复制：
 
-   ```powershell
-   # PowerShell (Windows)
-   Copy-Item -Path "project/{项目名}/全局依赖/角色设定/角色参考图/{参考图文件名}" -Destination "temp/分组素材/{剧集号}/角色参考/" -Force
-   ```
    ```bash
-   # bash (Unix/macOS)
-   cp "project/{项目名}/全局依赖/角色设定/角色参考图/{参考图文件名}" "temp/分组素材/{剧集号}/角色参考/"
+   python -c "
+   import shutil
+   shutil.copy2('project/{项目名}/全局依赖/角色设定/角色参考图/{参考图文件名}', 'temp/分组素材/{剧集号}/角色参考/')
+   "
    ```
 
    **降级模式**（清单不存在）：复制全部全局角色参考图：
 
-   ```powershell
-   # PowerShell (Windows)
-   Copy-Item -Path "project/{项目名}/全局依赖/角色设定/角色参考图/*.png" -Destination "temp/分组素材/{剧集号}/角色参考/" -Force
-   ```
    ```bash
-   # bash (Unix/macOS)
-   cp "project/{项目名}/全局依赖/角色设定/角色参考图/"*.png "temp/分组素材/{剧集号}/角色参考/"
+   python -c "
+   import os, shutil
+   src = 'project/{项目名}/全局依赖/角色设定/角色参考图'
+   dst = 'temp/分组素材/{剧集号}/角色参考'
+   for f in os.listdir(src):
+     if f.endswith('.png'):
+       shutil.copy2(os.path.join(src, f), dst)
+   "
    ```
 
 4. **复制本集涉及的场景参考图、道具参考图**（优先使用剧集级参考图，无剧集级时回退全局基准图）：
