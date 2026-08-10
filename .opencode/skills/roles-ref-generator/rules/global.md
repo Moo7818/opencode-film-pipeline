@@ -39,7 +39,7 @@
 
 ## 步骤 3a：生成 Tier 1 选角资产
 
-使用 `rules/common.md` 中的 **七视图 Prompt 模板**逐字替换占位符。
+加载 `rules/vertical-template.md`（默认）中的 **竖版三视图 Prompt 模板**逐字替换占位符。如角色设定或调用方明确要求横版七视图，则加载 `rules/horizontal-template.md` 使用横版模板。
 
 **Tier 1 参数取值来源：**
 
@@ -68,7 +68,7 @@
 
 ## 步骤 3b：生成 Tier 2 默认定妆
 
-使用同一七视图模板，但 `{hair_costume}`、`{lighting}`、`{background}` 不再固定，从角色设定「造型设计」和 reference 文件提取。
+使用同一模板（默认竖版三视图，见 `rules/vertical-template.md`；横版见 `rules/horizontal-template.md`），但 `{hair_costume}`、`{lighting}`、`{background}` 不再固定，从角色设定「造型设计」和 reference 文件提取。
 
 **Tier 2 参数取值来源：**
 
@@ -107,7 +107,7 @@
 当 orchestrator 报告"发现新妆造需求"时，按以下步骤生成：
 
 1. 从角色设定「造型设计」中找到对应妆造名的描述
-2. 使用七视图模板，`{hair_costume}` 从该妆造名下的发型和服装描述提取
+2. 使用默认模板（竖版三视图，见 `rules/vertical-template.md`；横版见 `rules/horizontal-template.md`），`{hair_costume}` 从该妆造名下的发型和服装描述提取
 3. `{lighting}` 和 `{background}` 从 reference 文件提取（如有场景特殊色调由 orchestrator 补充）
 4. 参考图为 Tier 1 选角资产 + 风格参考图
 5. filename: `{角色名}_{妆造名}.png`
@@ -126,14 +126,14 @@
     {
       "prompt": "Create a live-action historical drama actor continuity reference image...",
       "imageSize": "4K",
-      "aspectRatio": "16:9",
+      "aspectRatio": "9:16",
       "filename": "{角色名}_选角.png",
       "images": ["project/{项目名}/前期采样/人物/{角色名}.png", "project/{项目名}/前期采样/风格/{风格文件}.png"]
     },
     {
       "prompt": "Create a live-action historical drama actor continuity reference image...",
       "imageSize": "4K",
-      "aspectRatio": "16:9",
+      "aspectRatio": "9:16",
       "filename": "{角色名}_默认.png",
       "images": ["project/{项目名}/全局依赖/角色设定/角色参考图/{角色名}_选角.png", "project/{项目名}/前期采样/风格/{风格文件}.png"]
     }
@@ -146,6 +146,7 @@
 
 **自检清单（每一项必须通过）：**
 - □ 每个角色生成 2 个 task（Tier 1 选角 + Tier 2 默认定妆）
+- □ aspectRatio 为 `9:16`（竖版三视图，默认）；仅当明确要求横版七视图时才为 `16:9`
 - □ Tier 1 的 prompt 中 `{hair_costume}` 包含"Plain white short-sleeve T-shirt"
 - □ Tier 1 的 prompt 中 `{lighting}` 包含"even illumination, no color cast"
 - □ Tier 1 的 prompt 中 `{background}` 包含"mid-grey seamless backdrop"

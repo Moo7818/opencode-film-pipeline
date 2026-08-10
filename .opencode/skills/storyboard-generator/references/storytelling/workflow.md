@@ -32,18 +32,18 @@ Output:
 
 - a sequence list with each section's dramatic core and what changes by the end
 
-Spatiotemporal rationalization (apply before splitting):
+Spatiotemporal rationalization + physical scene division (two layers, do not conflate):
 
-- drama is not a 1:1 reproduction of physical spacetime — a few seconds of screen time may represent hours, days, or years of story-world time
-- only at plot points (turns, confrontations, reveals) does screen time return to real-time equivalence with the story world
-- identify time-flow nodes: compressed (screen ≪ story, for fast exposition), real-time (screen ≈ story, for plot points), expanded (screen > story, for放大 key instants)
-- use the change points between time-flow types as scene-division boundaries, decomposing the plot into story nodes
-- each node records: name, time-flow type, story-world duration, estimated screen duration, key information to convey
+- **Story nodes (time-flow)**: drama is not a 1:1 reproduction of physical spacetime — screen seconds may cover hours/days/years; only plot points return to real-time. Tag compressed / real-time / expanded nodes for pacing. Each node also records its **physical location**.
+- **Scenes/场 (physical space)**: a scene = continuous action in **one independent physical space** with continuous story time. Location change or major time break (day→night, "three days later") starts a new scene. Multiple dramatic beats in the same space stay in **one scene** as multiple groups.
+- Never use time-flow type changes alone as scene boundaries — that splits one tea-house interior into several scenes and breaks the sequential previous-frame chain for image generation.
 
 Do not:
 
 - split into shots yet
+- treat every story node as its own scene
 - treat every scene boundary as real-time — most transitions compress time
+- split one physical room into multiple scenes because of beat/emotion changes
 
 ## Step 3: Per-Sequence Camera Strategy
 

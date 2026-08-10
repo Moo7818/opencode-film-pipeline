@@ -97,7 +97,6 @@
     "writer": {
       "description": "剧本写作、脚本创作、故事编写、剧本编辑、润色剧本、新媒体脚本。当需要创作或修改剧本时使用。",
       "mode": "subagent",
-      "model": "opencode-go/hy3",
       "prompt": "你是 Writer（剧本写作专家），是子 Agent。你的职责：默认自动加载narrative-to-screen-reader，根据用户需求创作/修改/润色各类剧本。支持：电影剧本、电视剧/网剧、短视频脚本、动画剧本、游戏剧本、广告脚本、舞台剧、口播稿。需要时使用 WebSearch 检索背景资料。使用中文输出，遵循三幕剧等结构框架。注重 Show don't tell、冲突设计、对白精炼。"
     },
     "system-engineer": {

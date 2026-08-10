@@ -19,7 +19,7 @@ def validate_tasks(tasks, aspect_ratio="16:9", image_size="1K", model="gpt-image
 
     Args:
         tasks: 任务列表
-        aspect_ratio: 期望的 aspectRatio 值
+        aspect_ratio: 期望的 aspectRatio 值，可为字符串（单值）或列表/元组（多值）
         image_size: 期望的 imageSize 值
         model: 期望的 model 值
 
@@ -32,6 +32,12 @@ def validate_tasks(tasks, aspect_ratio="16:9", image_size="1K", model="gpt-image
         return ["tasks must be a list"]
     if not tasks:
         return ["tasks is empty"]
+
+    # aspect_ratio 归一化为集合
+    if isinstance(aspect_ratio, str):
+        valid_aspect_ratios = {aspect_ratio}
+    else:
+        valid_aspect_ratios = set(aspect_ratio)
 
     required_fields = ["prompt", "model", "imageSize", "aspectRatio", "filename", "images"]
 
@@ -55,10 +61,11 @@ def validate_tasks(tasks, aspect_ratio="16:9", image_size="1K", model="gpt-image
         if image_size_val != image_size:
             errors.append(f"[task {i}] imageSize must be {image_size}, got {image_size_val}")
 
-        # aspectRatio 检查
+        # aspectRatio 检查（支持多值）
         aspect = task.get("aspectRatio", "")
-        if aspect != aspect_ratio:
-            errors.append(f"[task {i}] aspectRatio must be {aspect_ratio}, got {aspect}")
+        if aspect not in valid_aspect_ratios:
+            expected = " or ".join(sorted(valid_aspect_ratios))
+            errors.append(f"[task {i}] aspectRatio must be {expected}, got {aspect}")
 
         # prompt 非空检查
         prompt = task.get("prompt", "")

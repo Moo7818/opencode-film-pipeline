@@ -2,7 +2,7 @@
 name: GameCinematic
 description: 游戏CG过场动画风格分镜图
 keywords: 游戏CG, 游戏过场, 最终幻想, GTA, Rockstar, FF, game cinematic, game cutscene, 游戏预告片, 3A游戏, AAA game
-production_type: a game cinematic cutscene storyboard
+production_type: a game cinematic cutscene cinematic frame
 neg_1: flat 2D illustration
 neg_2: concept art
 neg_3: amateur animation
@@ -27,8 +27,8 @@ camera_language: |
   - subtle motion blur for cinematic feel
   - high-quality character animation with performance capture detail
 
-  Do not make the frames look like separate illustrations.
-  They must look like consecutive cutscene frames from the same game production.
+  Output exactly one single cinematic still that fills the entire canvas.
+  Do not create multi-panel, grid, collage, comic-strip, or storyboard-sheet layouts.
 quality: |
   AAA game cinematic render quality.
 
@@ -55,6 +55,16 @@ avoid: |
   Watermarks.
   Logos.
   Unwanted text.
+  Subtitles or captions burned into the image.
+  Lower-thirds or title cards.
+  On-screen dialogue text.
+  Shot numbers or frame labels on the image.
+  Multi-panel layout.
+  Comic grid or manga panels.
+  Collage or contact sheet.
+  2x2 or any N×M grid of shots.
+  Split-screen.
+  Storyboard sheet layout.
 ---
 
 ## 适用场景

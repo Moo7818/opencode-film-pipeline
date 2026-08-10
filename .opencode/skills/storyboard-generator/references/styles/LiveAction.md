@@ -2,7 +2,7 @@
 name: LiveAction
 description: 真人影视剧风格分镜图
 keywords: 真人实拍, 真人摄影, 照片级真实, live-action, historical drama, 电影级质感, 真人影视剧
-production_type: a live-action film pre-production storyboard
+production_type: a live-action film pre-production cinematic frame
 neg_1: concept art
 neg_2: illustration
 neg_3: a fantasy painting
@@ -27,8 +27,9 @@ camera_language: |
   - subtle focus transition
   - authentic actor performance
 
-  Do not make the frames look like separate illustrations.
-  They must look like consecutive shots photographed by the same film crew.
+  Output exactly one single cinematic still that fills the entire canvas.
+  Do not create multi-panel, grid, collage, comic-strip, or storyboard-sheet layouts.
+  Continuity across shots is provided by reference images, not by packing multiple shots into one image.
 quality: |
   Ultra realistic live-action cinema frame.
 
@@ -58,6 +59,16 @@ avoid: |
   Watermarks.
   Logos.
   Unwanted text.
+  Subtitles or captions burned into the image.
+  Lower-thirds or title cards.
+  On-screen dialogue text.
+  Shot numbers or frame labels on the image.
+  Multi-panel layout.
+  Comic grid or manga panels.
+  Collage or contact sheet.
+  2x2 or any N×M grid of shots.
+  Split-screen.
+  Storyboard sheet layout.
 ---
 
 ## 适用场景

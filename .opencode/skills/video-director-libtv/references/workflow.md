@@ -17,30 +17,47 @@
 
 ## 步骤 2a：创建/切换到项目工作区（workspace）
 
-每个项目应有独立的 libtv workspace。首次运行时需创建工作区，后续运行时切换到已有工作区：
+每个项目对应一个独立的 libtv workspace（工作区）。首次运行时需创建工作区，后续运行时切换到已有工作区：
 
 ```bash
-# 检查是否已有项目的工作区（从 project_config.json 或 .libtv/project.json 读取 workspaceId）
+# 检查 project_config.json 的 workspace_id 是否已有值
 # 如果没有，创建一个新的工作区
 libtv workspace create "{项目名}"
 
-# 切换到工作区（写入 .libtv/project.json 的 workspaceId）
+# 切换到工作区（写入 .libtv/project.json 的 workspaceId + teamId）
 libtv workspace use <workspaceId>
 ```
 
-> **说明**：`libtv workspace create` 会创建新工作区并返回 workspaceId。创建后需执行 `libtv workspace use` 完成绑定。
+> **说明**：`libtv workspace create` 会创建新工作区并返回 workspaceId。创建后需执行 `libtv workspace use` 完成绑定，此时 workspaceId 会写入 `.libtv/project.json`。
 
-## 步骤 2b：创建/绑定画布（canvas）
-
-如果 `project_config.json` 的 `canvas_uuid` 为空，视频导演需要在当前 workspace 下创建新画布：
+工作区创建/确认后，将 `workspace_id` 写入 `project_config.json`：
 
 ```bash
-# 在当前工作区下创建画布
-# 画布名称建议格式：{项目名}_{剧集号}
-libtv project create "画布名称" --ratio 9:16
+# 将 workspaceId 写入 project_config.json
+$configPath = ".meta/projects/{uuid}/project_config.json"
+$config = Get-Content -Encoding UTF8 -Raw $configPath | ConvertFrom-Json
+$config.workspace_id = <workspaceId>
+$config | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $configPath
 ```
 
-创建画布后，从输出中获取画布 UUID，绑定并写入配置：
+> **注意**：如果 `workspace_id` 已存在，直接使用 `libtv workspace use <workspace_id>` 切换到已有工作区即可，无需重复创建。
+
+## 步骤 2b：创建/绑定当前剧集的画布（canvas）
+
+每个剧集对应一个独立的 libtv 画布。检查 `project_config.json` 的 `episodes.{剧集号}.canvas_uuid` 是否存在：
+
+### 情况一：该集尚无画布（首次处理该集）
+
+需要先确保已在工作区内（步骤 2a 已完成），然后在当前 workspace 下创建新画布：
+
+```bash
+# 确认已在工作区内（步骤 2a 已执行 workspace use）
+# 在当前工作区下创建画布
+# 画布名称建议格式：{项目名}_{剧集号}
+libtv project create "{项目名}_{剧集号}" --ratio 9:16
+```
+
+创建画布后，`.libtv/project.json` 中会自动写入 `workspaceId`。接下来绑定画布并写入配置：
 
 ```bash
 # 读取新创建的画布 UUID
@@ -49,20 +66,28 @@ $canvasUuid = (Get-Content -Encoding UTF8 -Raw ".libtv/project.json" | ConvertFr
 # 绑定画布（v1.1.1+ 还会同步写入画布所属的 workspaceId + teamId）
 libtv project use $canvasUuid
 
-# 将 UUID 写入 project_config.json
+# 将 UUID 写入 project_config.json 的 episodes 映射
 $configPath = ".meta/projects/{uuid}/project_config.json"
 $config = Get-Content -Encoding UTF8 -Raw $configPath | ConvertFrom-Json
-$config.canvas_uuid = $canvasUuid
+if (-not $config.episodes) { $config | Add-Member -NotePropertyName "episodes" -NotePropertyValue @{} }
+$episodeConfig = @{ canvas_uuid = $canvasUuid }
+$config.episodes | Add-Member -NotePropertyName "{剧集号}" -NotePropertyValue $episodeConfig -Force
 $config | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $configPath
 ```
 
-如果 `canvas_uuid` 已存在，直接使用 `libtv project use <canvas_uuid>` 绑定。
+### 情况二：该集已有画布（`episodes.{剧集号}.canvas_uuid` 已存在）
+
+直接使用 `libtv project use <canvas_uuid>` 绑定到该集的画布：
+
+```bash
+libtv project use <episodes.{剧集号}.canvas_uuid>
+```
 
 ## 步骤 3：上传参考素材为画布资源节点
 
 脚本 `scan_project_refs` 扫描全局依赖目录，**仅上传 `--refs` 中实际指定的**角色/场景/道具/风格参考图到画布（复用检测，已存在的不重复上传）。未在 `--refs` 中指定的素材**不会上传**，避免无关素材占用画布。参考图的**选取与连线由 Agent 在步骤 4 通过 `--refs` 显式指定**。
 
-> **`use_storyboard_images` 不影响上传**：该字段仅作为 Agent 选取参考图时的优先级参考（详见 `storyboard-to-libtv.md` §6.1），不改变脚本的上传行为。
+> **`reference_image_mode` 不影响上传**：该字段仅决定脚本自动扫描哪种参考图（视觉锚点/分镜图）并按需上传（详见 `storyboard-to-libtv.md` §6.1），不改变 Agent 通过 `--refs` 显式指定素材的上传行为。
 
 ### ⛔ 选角参考图禁令
 
@@ -72,7 +97,7 @@ $config | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $configPath
 libtv upload "<素材显示名>" -t image -f "<本地绝对路径>"
 ```
 
-**命名规则**：`{素材类型}_{名称}`，如 `角色_掌柜`、`场景_茶馆`、`分镜_组1`。
+**命名规则**：`{素材类型}_{名称}`，如 `角色_掌柜`、`场景_茶馆`、`分镜_组1_镜1`、`视觉锚点_场1`。
 
 **音色参考上传**（由 Agent 通过 `--voice-refs` 显式控制）：
 脚本**仅上传 `--voice-refs` 中指定的角色**音色文件，不做自动全量扫描。未指定 `--voice-refs` 时跳过音色参考上传。
@@ -123,7 +148,7 @@ libtv upload "音色_吉小泰" -t audio -f "project/{项目名}/全局依赖/�
 {完整的组 MD 文件内容，读取全部内容，严禁修改}
 ```
 
-> 引用行格式统一为 `{名称}{类型}参考{{Image N}}`，如 `掌柜角色参考{{Image 1}}、茶馆场景参考{{Image 2}}`。分镜图特殊处理：`分镜图仅作辅助参考（光影、色调）{{Image N}}`，且当引用中包含分镜图时，追加 `具体细节以角色/场景/道具参考图为准`。
+> 引用行格式统一为 `{名称}{类型}参考{{Image N}}`，如 `掌柜角色参考{{Image 1}}、茶馆场景参考{{Image 2}}`。分镜图引用为 `镜头{M}参考{{Image N}}`，视觉锚点引用为 `场{N}视觉锚点参考{{Image N}}`。
 
 无参考图时跳过引用行和空行。
 

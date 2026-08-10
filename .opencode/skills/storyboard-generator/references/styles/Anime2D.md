@@ -2,7 +2,7 @@
 name: Anime2D
 description: 日系2D动画风格分镜图
 keywords: 日系动漫, 二次元, anime, 新海诚, 京阿尼, 吉卜力2D, 番剧, 日漫, Japanese animation, cel animation
-production_type: a Japanese anime-style 2D animation storyboard
+production_type: a Japanese anime-style 2D animation cinematic frame
 neg_1: live-action photography
 neg_2: 3D render
 neg_3: concept art
@@ -27,8 +27,9 @@ camera_language: |
   - selective focus through color and line density
   - expressive character performance with exaggerated emotion
 
-  Do not make the frames look like separate illustrations.
-  They must look like consecutive animation frames from the same anime production.
+  Output exactly one single cinematic still that fills the entire canvas.
+  Do not create multi-panel, grid, collage, comic-strip, or storyboard-sheet layouts.
+  Continuity across shots is provided by reference images, not by packing multiple shots into one image.
 quality: |
   Premium theatrical anime production quality.
 
@@ -56,6 +57,16 @@ avoid: |
   Watermarks.
   Logos.
   Unwanted text.
+  Subtitles or captions burned into the image.
+  Lower-thirds or title cards.
+  On-screen dialogue text.
+  Shot numbers or frame labels on the image.
+  Multi-panel layout.
+  Comic grid or manga panels.
+  Collage or contact sheet.
+  2x2 or any N×M grid of shots.
+  Split-screen.
+  Storyboard sheet layout.
 ---
 
 ## 适用场景

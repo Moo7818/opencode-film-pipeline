@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""分镜图生图任务表生成器 — 纯机械转换
+"""[DEPRECATED] 分镜图生图任务表生成器 — 纯机械转换
+
+⚠️  此脚本为旧版宫格图生成模式，已废弃。
+    当前工作流使用 Agent 直接编写 sequential 模式任务表（逐帧链式生成）。
+    详见 references/phase-2-storyboard-images.md。
+
+    此脚本生成的 prompt 包含网格布局词汇（网格布局、共N镜），
+    会导致图像模型生成宫格图而非单帧。
+    保留此文件仅为向后兼容，不应在新项目中使用。
 
 输入：独立组 JSON 文件目录（05_groups/，每组含通用设定）
 输出：符合 .opencode/schemas/image-generation.json 的分镜图_任务表.json
@@ -21,8 +29,8 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_MODEL = "nano-banana-pro"
-DEFAULT_SIZE = "4K"
+DEFAULT_MODEL = "nano-banana-2"
+DEFAULT_SIZE = "2K"
 DEFAULT_ASPECT = "16:9"
 
 
@@ -167,7 +175,11 @@ def build_prompt(group, shot_count, layout, image_refs=None):
         header += "，".join(ref_labels) + "。"
     header += overview
     parts.append(header)
-    parts.append(f"网格布局：{layout}，共{shot_count}镜，总时长{total_time}s，每格分镜的左上角标注镜头序号，分镜画面中无字幕")
+    # 已废弃：旧多宫格布局提示。当前工作流为 sequential 单帧，禁止再生成宫格/镜头序号角标。
+    parts.append(
+        f"[DEPRECATED grid path — do not use] single-frame only; "
+        f"{shot_count} shots total duration {total_time}s; no multi-panel; no burned-in subtitles"
+    )
     if transition:
         parts.append(f"转场方式：{transition}")
     if common and isinstance(common, dict):
@@ -642,4 +654,8 @@ def main():
 
 
 if __name__ == "__main__":
+    print("⚠️  [DEPRECATED] generate_task_table.py is deprecated.", file=sys.stderr)
+    print("   Use Agent-written sequential task tables instead.", file=sys.stderr)
+    print("   See references/phase-2-storyboard-images.md for current workflow.", file=sys.stderr)
+    print(file=sys.stderr)
     main()

@@ -216,7 +216,7 @@
     },
     {
       "name": "episode_storyboard_images",
-      "label": "剧集分镜图绘制",
+      "label": "剧集参考图生成",
       "status": "pending",
       "started_at": null,
       "completed_at": null,

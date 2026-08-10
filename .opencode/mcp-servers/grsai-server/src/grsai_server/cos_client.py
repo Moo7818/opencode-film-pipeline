@@ -93,17 +93,17 @@ async def upload_to_cos(local_path, secret_id, secret_key, bucket, region, times
     url = f"https://{bucket}.cos.{region}.myqcloud.com{encoded_cos_path}"
 
     max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=120) as client:
+        for attempt in range(max_retries):
+            try:
                 response = await client.put(url, content=data, headers=headers)
                 if response.status_code in (200, 204):
                     return url
-                raise Exception(f"上传失败：HTTP {response.status_code}")
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait = 2 ** attempt
-                print(f"上传失败（{e}），{wait}秒后重试（第{attempt + 2}次）...", file=sys.stderr)
-                await asyncio.sleep(wait)
-            else:
-                raise
+                raise Exception(f"Upload failed: HTTP {response.status_code}")
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt
+                    print(f"Upload failed ({e}), retrying in {wait}s (attempt {attempt + 2})...", file=sys.stderr)
+                    await asyncio.sleep(wait)
+                else:
+                    raise

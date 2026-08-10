@@ -2,7 +2,7 @@
 name: FlatIllustration
 description: 扁平插画风分镜图
 keywords: 扁平插画, 矢量插画, flat design, vector illustration, UI插画, 极简插画, flat art, minimalist illustration
-production_type: a flat illustration style animation storyboard
+production_type: a flat illustration style animation cinematic frame
 neg_1: live-action photography
 neg_2: 3D render
 neg_3: realistic painting
@@ -27,8 +27,8 @@ camera_language: |
   - minimal camera movement, design-focused framing
   - simplified character performance through pose and silhouette
 
-  Do not make the frames look like separate illustrations.
-  They must look like consecutive frames from the same illustration series.
+  Output exactly one single cinematic still that fills the entire canvas.
+  Do not create multi-panel, grid, collage, comic-strip, or storyboard-sheet layouts.
 quality: |
   Premium flat illustration quality.
 
@@ -55,6 +55,16 @@ avoid: |
   Watermarks.
   Logos.
   Unwanted text.
+  Subtitles or captions burned into the image.
+  Lower-thirds or title cards.
+  On-screen dialogue text.
+  Shot numbers or frame labels on the image.
+  Multi-panel layout.
+  Comic grid or manga panels.
+  Collage or contact sheet.
+  2x2 or any N×M grid of shots.
+  Split-screen.
+  Storyboard sheet layout.
 ---
 
 ## 适用场景

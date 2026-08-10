@@ -11,7 +11,7 @@ description: 基于 libtv CLI 的视频导演 Skill。覆盖：分镜视频化�
 
 - 已完成 `libtv login web` 或 `libtv login phone`
 - 凭证文件已就位：`.opencode/credentials/libtv_credentials.json`
-- 已在画布上创建项目并已绑定画布：`libtv project use <画布UUID>`
+- 已创建项目工作区（workspace）和对应剧集的画布（canvas），详见 `references/workflow.md` 步骤 2a/2b
 - `libtv` CLI 版本 ≥ **1.1.1**（使用 `libtv --version` 确认；关键变化见文末）
 - 分镜组文件已就绪（`分组/组{N}.json` 或 `分组/组{N}.md` 格式均可）
 - `project_config.json` 已配置（字段定义见 `.opencode/schemas/project-config.json`）
@@ -33,7 +33,7 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 
 视频导演在执行时，所有全局参数来源于 `.meta/projects/{uuid}/project_config.json`，字段映射规则见 `references/storyboard-to-libtv.md` 第 1 节「字段对应表」。分镜组本地参数来源于 `分组/组{N}.json`。
 
-`canvas_uuid` 为特殊字段：项目创建时为空字符串，视频导演首次运行时从 `.libtv/project.json` 读取并写入配置。
+`workspace_id` 和 `episodes` 为特殊字段：项目创建时不初始化，视频导演首次运行时创建/绑定后写入。`workspace_id` 对应项目工作区（一个项目一个），`episodes.{剧集号}.canvas_uuid` 对应每集的画布（每个剧集一个）。
 
 | 参数 | 来源文件 | 对应 libtv 参数 | 读写 |
 |------|----------|----------------|:----:|
@@ -44,20 +44,21 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 | ↳ 硬约束 | `project_config.json` 中 `model` 字段**必须填 modelName**（中文名），**禁止填 modelKey**（如 `kling-v3-omni`、`star-video2`）。libtv 1.1.1+ 直接使用该字段值作为 modelName，**不做 modelKey → modelName 转换**。读取后直接用作 `--set model` 的值，无需任何映射 |
 | 生成模式 | `project_config.json → mode` | `--set modeType` | 读 |
 | 音频开关 | `project_config.json → enable_sound` | `--set enableSound` | 读 |
-| 分镜图模式 | `project_config.json → use_storyboard_images` | 决定参考素材选取策略 | 读 |
-| 画布 UUID | `.libtv/project.json → projectUuid` | `libtv project use <值>` | **写**入 `.meta/projects/{uuid}/project_config.json` |
+| 参考图模式 | `project_config.json → reference_image_mode` | 决定参考素材选取策略 | 读 |
+| 工作区 ID | `project_config.json → workspace_id` | `libtv workspace use <值>` | **写**入 `project_config.json` |
+| 画布 UUID | `project_config.json → episodes.{剧集号}.canvas_uuid` | `libtv project use <值>` | **写**入 `project_config.json` 的 `episodes` 映射 |
 | ↳ `project use` 副作用 | v1.1.1+ 同时将画布所属项目 `workspaceId` 与团队 `teamId` 同步写入 `.libtv/project.json` | — |
 | 组时长 | `组{N}.json → 组时长` | `--set duration` | 读 |
 | 音色参考目录 | `project_config.json → has_audio_reference` | 仅作参考；音色参考由 Agent 通过 `--voice-refs` 显式指定上传 | 读 |
 | 禁止运行 | `project_config.json → suppress_run` | `true` 时**无条件拒绝** `--run`，只做准备工作 | 读 |
 
-`use_storyboard_images` 影响参考素材的连线策略（详见 `references/storyboard-to-libtv.md` 第 6 节）：为 `true` 时优先选取分镜图作为主要参考，否则以角色/场景参考图为主。
+`reference_image_mode` 影响参考素材的连线策略（详见 `references/storyboard-to-libtv.md` 第 6 节）：`visual_anchor`（默认）时自动按场号匹配视觉锚点图作为场景连续性参考；`storyboard_images` 时自动扫描分镜图按组号匹配；`none` 时不自动添加参考图，Agent 仅使用角色/场景/道具参考图。
 
 ## 工作流总览
 
 ```
   1. 读取上下文                  ← project_config.json + 分组文件（JSON 或 MD）
-  2. 绑定画布项目                ← libtv project use <UUID>
+  2. 创建/绑定工作区 + 画布      ← workspace use（项目级） + project use（剧集级）
   3. 上传参考素材为资源节点       ← libtv upload（按需上传，仅上传 --refs/--voice-refs 指定的素材）
   4. 创建 video 节点             ← 一次性创建 或 两阶段（占位 → 查顺序 → 写引用）
   5. [可选] 批量建组             ← libtv group create（--no-group 可跳过；默认只建组，不运行）
@@ -118,11 +119,19 @@ video-director 完成视频生成后，须向 Coordinator 报告并确保以下�
 {完整的组文件内容：JSON 格式原样拷贝 / MD 格式读取全部内容}
 ```
 
-引用行格式统一为 `{名称}{类型}参考{{Image N}}`：
-- 文件名 `角色_掌柜` → `掌柜角色参考{{Image 1}}`
-- 文件名 `场景_茶馆` → `茶馆场景参考{{Image 2}}`
-- 文件名 `道具_平板` → `平板道具参考{{Image 3}}`
-- 文件名 `分镜_组1` → `分镜图仅作辅助参考（光影、色调）{{Image 1}}`（含分镜图时追加 `具体细节以角色/场景/道具参考图为准`）
+引用行格式统一为 `{名称}{类型}参考{{Image N}}`，参考图按类型排序：**分镜图（按镜号）→ 视觉锚点（按场号）→ 角色 → 道具 → 音色**：
+- 文件名 `角色_掌柜` → `掌柜角色参考{{Image N}}`
+- 文件名 `场景_茶馆` → `茶馆场景参考{{Image N}}`
+- 文件名 `道具_平板` → `平板道具参考{{Image N}}`
+- 文件名 `分镜_组1_镜1` → `镜头1参考{{Image N}}`（分镜图按镜号编号引用，非辅助参考）
+- 文件名 `分镜_组1_镜2` → `镜头2参考{{Image N}}`
+- 文件名 `视觉锚点_场1` → `场1视觉锚点参考{{Image N}}`（视觉锚点按场号引用，同场各组共享）
+
+> `reference_image_mode=storyboard_images` 时，分镜图由脚本自动扫描 `{剧集号}/分镜/分镜图/` 目录上传，无需在 `--refs` 中手动指定。
+>
+> `reference_image_mode=visual_anchor`（默认）时，视觉锚点图由脚本自动扫描 `{剧集号}/分镜/视觉锚点/` 目录上传，按组文件的场号自动匹配，无需在 `--refs` 中手动指定。
+>
+> 场景通常不引用（分镜图/视觉锚点已含场景信息）。
 
 无参考图时跳过引用行和空行，直接用约束行 + 分隔线 + 组文件内容。
 
@@ -233,7 +242,7 @@ python3 temp/update_prompt_group1.py
 
 ### ⛔ Prompt 硬约束（必须遵守）
 
-1. **引用格式统一**：引用行格式为 `{名称}{类型}参考{{Image N}}`（如 `掌柜角色参考{{Image 1}}`），分镜图为 `分镜图仅作辅助参考（光影、色调）{{Image N}}`，含分镜图时追加 `具体细节以角色/场景/道具参考图为准`
+1. **引用格式统一**：引用行格式为 `{名称}{类型}参考{{Image N}}`（如 `掌柜角色参考{{Image 1}}`），分镜图为 `镜头{M}参考{{Image N}}`，视觉锚点为 `场{N}视觉锚点参考{{Image N}}`
 2. **禁止概括 JSON**：`{完整的组 JSON 内容，原样拷贝}` 必须从分镜组 JSON 文件完整读取、原样粘贴，不得用任何形式的概括、摘要、改写替代
 3. **禁止省略约束行**：`画面严禁出现任何字幕，无配乐` 和 `---` 分隔线必须保留，不得省略
 4. **禁止修改引用格式**：引用行必须使用 `{{Image N}}` 格式（如 `{{Image 1}}`），不得替换为 `{{Node uuid}}` 等其他格式。`{{Image N}}` 由 libtv 服务端自动解析为节点引用

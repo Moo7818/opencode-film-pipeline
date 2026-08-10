@@ -1,6 +1,6 @@
 ---
 name: storyboard-generator
-description: 将分集剧本先经 storytelling pipeline 精简版（5步）创作分镜稿，再基于分镜稿拆解为场→组→镜结构化分镜脚本。支持详细模式（JSON）和精简模式（讲戏式 Markdown）。仅当 use_storyboard_images=true 时生成分镜图任务表。分镜导演 Agent 依据此技能执行分镜制作。当任务涉及生成分镜脚本、镜头分解、分镜图任务表时加载此技能。注意：这是底层执行技能，由分镜导演 Agent 按需加载，不直接响应路由。
+description: 将分集剧本先经 storytelling pipeline 精简版创作分镜稿，再拆解为场→组→镜分镜脚本。场=连续物理空间（非戏剧节拍）；同空间多节拍为多组。支持 detailed JSON / simplified Markdown。reference_image_mode=visual_anchor（默认）时为每场生成一张视觉锚点图锁定场景/氛围/人物站位；reference_image_mode=storyboard_images 时产出 sequential 参考帧任务表（场内前帧成图作后帧主连续参考，场间并行）；reference_image_mode=none 时跳过参考图生成。分镜导演 Agent 执行分镜制作时加载。涉及分镜脚本、镜头分解、分镜图/视觉锚点任务表时使用。底层执行技能，由分镜导演按需加载。
 ---
 
 # 分镜脚本生成
@@ -9,8 +9,27 @@ description: 将分集剧本先经 storytelling pipeline 精简版（5步）创�
 
 **核心原则：**
 - Agent 用自身 LLM **理解剧本、创作分镜**，直接写文件
+- **场 = 连续物理空间**（与 producer 场景设定一致）；戏剧节拍/时间流逝节点用**组**表达，禁止按节拍拆场
 - 脚本仅做**机械拆分**（场→组展开），不依赖 Python 管线做内容校验
-- **本产出主要供 AI 视频生成消费**：描写应精炼直接，人物心理活动只需简要提示，表演/微表情抓住核心动作即可，避免心理独白式渲染
+- 分镜图为 **sequential 参考帧模式**：同场帧链用前帧成图作后帧主连续参考
+- **本产出主要供 AI 视频生成消费**：描写精炼直接，心理活动简要提示，表演抓核心动作
+
+---
+
+## Agent 执行隔离
+
+**阶段一（分镜脚本）与阶段二（参考图任务表）必须由不同的子 Agent session 执行。**
+
+| 维度 | 阶段一：分镜脚本 | 阶段二：参考图任务表 |
+|------|----------------|-------------------|
+| 执行者 | storyboard-director（session 1） | storyboard-director（session 2，fresh context） |
+| 输入 | 剧本.md + 全局设定 + 分镜稿_临时.md | 组{N}.json/md（含场号） + project_config.json + 参考图目录 |
+| 产出 | 分镜脚本.json/md + 分组/组{N}.json/md | 视觉锚点_任务表.json（visual_anchor）或 分镜图_任务表.json（storyboard_images） |
+| 上下文 | 含多轮创作思考（戏剧结构、镜头逻辑、台词校验） | **干净上下文**，仅读取结构化组文件和参考图清单 |
+
+**隔离理由**：阶段一涉及大量创意思考（storytelling pipeline 5 步、台词时长计算、场级连贯性推理），这些中间推理会占据上下文窗口。若同一 session 继续执行阶段二，Agent 注意力被前期创作上下文稀释，容易偏离 prompt 模板的严格格式要求，导致映射块遗漏、参考图排序错误、Feeling 字段缺失等问题。
+
+**编排方式**：orchestrator 在阶段一完成后，spawn 一个新的 storyboard-director session 执行阶段二。新 session 从磁盘读取阶段一的产出文件（组{N}.json/md），不继承前序对话上下文。
 
 ---
 
@@ -18,11 +37,12 @@ description: 将分集剧本先经 storytelling pipeline 精简版（5步）创�
 
 ```
 ┌─ 阶段一：episode_storyboard_script ─────────────────────┐
+│  ⚡ Agent Session 1（storyboard-director）               │
 │                                                         │
 │  Phase A：分镜稿创作（storytelling pipeline 精简版）      │
 │    A1. 读剧本 + 读所有设定产物 → 戏剧结构笔记              │
-│    A2. 时空合理化与分场 → 故事节点（时间流逝地图）         │
-│    A3. 场次戏剧地图（sequence map）                      │
+│    A2. 时空合理化 + 物理分场（节点≠场；场=连续物理空间）   │
+│    A3. 场次戏剧地图（按物理场聚合，场内可多节点/多组）      │
 │    A4. 逐场戏核 + shot flow                              │
 │    A5. 粗略缩略图任务（rough thumbnails）                 │
 │    A6. 台词时长校验（Agent 自主计算，无需脚本）           │
@@ -31,15 +51,32 @@ description: 将分集剧本先经 storytelling pipeline 精简版（5步）创�
 │  Phase B：分镜脚本生成（按模式分支）                      │
 │    ├─ 详细模式 → 分镜脚本.json → expand_scenes_to_groups  │
 │    └─ 精简模式 → 分镜脚本.md → Agent直接写入组{N}.md     │
+│                                                         │
+│  → Session 1 结束，产出落盘                              │
 └─────────────────────────────────────────────────────────┘
-          ↓（剧集级参考图生成完成后）
-┌─ 阶段二：episode_storyboard_images ─────────────────────┐
-│  （仅 use_storyboard_images=true 时执行）                │
-│  → 详见 references/phase-2-storyboard-images.md          │
+          ↓（文件交接：组{N}.json/md + 剧集级参考图就绪）
+┌─ 阶段二：参考图生成（按 reference_image_mode 分支）──────┐
+│  ⚡ Agent Session 2（storyboard-director，fresh context） │
+│                                                         │
+│  ├─ visual_anchor（默认）：视觉锚点图                    │
+│  │   每场一张锚点图，锁定场景/氛围/人物站位               │
+│  │   batch 模式，场间并行                                │
+│  │   → 详见 references/phase-2-visual-anchors.md         │
+│  │                                                       │
+│  ├─ storyboard_images：串行分镜图                        │
+│  │   每镜头一张，场内帧链串行（参考帧模式）               │
+│  │   → 详见 references/phase-2-storyboard-images.md      │
+│  │                                                       │
+│  └─ none：跳过参考图生成                                 │
+│      video-director 仅使用角色/场景/道具参考图            │
+│                                                         │
+│  → Session 2 结束                                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
 > **数据流原则**：Phase A 负责所有信息采集（剧本 + 设定），产出分镜稿_临时.md。Phase B 必须同时消费 Phase A 的产出（分镜稿_临时.md）和原始分集剧本（剧本.md）—— 分镜稿提供结构与镜头逻辑，分集剧本提供逐字台词与剧情保真，**严禁只读其一**。
+>
+> **阶段间数据交接**：阶段一与阶段二通过磁盘文件交接，不依赖对话上下文。阶段二 Agent 仅需读取：组{N}.json/md（分镜内容，含场号/场名称）、project_config.json（模型配置）、参考图目录（角色/场景/道具/风格）。画面比例固定 `16:9`，无需从配置读取。
 
 ---
 
@@ -76,29 +113,59 @@ description: 将分集剧本先经 storytelling pipeline 精简版（5步）创�
 
 > Phase A 负责设定采集（角色/场景/道具设定），Phase B 无需重复读取设定；但 Phase B 必须重新读取分集剧本以确保台词逐字一致（详见 Phase B 数据流原则）。
 
-### A2：时空合理化与分场
+### A2：时空合理化 + 物理分场
 
-**核心认知**：戏剧不是物理时空的 1:1 复现。银幕上的几秒钟可能对应故事世界中的数小时、数天乃至数年；只有在剧情点（关键转折、情绪爆发、信息揭晓）上，银幕时间才回归与物理世界等效的实时流逝。通过分场手段将剧情分解为不同时间流逝状态下的**故事节点**。
+A2 产出两层结构，**不得混用**：
 
-**故事节点三类型**：
+| 层 | 名称 | 划分依据 | 用途 |
+|----|------|---------|------|
+| 故事节点 | 时间流逝地图 | 银幕时间 vs 故事时间的变化 | 控制节奏、时长、蒙太奇手法 |
+| **场** | 物理空间连续单元 | **同一连续物理空间 + 连续故事时间** | 分镜脚本场级边界；分镜图串行链边界 |
+
+#### A2-a：故事节点（时间流逝，不直接等于场）
+
+**核心认知**：戏剧不是物理时空的 1:1 复现。银幕几秒可对应故事世界数小时/数天；仅在剧情点上银幕时间≈故事时间。用**故事节点**标注时间流逝类型，**不要**用时间流逝变化点直接当分场边界。
 
 | 节点类型 | 银幕时间 vs 故事时间 | 用途 | 典型手法 |
 |---------|---------------------|------|---------|
-| 时间压缩 | 银幕秒 ≪ 故事时 | 快速交代剧情、跨越时段 | 蒙太奇、跳切、旁白带过 |
+| 时间压缩 | 银幕秒 ≪ 故事时 | 快速交代、跨越时段 | 蒙太奇、跳切、旁白带过 |
 | 实时 | 银幕 ≈ 故事 | 剧情点：转折、对峙、揭晓 | 连续叙事、同步台词 |
 | 时间膨胀 | 银幕 ＞ 故事 | 放大关键瞬间 | 慢动作、微表情特写 |
 
-**分场操作**：
-1. 通读分集剧本，识别时间跳跃点（显式标记如"三日后""翌日""半年后"，及场景切换隐含的时间流逝）
-2. 为每段剧情标注时间流逝类型（压缩/实时/膨胀）
-3. 以时间流逝的变化点作为分场边界，将剧情切分为故事节点
-4. 每个节点记录：节点名、时间流逝类型、故事世界时长、银幕预估时长、该节点要交代的关键信息
+操作：通读剧本 → 标时间跳跃与流逝类型 → 每个节点记录：节点名、时间流逝类型、故事世界时长、银幕预估、关键信息、**所在物理空间**。
 
-> 模板见 `references/storytelling/templates.md` Template 11。产出的故事节点表作为 A3 场次戏剧地图的分场依据。
+#### A2-b：物理分场（场 = 连续物理空间）
+
+**场的定义（硬约束）**：一场 = 在**同一个独立物理空间**内、故事时间**连续不跳切到他处**的全部镜头。与 producer 场景设定一致：一个物理空间 = 一个房间/建筑/户外地点（非子区域机位）。
+
+**必须新开一场**（满足任一即切）：
+1. **物理空间切换** — 角色离开 A 地进入 B 地（茶肆内 → 街口 → 包子铺 = 至少 3 场）
+2. **显著时间断裂** — 同地但日/夜切换、或显式时间跳跃（"三日后"），视觉光影与调度链已断
+3. **平行切出** — 插叙/平行蒙太奇切到另一空间，返回原空间时若中间已切走，返回后开新场或并入原场需按连续性判断；默认**切走即断链**，返回开新场
+
+**禁止**因下列原因拆场（应留在同一场，用**组**区分戏剧节拍）：
+- 同一物理空间内的多个戏剧节拍/故事节点（发布→问答→排队 同在茶肆日/内 → **一场多组**）
+- 同一空间内景别/机位变化（柜台特写 vs 全景仍是同一场）
+- 纯情绪/节奏变化而无空间或时间断裂
+
+**一场多节点示例**（正确）：
+```
+场1 春生茶肆·日/内
+  组1 ← 节点N1 会员制发布（实时）
+  组2 ← 节点N3 排队办卡（微压缩）
+  组3 ← 节点N4 小二翻簿（实时）
+场2 春生茶肆门口·日/外   ← 物理空间变
+场3 赵胖包子铺·日/内     ← 物理空间变
+场4 春生茶肆·夜/内       ← 同地但日→夜，时间断裂
+```
+
+**错误示例**（EP04 旧病）：把「茶肆日/内」的发布、排队、翻簿拆成场1/3/4 → 同空间被切断，分镜图串行参考帧链断裂，角色/布景在组间漂移。
+
+> 模板见 `references/storytelling/templates.md` Template 11。故事节点表标注物理空间；**A3 按物理场聚合节点**，不是一对一把每个节点当成一场。
 
 ### A3：场次戏剧地图（sequence map）
 
-基于 A2 的故事节点表，将每个节点展开为可演绎的戏剧段落，每段标注戏核、观众站位、压力来源、镜头总策略。
+基于 A2-b 的**物理场**列表建场次地图。同一物理场内可含多个故事节点/戏剧节拍，在场内用段落或后续「组」表达。每场标注：物理空间名、含哪些故事节点、戏核、观众站位、压力来源、镜头总策略。
 
 > 模板见 `references/storytelling/templates.md` Template 1。
 
@@ -167,11 +234,63 @@ Phase A 完成后，根据 `storyboard_mode` 进入对应分支。**两个分支
 
 ---
 
-## 阶段二：分镜图绘制（条件执行）
+## 阶段二：参考图生成（按 reference_image_mode 分支）
 
-仅当 `project_config.json` 中 `use_storyboard_images=true` 时执行。两种模式均支持分镜图绘制。Agent 直接使用 Write 工具编写 `分镜图_任务表.json`（含逐组参考图匹配），然后运行 `validate_task_table.py` 校验。
+> **独立 Agent session 执行**：本阶段必须在 fresh context 中执行，不得继承阶段一的对话上下文。详见上方「Agent 执行隔离」节。
 
-> **按需加载**：参考图收集、任务表编写规范、校验流程详见 → `references/phase-2-storyboard-images.md`
+通过 `project_config.json` 的 `reference_image_mode` 字段选择参考图模式（未设置时根据 `use_storyboard_images` 推断：`true`→`storyboard_images`，`false`/未设置→`visual_anchor`）。两种分镜模式（detailed/simplified）均支持以下参考图模式。
+
+### visual_anchor（默认）：视觉锚点图
+
+为每场生成一张视觉锚点图，锁定场景空间、氛围基调、人物站位与关键动作神态。同场各组在视频生成阶段共享该锚点图。
+
+**身份锁定优先于场景构建**：每个有角色参考图的 `cast` 成员必须逐一绑定对应图片；prompt 的第一项实质内容必须是 `IDENTITY LOCK — HIGHEST PRIORITY`，并在任何场景/动作前升级为 actor continuity lock：`Reference Image N character（中文角色名/职责） must remain recognizable as the same actor/person...`。必须明确脸部身份绝对优先、历史外观冲突时只适配 `wardrobe/hairstyle/setting`、不得改变 facial identity/structure/skin features/body proportions、不得生成相似替代人物或职业原型新人物。首次绑定不得写成 `Shopkeeper ...`，后文如使用 `Shopkeeper (the same referenced person)` 只能作为已绑定参考人物简称。
+
+**visual_anchor Prompt 使用双语分工**：英文只负责段落标题、IDENTITY/continuity hard constraints、Reference priority、单帧/构图/摄影/灯光/材质/画质/风格和负面约束；角色名与关系、场景名和空间内容、动作、站位、神态、台词相关内容、道具内容、时代/剧情事实保留中文，不翻译、不因翻译重写外貌。Prompt 用 English control shell 包裹中文内容，例如 `Reference Image 1 character（掌柜角色）站在右侧柜台后擦拭茶杯。`。Anchor 类型与优先级保持英文，绑定对象名称/描述保持中文。
+
+无参考的无名信使、侍者、路人等不属于 referenced characters，只能作为次要时代背景人物生成，不进 `cast`/`images`；实际 FRAME DETAIL 必须在时代服化和中文动作/站位后加入 `not a referenced character, background-only, smaller visual weight, secondary placement, not a main character, not a focal point, never become the visual focus`，禁止视觉中心、英雄式特写或抢占主角权重；具名但无参考图必须暂停补图。
+
+**批量模式（batch）**：
+- `mode` 为 `"batch"`，每场一个 task，场间无依赖，全部可并行
+- 每个 task 含 `id` / `scene` / `scene_name` / `cast`
+- **无 `depends_on`、无 `{{PREV_OUTPUT}}`**
+- 锚点图须包含完整的角色动作与神态描述（影视级静帧质感）
+
+**质量四条铁律**（详情与模板见 phase-2-visual-anchors）：
+1. **在场必引参考**：该场全部组中出场的具名角色都要进 `cast`+`images`
+2. **无图龙套时代锚**：具名无图→硬终止补图；无名路人必须锁项目时代服化
+3. **单帧画布**：禁 multi-panel / 2×2 / collage / storyboard sheet
+4. **禁烧字幕**：禁 subtitle/caption/lower-third/台词条
+
+Agent 直接编写 `视觉锚点_任务表.json` → `validate_task_table.py` 校验 → 加载 art-director 以 batch 模式执行。画面比例固定 `16:9`。
+
+> **按需加载**：参考图收集、出场引用铁律、龙套时代锚、单帧/禁字幕模板、任务表与校验详见 → `references/phase-2-visual-anchors.md`
+
+### storyboard_images：串行分镜图
+
+每镜头一张分镜图，场内帧链串行（参考帧模式）。
+
+**参考帧模式（硬约束，不可降级为 batch）**：
+- `mode` 必须为 `"sequential"`
+- 每帧一个 task，含 `id` / `scene` / `group` / `cast`；非场首帧必须有 `depends_on`，且 `{{PREV_OUTPUT}}` 在**全部角色参考之后、风格之前**
+- **场 = 物理空间连续单元**（与 Phase A/B 一致）。同一 `scene` 内全部帧按播放顺序连成**一条** `depends_on` 链（跨组不断链）
+- 前帧生成完成后，其输出 URL 替换 `{{PREV_OUTPUT}}`，作为后帧的**主空间连续参考**（参考帧），再提交后帧
+- 不同物理场（不同 `scene`）无依赖，可并行
+- 禁止：省略 `depends_on`、用 batch 并发生成同场多帧、同场断链、跨物理场串 `depends_on`
+
+**分镜图质量四条铁律**（详情与模板见 phase-2-storyboard-images；校验器强制部分条目）：
+1. **在场必引参考**：局部入画/非焦点/站位被点名的具名角色都要进 `cast`+`images`
+2. **无图龙套时代锚**：具名无图→硬终止补图；无名路人必须锁项目时代服化
+3. **单帧画布**：禁 multi-panel / 2×2 / collage / storyboard sheet
+4. **禁烧字幕**：禁 subtitle/caption/lower-third/台词条
+
+Agent 直接编写 `分镜图_任务表.json` → `validate_task_table.py` 校验（含链完整性、cast、单帧/禁字幕）→ 加载 art-director 以 sequential 模式执行。画面比例固定 `16:9`。
+
+> **按需加载**：参考图收集、出场引用铁律、龙套时代锚、单帧/禁字幕模板、任务表与校验详见 → `references/phase-2-storyboard-images.md`
+
+### none：跳过参考图生成
+
+不生成任何参考图。video-director 仅使用角色/场景/道具参考图作为视频生成的参考素材。
 
 ---
 
@@ -185,12 +304,21 @@ Phase A 完成后，根据 `storyboard_mode` 进入对应分支。**两个分支
     ├── 〔详细模式〕
     │   ├── 分镜脚本.json           ← Phase B 产出（场→组→镜，17字段×N镜头）
     │   ├── 分组/                   ← expand_scenes_to_groups.py 拆出（组{N}.json）
-    │   └── 分镜图_任务表.json      ← 条件：use_storyboard_images=true 时生成
     │
     ├── 〔精简模式〕
     │   ├── 分镜脚本.md             ← Phase B 产出（讲戏式 Markdown）
     │   ├── 分组/                   ← Agent 直接写入（组{N}.md）
-    │   └── 分镜图_任务表.json      ← 条件：use_storyboard_images=true 时生成
+    │
+    ├── 〔reference_image_mode=visual_anchor（默认）〕
+    │   ├── 视觉锚点_任务表.json    ← 阶段二产出（batch 模式，每场一张）
+    │   └── 视觉锚点/               ← 逐场生成产物（锚点_场{N}_{场景名}.png）
+    │
+    ├── 〔reference_image_mode=storyboard_images〕
+    │   ├── 分镜图_任务表.json      ← 阶段二产出（sequential 模式，每镜头一张）
+    │   └── 分镜图/                 ← 逐帧生成产物（组{N}_镜{M}.png）
+    │
+    ├── 〔reference_image_mode=none〕
+    │   └── （无参考图产出）
 ```
 
 ---
@@ -202,7 +330,8 @@ Phase A 完成后，根据 `storyboard_mode` 进入对应分支。**两个分支
 - `references/phase-b-simplified.md` — 精简模式：写作要求、格式规范、示例、组文件直接写入流程
 
 ### 阶段二文档（按需加载）
-- `references/phase-2-storyboard-images.md` — 分镜图绘制：参考图收集、任务表直接编写、校验
+- `references/phase-2-visual-anchors.md` — 视觉锚点图绘制（默认模式）：每场一张锚点图、参考图收集、任务表编写、prompt 模板、校验
+- `references/phase-2-storyboard-images.md` — 分镜图绘制（串行模式）：逐帧链式生成、参考图收集、任务表编写、prompt 模板、校验
 
 ### 示例
 - `references/examples.md` — 详细模式与精简模式的完整示例

@@ -2,7 +2,7 @@
 name: Realistic3DCGI
 description: 写实3D CGI风格分镜图
 keywords: 写实3D, 电影特效, CGI, realistic 3D, VFX, photoreal CGI, 3D写实, 电影级3D, 3D特效
-production_type: a photorealistic 3D CGI film storyboard
+production_type: a photorealistic 3D CGI film cinematic frame
 neg_1: 2D illustration
 neg_2: flat cartoon
 neg_3: concept art
@@ -27,8 +27,8 @@ camera_language: |
   - subtle camera shake for realism when appropriate
   - naturalistic character animation with motion capture quality
 
-  Do not make the frames look like separate illustrations.
-  They must look like consecutive VFX shots from the same film production.
+  Output exactly one single cinematic still that fills the entire canvas.
+  Do not create multi-panel, grid, collage, comic-strip, or storyboard-sheet layouts.
 quality: |
   Photorealistic 3D CGI render quality.
 
@@ -56,6 +56,16 @@ avoid: |
   Watermarks.
   Logos.
   Unwanted text.
+  Subtitles or captions burned into the image.
+  Lower-thirds or title cards.
+  On-screen dialogue text.
+  Shot numbers or frame labels on the image.
+  Multi-panel layout.
+  Comic grid or manga panels.
+  Collage or contact sheet.
+  2x2 or any N×M grid of shots.
+  Split-screen.
+  Storyboard sheet layout.
 ---
 
 ## 适用场景

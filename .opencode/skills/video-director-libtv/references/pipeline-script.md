@@ -9,7 +9,7 @@
 | `--build` | ✅ | 启动完整流程 |
 | `--project <名>` | ✅ | 项目名，对应 `project/<名>/` |
 | `--episode <号>` | ✅ | 剧集号，如 `EP01` |
-| `--canvas-uuid <UUID>` | ✅ | 画布项目 UUID |
+| `--canvas-uuid <UUID>` | ❌ | 画布 UUID（不传时自动从 project_config.json 的 episodes 映射查找） |
 | `--groups <N...>` | ✅ | 组号列表，如 `7 8 9` |
 | `--refs "组N:类型_名,类型_名"` | ❌ | 参考图映射，可重复；仅上传指定的参考图（按需上传） |
 | `--voice-refs <角色1,角色2,...>` | ❌ | 音色参考角色列表，如 `吉小泰,妈妈,女儿`；仅上传指定角色的音色参考，未指定时跳过 |
@@ -29,7 +29,7 @@
 
 ```bash
 python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
-  --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+  --project "项目名" --episode EP01 ^
   --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
   --refs "组7:场景_现代南京,角色_一岛" ^
   --run --download
@@ -39,7 +39,7 @@ python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --bui
 
 ```bash
 python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
-  --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+  --project "项目名" --episode EP01 ^
   --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
   --refs "组7:场景_现代南京,角色_一岛" ^
   --no-group

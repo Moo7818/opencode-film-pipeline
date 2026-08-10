@@ -6,7 +6,6 @@ Phase 2：LLM 调用
 Phase 3：图像生成（后续扩展）
 """
 
-import hashlib
 import json
 import os
 import sys
@@ -103,53 +102,98 @@ def _extract_status(result):
 def _extract_failure_reason(result):
     error = result.get("error")
     if isinstance(error, dict):
-        return error.get("message") or "生成失败"
-    return error or "生成失败"
-
-
-def _compute_file_hash(local_path):
-    sha256 = hashlib.sha256()
-    with open(local_path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            sha256.update(chunk)
-    return sha256.hexdigest()
+        return error.get("message") or "Generation failed"
+    return error or "Generation failed"
 
 
 async def _process_urls(urls, cos_config, timestamp=None):
-    """将本地文件路径替换为 COS URL，跳过远程 URL"""
+    """将本地文件路径替换为 COS URL，跳过远程 URL。
+
+    使用全局 COS 缓存避免重复上传：
+    - 路径 + mtime + size 快速匹配 → 跳过 hash 计算
+    - hash 兜底 → 捕获移动/重命名的文件
+    """
     if not urls:
         return urls, []
+    from . import cos_cache
     result = []
     uploaded = []
     for url in urls:
         if os.path.exists(url) and os.path.isfile(url):
             if not cos_config:
-                raise ValueError("检测到本地文件但未配置 COS 凭证")
-            from .cos_client import upload_to_cos
-            public_url = await upload_to_cos(
-                url,
-                secret_id=cos_config['secret_id'],
-                secret_key=cos_config['secret_key'],
-                bucket=cos_config['bucket'],
-                region=cos_config['region'],
-                timestamp=timestamp,
-            )
-            result.append(public_url)
-            uploaded.append({"local": url, "remote": public_url, "cached": False})
+                raise ValueError("Local file detected but COS credentials not configured")
+            cached_url, file_hash = cos_cache.lookup(url)
+            if cached_url:
+                result.append(cached_url)
+                uploaded.append({"local": url, "remote": cached_url, "cached": True})
+            else:
+                from .cos_client import upload_to_cos
+                public_url = await upload_to_cos(
+                    url,
+                    secret_id=cos_config['secret_id'],
+                    secret_key=cos_config['secret_key'],
+                    bucket=cos_config['bucket'],
+                    region=cos_config['region'],
+                    timestamp=timestamp,
+                )
+                cos_cache.record(url, public_url, file_hash)
+                result.append(public_url)
+                uploaded.append({"local": url, "remote": public_url, "cached": False})
         else:
             result.append(url)
+    cos_cache._save()
     return result, uploaded
 
 
+_global_client: httpx.AsyncClient | None = None
+
+
+async def _get_client(timeout=120):
+    """获取全局复用的 httpx.AsyncClient，避免连接 churn"""
+    global _global_client
+    if _global_client is None or _global_client.is_closed:
+        _global_client = httpx.AsyncClient(
+            timeout=timeout,
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+        )
+    return _global_client
+
+
 async def _api_request(url, headers, data=None, timeout=120):
-    """异步 HTTP 请求"""
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        headers = {**headers, "Content-Type": "application/json"}
-        body = json.dumps(data).encode("utf-8") if data else None
-        response = await client.post(url, content=body, headers=headers)
-        if response.status_code >= 400:
-            raise Exception(f"API 错误 {response.status_code}: {response.text}")
-        return response.text
+    """异步 HTTP 请求（使用全局连接池）"""
+    client = await _get_client(timeout)
+    headers = {**headers, "Content-Type": "application/json"}
+    body = json.dumps(data).encode("utf-8") if data else None
+    response = await client.post(url, content=body, headers=headers)
+    if response.status_code >= 400:
+        raise Exception(f"API error {response.status_code}: {response.text}")
+    return response.text
+
+
+async def check_image_status(task_id, host=None, api_key=None):
+    """单次非阻塞查询图像生成状态。立即返回，不轮询。
+
+    返回值：
+    - status="pending": 生成中，调用方应 sleep 后再次查询
+    - status="completed": 生成完成，包含 image_url
+    - status="failed": 生成失败，包含 error
+    """
+    host = host or get_host()
+    api_key = api_key or get_api_key()
+    client = await _get_client(timeout=30)
+    poll_url = f"{host}/v1/api/result?id={urllib.parse.quote(task_id, safe='')}"
+    response = await client.get(poll_url, headers={"Authorization": f"Bearer {api_key}"})
+    result = _parse_response(response.text)
+    status = _extract_status(result)
+
+    if status in ("failed", "violation"):
+        return {"status": "failed", "error": _extract_failure_reason(result), "task_id": task_id}
+    if status == "succeeded":
+        image_url = _extract_image_url(result)
+        if image_url:
+            return {"status": "completed", "image_url": image_url,
+                    "oss_url": _extract_oss_url(result), "task_id": task_id}
+    return {"status": "pending", "task_id": task_id}
 
 
 async def submit_image(prompt, model, aspect_ratio=None, image_size=None,
@@ -198,11 +242,10 @@ async def submit_image(prompt, model, aspect_ratio=None, image_size=None,
                 "uploaded_refs": uploaded_refs}
 
     if not task_id:
-        return {"status": "failed", "error": "未返回 task_id",
+        return {"status": "failed", "error": "No task_id returned",
                 "task_id": None, "uploaded_refs": uploaded_refs}
 
-    return {"status": "submitted", "task_id": task_id, "uploaded_refs": uploaded_refs,
-            "message": f"任务已提交，task_id={task_id}，请使用 poll_image() 查询结果"}
+    return {"status": "submitted", "task_id": task_id, "uploaded_refs": uploaded_refs}
 
 
 async def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interval=3, max_poll_rounds=60):
@@ -213,33 +256,33 @@ async def poll_image(task_id, host=None, api_key=None, poll_delay=5, poll_interv
     await asyncio.sleep(poll_delay)
     consecutive_failures = 0
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        for _ in range(max_poll_rounds):
-            await asyncio.sleep(poll_interval)
-            try:
-                poll_url = f"{host}/v1/api/result?id={urllib.parse.quote(task_id, safe='')}"
-                response = await client.get(poll_url, headers={"Authorization": f"Bearer {api_key}"})
+    client = await _get_client(timeout=30)
+    for _ in range(max_poll_rounds):
+        await asyncio.sleep(poll_interval)
+        try:
+            poll_url = f"{host}/v1/api/result?id={urllib.parse.quote(task_id, safe='')}"
+            response = await client.get(poll_url, headers={"Authorization": f"Bearer {api_key}"})
 
-                result = _parse_response(response.text)
-                status = _extract_status(result)
-                consecutive_failures = 0
+            result = _parse_response(response.text)
+            status = _extract_status(result)
+            consecutive_failures = 0
 
-                if status in ("failed", "violation"):
-                    return {"status": "failed", "error": _extract_failure_reason(result),
-                            "task_id": task_id}
-                if status == "succeeded":
-                    image_url = _extract_image_url(result)
-                    if image_url:
-                        return {"status": "completed", "image_url": image_url,
-                                "oss_url": _extract_oss_url(result), "task_id": task_id}
-            except Exception:
-                consecutive_failures += 1
-                if consecutive_failures >= 3:
-                    return {"status": "failed", "error": "连续轮询失败3次，请稍后重试",
-                            "task_id": task_id}
-                continue
+            if status in ("failed", "violation"):
+                return {"status": "failed", "error": _extract_failure_reason(result),
+                        "task_id": task_id}
+            if status == "succeeded":
+                image_url = _extract_image_url(result)
+                if image_url:
+                    return {"status": "completed", "image_url": image_url,
+                            "oss_url": _extract_oss_url(result), "task_id": task_id}
+        except Exception:
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                return {"status": "failed", "error": "Polling failed 3 consecutive times",
+                        "task_id": task_id}
+            continue
 
-    return {"status": "timeout", "error": f"轮询超时 {max_poll_rounds * poll_interval}s",
+    return {"status": "timeout", "error": f"Polling timeout after {max_poll_rounds * poll_interval}s",
             "task_id": task_id}
 
 

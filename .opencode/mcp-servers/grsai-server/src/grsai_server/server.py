@@ -55,7 +55,7 @@ def grsai_health_check() -> dict:
                 resp = client.get(f"{host}/v1/api/result?id=ping_check")
                 api_reachable = True  # 任何响应都说明API可达
         except httpx.ConnectError as e:
-            api_ping_error = f"网络不可达: {e}"
+            api_ping_error = f"Network unreachable: {e}"
         except httpx.HTTPStatusError as e:
             api_ping_error = f"HTTP {e.response.status_code}"
         except Exception as e:
@@ -69,9 +69,9 @@ def grsai_health_check() -> dict:
 
     warnings = []
     if not cfg["checks"].get("api_key_configured"):
-        warnings.append("API Key 未配置")
+        warnings.append("API Key not configured")
     if not api_reachable and api_key:
-        warnings.append(f"API 不可达: {api_ping_error}")
+        warnings.append(f"API unreachable: {api_ping_error}")
 
     return {
         "status": "healthy" if (cfg["valid"] and api_reachable) else "degraded" if cfg["valid"] else "unhealthy",
@@ -101,9 +101,12 @@ async def grsai_submit_image(
     oss_path: str | None = None,
 ) -> dict:
     """提交图像生成任务，立即返回 task_id。不阻塞等待生成完成。
-    
-    返回 status="submitted" 时，请使用 grsai_poll_result 传入 task_id 查询结果。
-    poll 默认参数为 delay=5s, interval=3s, max_rounds=60（总最长 ~185s，适配 MCP 600s 超时）。
+
+    返回 status="submitted" 时，请等待 5-10s 后使用 grsai_poll_result 传入 task_id 查询结果。
+    grsai_poll_result 为非阻塞单次查询，返回 pending 时需再次调用。
+
+    注意：reference_images 中的本地文件路径必须是绝对路径。MCP server 的 CWD 与调用方不同，
+    相对路径无法被解析。远程 URL 无需转换。
     """
     from .grsai_client import submit_image
     from .config import load_cos_config, _cfg, CFG_OSS_ID, CFG_OSS_PATH
@@ -132,27 +135,21 @@ async def grsai_submit_image(
         "destructiveHint": False,
     }
 )
-async def grsai_poll_result(
-    task_id: str,
-    poll_delay: int = 5,
-    poll_interval: int = 3,
-    max_poll_rounds: int = 60,
-) -> dict:
-    """根据 task_id 轮询图像生成结果。阻塞直到完成或超时。
-    
-    推荐策略：
-    - 首次调用后等 5-10s 再 poll
-    - 默认轮询：poll_delay=5, poll_interval=3, max_poll_rounds=60（~185s，适配 MCP 600s 超时）
-    - 长任务：手动传 max_poll_rounds=200，如 poll_delay=5, poll_interval=3, max_poll_rounds=200（~605s，接近 MCP 超时上限）
+async def grsai_poll_result(task_id: str) -> dict:
+    """非阻塞查询单个图像生成任务的状态。立即返回，不轮询。
+
+    返回 status="pending" 时表示生成中，调用方应等待 5-10s 后再次调用本工具查询。
+    返回 status="completed" 时包含 image_url。
+    返回 status="failed" 时包含 error。
+
+    推荐调用策略：
+    1. submit 后等 5-10s，首次调用本工具
+    2. 若 pending，sleep 5-10s 后再次调用
+    3. 重复直到 completed 或 failed
     """
-    from .grsai_client import poll_image
+    from .grsai_client import check_image_status
     try:
-        return await poll_image(
-            task_id=task_id,
-            poll_delay=poll_delay,
-            poll_interval=poll_interval,
-            max_poll_rounds=max_poll_rounds,
-        )
+        return await check_image_status(task_id=task_id)
     except ValueError as e:
         return _error_response(str(e), "poll_failed")
     except Exception as e:
@@ -174,7 +171,7 @@ async def grsai_upload_cos(local_path: str) -> dict:
     try:
         cos_config = load_cos_config()
         if not cos_config:
-            return _error_response("未配置 COS 凭证", "upload_failed")
+            return _error_response("COS credentials not configured", "upload_failed")
         url = await upload_to_cos(
             local_path=local_path,
             secret_id=cos_config["secret_id"],
@@ -191,6 +188,11 @@ async def grsai_upload_cos(local_path: str) -> dict:
 
 def main():
     """MCP server 启动入口，支持 `python -m grsai_server` 和 entry_point `grsai-server`。"""
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+
     import argparse
     parser = argparse.ArgumentParser(description="GRSAI MCP Server")
     parser.add_argument("--transport", default="stdio", choices=["stdio", "streamable_http"])
@@ -202,10 +204,10 @@ def main():
     _cfg_result = validate_config()
     if not _cfg_result["valid"]:
         print("=" * 60, file=sys.stderr)
-        print("⚠ GRSAI 配置验证：部分配置缺失", file=sys.stderr)
+        print("WARNING: GRSAI config validation - some config missing", file=sys.stderr)
         for item in _cfg_result["missing"]:
             print(f"   - {item}", file=sys.stderr)
-        print(f"   配置来源: {_cfg_result['config_source']}", file=sys.stderr)
+        print(f"   config source: {_cfg_result['config_source']}", file=sys.stderr)
         print("=" * 60, file=sys.stderr)
 
     run_kwargs = {"transport": args.transport}

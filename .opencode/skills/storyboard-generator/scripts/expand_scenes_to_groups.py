@@ -38,11 +38,13 @@ def expand_scenes_to_groups(input_path, output_dir):
     all_group_files = []
 
     if is_flat:
-        # 旧版扁平组→镜结构：直接逐组输出
+        # 旧版扁平组→镜结构：直接逐组输出（无场级信息，场号设为 0）
         for group in data:
             global_group_no += 1
             shots = group.get("镜头列表", [])
             group_out = dict(group)
+            group_out["场号"] = 0
+            group_out["场名称"] = ""
             group_out["组号"] = global_group_no
             group_out["镜号起始"] = global_shot_offset + 1
 
@@ -61,9 +63,20 @@ def expand_scenes_to_groups(input_path, output_dir):
                 json.dump(group_out, f, ensure_ascii=False, indent=2)
             all_group_files.append(filename)
     else:
-        # 场→组→镜 三级结构
+        # 场→组→镜 三级结构（场=物理空间连续单元）
+        scene_no = 0
         for scene in data:
+            scene_no += 1
+            # 优先使用脚本中的场号，保证与 Phase B 物理分场一致
+            explicit_scene_no = scene.get("场号")
+            try:
+                resolved_scene_no = int(explicit_scene_no) if explicit_scene_no is not None else scene_no
+            except (TypeError, ValueError):
+                resolved_scene_no = scene_no
             scene_common = scene.get("通用设定", {})
+            scene_name = scene.get("场名称", scene.get("场名", f"场{resolved_scene_no}"))
+            # 物理空间名写入组文件，供分镜图 scene 链与场景参考匹配
+            physical_space = scene_common.get("场景名称", "")
             groups = scene.get("组列表", [])
 
             for group in groups:
@@ -72,6 +85,9 @@ def expand_scenes_to_groups(input_path, output_dir):
                 has_narrative = "分镜描述" in group
 
                 group_out = {
+                    "场号": resolved_scene_no,
+                    "场名称": scene_name,
+                    "物理空间": physical_space,
                     "组号": global_group_no,
                     "镜号起始": global_shot_offset + 1,
                     "组时长": group.get("组时长", "0"),

@@ -26,9 +26,9 @@
 | `episode_character_ref` | 剧集级角色妆造匹配清单 | 角色导演参考全局设定+角色设定+本集剧本，仅产出 `{剧集号}/角色参考图/妆造匹配清单.json`（不产出图片任务表，Art-director 本阶段不参与）；该清单由 coordinator 在 `asset_sync` 阶段消费 | Character-director |
 | `episode_prop_ref` | 剧集级道具参考图生成 | 道具师参考全局设定+道具设定+本集分镜脚本中道具使用描述，生成剧集级道具参考图；美术指导执行绘制 | Prop-maker → Art-director |
 | `episode_scene_ref` | 剧集级场景参考图生成 | 置景师参考全局设定+场景设定+本集分镜脚本中场景变化描述，生成剧集级场景参考图；美术指导执行绘制 | Set-designer → Art-director |
-| `episode_storyboard_images` | 剧集分镜图绘制 | 仅当 `use_storyboard_images=true` 时执行；分镜导演调用 `generate_task_table.py` 生成分镜图任务表（注入剧集级参考图），美术指导执行绘制 | Storyboard-director → Art-director |
-| `asset_sync` | 资产同步 | Coordinator 读取本集"妆造匹配清单.json"，将所需角色/场景/道具参考图从 `全局依赖/...` 复制到 `temp/分组素材/{剧集号}/角色参考|场景参考|道具参考/`，供 video-director 使用。**降级策略**：若妆造匹配清单不存在，降级为复制全部全局角色参考图并记录 `asset_sync.degraded` 事件，不阻断后续流程 | Coordinator |
-| `video_generation` | 视频生成 | 前置依赖：分镜组 JSON 已就绪（`{剧集号}/分镜/分组/组{N}.json`）、分镜图已就绪（如 `use_storyboard_images=true`）、资产同步已完成（`temp/分组素材/{剧集号}/` 下三类参考图齐全）。视频导演基于分镜组 JSON 生成视频；如有下集回到 `episode_storyboard_script`，否则进入交付。**产物注册**：video-director 完成后须将视频文件（`video` 类型）和 `_manifest.json`（`video_manifest` 类型）注册到 manifest，Coordinator 推进 delivery 前须校验 `_manifest.json` 的 `status` 字段为 `success` 或 `partial`（`failed=0` 方可推进） | Video-director |
+| `episode_storyboard_images` | 剧集参考图生成 | 当 `reference_image_mode ≠ none` 时执行；**独立 session**（不继承 `episode_storyboard_script` 的对话上下文）；按 `reference_image_mode` 分支：`visual_anchor`（默认）→ 分镜导演读取组文件提取场清单，编写 `视觉锚点_任务表.json`（batch 模式，每场一张）；`storyboard_images` → 编写 `分镜图_任务表.json`（sequential 模式，每镜头一张）；运行 `validate_task_table.py` 校验，美术指导执行绘制 | Storyboard-director → Art-director |
+| `asset_sync` | 资产同步 | Coordinator 读取本集"妆造匹配清单.json"，将所需角色/场景/道具参考图从 `全局依赖/...` 复制到 `temp/分组素材/{剧集号}/角色参考|场景参考|道具参考/`，供 video-director 使用。当 `reference_image_mode ≠ none` 时同步复制视觉锚点图或分镜图。**降级策略**：若妆造匹配清单不存在，降级为复制全部全局角色参考图并记录 `asset_sync.degraded` 事件，不阻断后续流程 | Coordinator |
+| `video_generation` | 视频生成 | 前置依赖：分镜组 JSON 已就绪（`{剧集号}/分镜/分组/组{N}.json`）、参考图已就绪（如 `reference_image_mode ≠ none`）、资产同步已完成（`temp/分组素材/{剧集号}/` 下三类参考图齐全）。视频导演基于分镜组 JSON 生成视频，脚本自动按 `reference_image_mode` 扫描并匹配参考图（视觉锚点按场号/分镜图按组号）；如有下集回到 `episode_storyboard_script`，否则进入交付。**产物注册**：video-director 完成后须将视频文件（`video` 类型）和 `_manifest.json`（`video_manifest` 类型）注册到 manifest，Coordinator 推进 delivery 前须校验 `_manifest.json` 的 `status` 字段为 `success` 或 `partial`（`failed=0` 方可推进） | Video-director |
 | `delivery` | 交付归档 | 最终打包、阶段标记 complete | Coordinator |
 
 ## 操作规则

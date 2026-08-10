@@ -7,12 +7,26 @@
   "required": [
     "aspect_ratio",
     "model",
-    "use_storyboard_images"
+    "reference_image_mode"
   ],
   "properties": {
-    "canvas_uuid": {
-      "type": "string",
-      "description": "画布项目 UUID。项目创建时为空字符串，由 video-director 首次绑定时从 .libtv/project.json 读取并写入。"
+    "workspace_id": {
+      "type": ["string", "integer"],
+      "description": "libtv 工作空间 ID。项目创建时为空，由 video-director 首次创建工作区时写入。一个项目对应一个工作空间。"
+    },
+    "episodes": {
+      "type": "object",
+      "description": "剧集画布映射表。键为剧集号（如 EP01），值为该集的画布配置。每个剧集对应一个独立的 libtv 画布。",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "canvas_uuid": {
+            "type": "string",
+            "description": "该剧集对应的画布 UUID。由 video-director 在该集首次创建/绑定画布时写入。"
+          }
+        }
+      },
+      "default": {}
     },
     "aspect_ratio": {
       "type": "string",
@@ -35,7 +49,13 @@
     },
     "use_storyboard_images": {
       "type": "boolean",
-      "description": "是否启用分镜图分支。为 true 时 storyboard-director 生成分镜图并传入 video 节点作为参考"
+      "description": "（已废弃，向后兼容）是否启用串行分镜图。为 true 时等价于 reference_image_mode='storyboard_images'。新项目应使用 reference_image_mode 字段。"
+    },
+    "reference_image_mode": {
+      "type": "string",
+      "enum": ["visual_anchor", "storyboard_images", "none"],
+      "description": "参考图模式。visual_anchor（默认）：为每场生成一张视觉锚点图，锁定场景/氛围/人物站位，同场各组共享；storyboard_images：串行分镜图，每镜头一张，场内帧链串行；none：不生成参考图，视频导演仅使用角色/场景/道具参考图。未设置时根据 use_storyboard_images 推断（true→storyboard_images，false→visual_anchor）。",
+      "default": "visual_anchor"
     },
     "mode": {
       "type": "string",

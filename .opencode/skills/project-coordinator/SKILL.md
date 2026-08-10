@@ -226,7 +226,7 @@ for d in sorted(os.listdir(base)):
        { "name": "episode_character_ref",   "label": "剧集级角色参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "episode_prop_ref",        "label": "剧集级道具参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "episode_scene_ref",       "label": "剧集级场景参考图生成",  "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
-       { "name": "episode_storyboard_images", "label": "剧集分镜图绘制",       "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+       { "name": "episode_storyboard_images", "label": "剧集参考图生成",       "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "asset_sync",              "label": "资产同步",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "video_generation",        "label": "视频生成",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
        { "name": "delivery",                "label": "交付归档",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null }
@@ -276,7 +276,7 @@ for d in sorted(os.listdir(base)):
     | `aspect_ratio` | 画幅比例 | `16:9` |
     | `resolution` | 分辨率 | `720p` |
     | `model` | 视频生成模型中文名（见下方模型表，填写 modelName 列的值） | — |
-    | `use_storyboard_images` | 是否使用分镜图作为视频参考（为 true 时将额外执行 `episode_storyboard_images` 阶段） | `false` |
+    | `reference_image_mode` | 参考图模式：`visual_anchor`（默认，每场一张视觉锚点图）/ `storyboard_images`（串行分镜图）/ `none`（不生成参考图） | `visual_anchor` |
     | `mode` | 生成模式 | `mixed2video` |
     | `enable_sound` | 是否生成音效 | `true` |
 
@@ -292,18 +292,17 @@ for d in sorted(os.listdir(base)):
 
     > **重要**：`project_config.json` 的 `model` 字段直接写入上表第一列的 modelName（中文名，如 `Seedance 2.0 VIP`），**不要**写入 modelKey（如 `star-video2`）。modelKey 列仅作为内部参考，用于排查 libtv 调用问题时对照。
 
-    `canvas_uuid` 在创建时为空，由 video-director 首次绑定时写入。
+    `workspace_id` 和 `episodes` 在创建时不初始化，由 video-director 首次运行时写入。`workspace_id` 对应项目的工作区（一个项目一个），`episodes` 是剧集画布映射表（每个剧集一个画布）。
 
     用用户确认的变量构建 JSON 并写入：
    ```bash
    python -c "
    import json
    config = {
-     'canvas_uuid': '',
      'aspect_ratio': '$aspectRatio',
      'resolution': '$resolution',
      'model': '$model',
-     'use_storyboard_images': $useStoryboard,
+     'reference_image_mode': '$referenceImageMode',
      'mode': '$mode',
      'enable_sound': $enableSound
    }
@@ -311,7 +310,7 @@ for d in sorted(os.listdir(base)):
      json.dump(config, f, ensure_ascii=False, indent=2)
    "
    ```
-   > `use_storyboard_images=true` 时建议同步设置 `reference_mode="multi_modal"`。
+   > `reference_image_mode=storyboard_images` 时建议同步设置 `reference_mode="multi_modal"`。
 
    **重要**：创建完成后，必须将 `project_config.json` 注册到 `manifest.json`（`type: "project_config"`），并追加一条 `artifact.created` 事件到 `events.jsonl`。
 7. 使用 CLI 写入事件：追加一行 `project.created` 到 `events.jsonl`
@@ -637,7 +636,9 @@ for d in sorted(os.listdir(base)):
    - 道具参考图来源（回退）：`project/{项目名}/全局依赖/道具设定/道具参考图/` → 目标 `temp/分组素材/{剧集号}/道具参考/`（仅复制剧集级目录中不存在的道具）
    > **道具基准文件名含出现场合**：全局基准资产文件名格式为 `{道具名}_{出现场合}_基准.png`。回退复制时需读取 `具体设定/{道具名}.md` 中的 `出现场合` 字段，匹配正确的基准文件。仅复制该道具 `出现场合` 包含当前剧集号的基准图，**禁止**复制不属于本集的道具资产。
    - 涉及清单：依据本集分镜脚本中场景/道具出场列表（由 storyboard-generator 在 `episode_storyboard_script` 阶段产出的"分组/组{N}.json"中给出，仅读取其中 `scene_refs` / `prop_refs` 字段，不读镜号描述等业务内容）
-   - **复制分镜图**（仅当 `use_storyboard_images=true` 时）：分镜图来源 `project/{项目名}/{剧集号}/分镜/分镜图_*.png` → 目标 `temp/分组素材/{剧集号}/分镜图/`。分镜图由 storyboard-director 在 `episode_storyboard_images` 阶段产出、art-director 绘制
+   - **复制参考图**（当 `reference_image_mode ≠ none` 时）：
+     - `reference_image_mode=visual_anchor`（默认）：视觉锚点图来源 `project/{项目名}/{剧集号}/分镜/视觉锚点/*.png` → 目标 `temp/分组素材/{剧集号}/视觉锚点/`。视觉锚点图由 storyboard-director 在 `episode_storyboard_images` 阶段产出、art-director 绘制
+     - `reference_image_mode=storyboard_images`：分镜图来源 `project/{项目名}/{剧集号}/分镜/分镜图/*.png` → 目标 `temp/分组素材/{剧集号}/分镜图/`。分镜图由 storyboard-director 在 `episode_storyboard_images` 阶段产出、art-director 绘制
 
 5. **在 manifest 注册 `asset_sync` 类型产物**：
    - 每个复制后的目录（`temp/分组素材/{剧集号}/角色参考/` 等）注册为一个 `asset_sync` 产物条目

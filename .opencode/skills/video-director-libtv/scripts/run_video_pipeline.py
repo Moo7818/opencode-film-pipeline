@@ -3,18 +3,24 @@
 
 依赖: libtv >= 1.1.1（group --run 现为阻塞等待命令，CLI 内部完成轮询）
 
+画布模型:
+  - 每个项目对应一个 libtv 工作区（workspace）
+  - 每个剧集对应一个 libtv 画布（canvas）
+  - 画布 UUID 存储在 project_config.json 的 episodes.{剧集号}.canvas_uuid
+
 用法:
   # 完整流程（上传素材 → 创建节点（一次性含引用行） → 建组）
   # 注意: --model 传 modelName（中文名），如 "Seedance 2.0 VIP"；不要传 modelKey
+  # --canvas-uuid 可选：不传时自动从 project_config.json 的 episodes 映射查找
   python run_video_pipeline.py --build ^
-    --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+    --project "项目名" --episode EP01 ^
     --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 --resolution 480p ^
     --refs "组7:场景_现代南京长江边,角色_一岛,角色_郑和,道具_平板" ^
     --refs "组8:场景_现代南京长江边,角色_一岛,角色_郑和"
 
   # 完整流程 + 音色参考
   python run_video_pipeline.py --build ^
-    --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+    --project "项目名" --episode EP01 ^
     --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
     --refs "组7:场景_现代南京,角色_一岛" ^
     --voice-refs 吉小泰 妈妈 女儿
@@ -28,13 +34,13 @@
   # 精简模式分镜（自动读取 project_config.json 的 storyboard_mode，
   # 也可用 --storyboard-mode 显式指定）
   python run_video_pipeline.py --build ^
-    --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+    --project "项目名" --episode EP01 ^
     --groups 1 2 3 --model "Seedance 2.0 VIP" --ratio 16:9 ^
     --storyboard-mode simplified
 
   # 仅创建节点，不建组（--no-group）
   python run_video_pipeline.py --build ^
-    --project "项目名" --episode EP01 --canvas-uuid <UUID> ^
+    --project "项目名" --episode EP01 ^
     --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 --resolution 480p ^
     --refs "组7:场景_现代南京长江边,角色_一岛,角色_郑和,道具_平板" ^
     --no-group
@@ -87,6 +93,12 @@ REFERENCE_TYPE_PATHS = {
     "道具": "全局依赖/道具设定/道具参考图",
     "风格": "前期采样/风格",
 }
+
+# 分镜图目录（剧集级，需要 episode 参数拼接）
+STORYBOARD_IMAGE_PATH = "分镜/分镜图"
+
+# 视觉锚点图目录（剧集级，需要 episode 参数拼接）
+VISUAL_ANCHOR_PATH = "分镜/视觉锚点"
 
 
 def run_libtv(args_list):
@@ -145,7 +157,7 @@ def parse_refs(refs_args):
     return result
 
 
-def scan_project_refs(project_root):
+def scan_project_refs(project_root, episode=None):
     found = {}
     for ref_type, rel_path in REFERENCE_TYPE_PATHS.items():
         dir_path = os.path.join(project_root, rel_path)
@@ -171,6 +183,33 @@ def scan_project_refs(project_root):
                 clean_name = re.sub(r"^风格参考-", "", clean_name)
             node_name = f"{ref_type}_{clean_name}"
             found[node_name] = os.path.join(dir_path, f)
+
+    # 扫描分镜图（剧集级目录）
+    if episode:
+        sb_dir = os.path.join(project_root, episode, STORYBOARD_IMAGE_PATH)
+        if os.path.isdir(sb_dir):
+            for f in sorted(os.listdir(sb_dir)):
+                if not f.lower().endswith(".png"):
+                    continue
+                name_without_ext = os.path.splitext(f)[0]
+                node_name = f"分镜_{name_without_ext}"
+                found[node_name] = os.path.join(sb_dir, f)
+
+        # 扫描视觉锚点图（剧集级目录）
+        va_dir = os.path.join(project_root, episode, VISUAL_ANCHOR_PATH)
+        if os.path.isdir(va_dir):
+            for f in sorted(os.listdir(va_dir)):
+                if not f.lower().endswith(".png"):
+                    continue
+                name_without_ext = os.path.splitext(f)[0]
+                # 视觉锚点文件名格式：锚点_场{N}_{场景名}
+                # 节点名格式：视觉锚点_场{N}
+                match = re.match(r"锚点_场(\d+)", name_without_ext)
+                if match:
+                    scene_num = match.group(1)
+                    node_name = f"视觉锚点_场{scene_num}"
+                    found[node_name] = os.path.join(va_dir, f)
+
     return found
 
 
@@ -197,7 +236,7 @@ def build_canvas_cache(canvas_uuid):
     return cache
 
 
-def upload_references(project_root, canvas_cache, needed_refs=None):
+def upload_references(project_root, canvas_cache, needed_refs=None, episode=None):
     """上传参考图到画布。
 
     Args:
@@ -206,9 +245,10 @@ def upload_references(project_root, canvas_cache, needed_refs=None):
         needed_refs: 需要上传的参考图节点名集合（如 {"角色_掌柜", "场景_茶馆"}）。
                      为 None 时上传全部（向后兼容，但不推荐）。
                      提供时仅上传该集合中的参考图，避免全量上传无关素材。
+        episode: 剧集号（如 EP04），用于扫描剧集级分镜图目录
     """
     ref_nodes = {}
-    all_files = scan_project_refs(project_root)
+    all_files = scan_project_refs(project_root, episode=episode)
 
     # 过滤：仅上传 needed_refs 中指定的参考图
     if needed_refs is not None:
@@ -378,7 +418,7 @@ def build_ref_description(ref_name, idx):
     --left 顺序决定 {{Image N}} 编号，第一个 --left 为 {{Image 1}}
 
     格式统一为 "{名称}{类型}参考{{Image N}}"，简洁明确。
-    分镜图特殊处理：标注为辅助参考（光影、色调）。
+    分镜图按镜头编号引用：镜头1参考{{Image N}}、镜头2参考{{Image N}}...
     """
     if "场景" in ref_name:
         scene_name = ref_name.replace("场景_", "")
@@ -392,8 +432,16 @@ def build_ref_description(ref_name, idx):
         prop_name = re.sub(r"_(全剧|EP\d+)$", "", prop_name)
         prop_name = re.sub(r"_EP\d+集$", "", prop_name)
         return f"{prop_name}道具参考{{{{Image {idx}}}}}"
+    elif "视觉锚点" in ref_name:
+        # 视觉锚点节点名格式：视觉锚点_场{N} → 提取场号
+        match = re.search(r"场(\d+)", ref_name)
+        scene_num = match.group(1) if match else str(idx)
+        return f"场{scene_num}视觉锚点参考{{{{Image {idx}}}}}"
     elif "分镜" in ref_name:
-        return f"分镜图仅作辅助参考（光影、色调）{{{{Image {idx}}}}}"
+        # 分镜图节点名格式：分镜_组{N}_镜{M} → 提取镜号
+        match = re.search(r"镜(\d+)", ref_name)
+        shot_num = match.group(1) if match else str(idx)
+        return f"镜头{shot_num}参考{{{{Image {idx}}}}}"
     elif "风格" in ref_name:
         style_name = ref_name.replace("风格_", "")
         return f"{style_name}风格参考{{{{Image {idx}}}}}"
@@ -401,27 +449,47 @@ def build_ref_description(ref_name, idx):
         return f"参考素材{{{{Image {idx}}}}}"
 
 
+def sort_ref_names(ref_names):
+    """按类型排序参考图：分镜图 → 视觉锚点 → 角色 → 道具 → 其他（场景/风格等）。
+    分镜图内部按镜号排序，视觉锚点按场号排序。
+    """
+    def sort_key(name):
+        if "分镜" in name:
+            match = re.search(r"镜(\d+)", name)
+            shot = int(match.group(1)) if match else 0
+            return (0, shot)
+        elif "视觉锚点" in name:
+            match = re.search(r"场(\d+)", name)
+            scene = int(match.group(1)) if match else 0
+            return (1, scene)
+        elif "角色" in name:
+            return (2, 0)
+        elif "道具" in name:
+            return (3, 0)
+        else:
+            return (4, 0)
+    return sorted(ref_names, key=sort_key)
+
+
 def build_prompt(group_json, ref_names, voice_ref_names=None, audio_connector="，"):
     """构建完整 prompt：引用行 + 约束行 + 分隔线 + 组内容。
     引用行中的 {{Image N}} 编号与 --left 顺序一致。
+    参考图排序：分镜图（按镜号）→ 视觉锚点（按场号）→ 角色 → 道具 → 其他。
     含音色参考时在引用行末尾追加 {{Audio N}} 引用。
-    当引用中包含分镜图时，追加"具体细节以角色/场景/道具参考图为准"的说明。
     支持 JSON 格式（dict）和 MD 格式（含 _raw_content 键的 dict）。"""
     # 精简模式：使用原始 MD 文本作为 prompt 内容
     if isinstance(group_json, dict) and group_json.get("_format") == "md":
         raw_content = group_json.get("_raw_content", "")
     else:
         raw_content = json.dumps(group_json, ensure_ascii=False)
-    if ref_names:
-        ref_parts = [build_ref_description(n, i+1) for i, n in enumerate(ref_names)]
+
+    # 按类型排序：分镜图 → 角色 → 道具 → 其他
+    ordered_refs = sort_ref_names(ref_names) if ref_names else []
+
+    if ordered_refs:
+        ref_parts = [build_ref_description(n, i+1) for i, n in enumerate(ordered_refs)]
         ref_line = "、".join(ref_parts)
-        # 检测是否包含分镜图引用，若有则追加细节优先级说明
-        has_storyboard = any("分镜" in n for n in ref_names)
-        if has_storyboard:
-            ref_line += "\n具体细节以角色/场景/道具参考图为准"
         if voice_ref_names:
-            # voice_ref_names 是节点名列表，如 ["音色_吉小泰", "音色_妈妈"]
-            # 从节点名中提取角色名（去掉 "音色_" 前缀）
             audio_parts = []
             for i, vn in enumerate(voice_ref_names):
                 role = vn.replace("音色_", "", 1) if vn.startswith("音色_") else vn
@@ -429,8 +497,6 @@ def build_prompt(group_json, ref_names, voice_ref_names=None, audio_connector="�
             ref_line += audio_connector + "、".join(audio_parts)
         return f"{ref_line}\n\n{CONSTRAINT}\n{SEPARATOR}\n{raw_content}"
     if voice_ref_names:
-        # voice_ref_names 是节点名列表，如 ["音色_吉小泰", "音色_妈妈"]
-        # 从节点名中提取角色名（去掉 "音色_" 前缀）
         audio_parts = []
         for i, vn in enumerate(voice_ref_names):
             role = vn.replace("音色_", "", 1) if vn.startswith("音色_") else vn
@@ -480,6 +546,34 @@ def _load_project_config(project_root):
         except (json.JSONDecodeError, OSError):
             continue
     return None
+
+
+def lookup_episode_canvas_uuid(project_root, episode):
+    """从 project_config.json 的 episodes 映射查找指定剧集的画布 UUID。
+
+    画布模型：每个项目对应一个工作区，每个剧集对应一个画布。
+    画布 UUID 存储在 episodes.{剧集号}.canvas_uuid 中。
+
+    返回 (canvas_uuid, config) 元组。canvas_uuid 为 None 表示该集尚无画布。
+    同时兼容旧的顶层 canvas_uuid 字段（向后兼容）。
+    """
+    config = _load_project_config(project_root)
+    if config is None:
+        return None, None
+
+    # 优先从 episodes 映射查找
+    episodes = config.get("episodes", {})
+    if episode in episodes:
+        canvas_uuid = episodes[episode].get("canvas_uuid", "")
+        if canvas_uuid:
+            return canvas_uuid, config
+
+    # 向后兼容：旧的顶层 canvas_uuid 字段
+    legacy_uuid = config.get("canvas_uuid", "")
+    if legacy_uuid:
+        return legacy_uuid, config
+
+    return None, config
 
 
 def load_storyboard_mode(project_root, cli_override=None):
@@ -532,19 +626,76 @@ def load_group_file(groups_dir, group_name, storyboard_mode):
         return group, "json"
 
 
+def extract_scene_number(group_dict):
+    """从组文件内容提取场号。
+    
+    detailed 模式：从 JSON 的 "场号" 字段提取
+    simplified 模式：从 Markdown 文本中正则匹配 "场号：N" 或 "场N"
+    
+    返回场号字符串（如 "1"），找不到时返回 None。
+    """
+    if group_dict is None:
+        return None
+    
+    # detailed 模式：JSON dict 直接取场号字段
+    if isinstance(group_dict, dict):
+        if group_dict.get("_format") == "md":
+            # simplified 模式：从 raw_md 中正则匹配
+            raw_md = group_dict.get("_raw_content", "")
+            # 尝试匹配 "场号：1" 或 "场号: 1"
+            match = re.search(r"场号[：:]\s*(\d+)", raw_md)
+            if match:
+                return match.group(1)
+            # 尝试匹配 "场1" 或 "## 场1"
+            match = re.search(r"场(\d+)", raw_md)
+            if match:
+                return match.group(1)
+        else:
+            # detailed 模式：JSON 字段
+            scene = group_dict.get("场号")
+            if scene is not None:
+                return str(scene)
+    
+    return None
+
+
+def load_reference_image_mode(project_root):
+    """从 project_config.json 读取 reference_image_mode。
+    
+    优先级：reference_image_mode 字段 > use_storyboard_images（向后兼容）> 默认 "visual_anchor"
+    
+    返回 ("visual_anchor" | "storyboard_images" | "none")
+    """
+    config = _load_project_config(project_root)
+    if config:
+        mode = config.get("reference_image_mode")
+        if mode in ("visual_anchor", "storyboard_images", "none"):
+            return mode
+        # 向后兼容：use_storyboard_images=true → storyboard_images
+        if config.get("use_storyboard_images", False):
+            return "storyboard_images"
+    return "visual_anchor"
+
+
 def build_pipeline(args):
     project_root = os.path.join(os.getcwd(), "project", args.project)
     groups_dir = os.path.join(project_root, args.episode, "分镜", "分组")
-    canvas_uuid = args.canvas_uuid
     failed = 0  # 下载阶段失败计数，0 表示无失败或未执行下载
 
     if not os.path.isdir(groups_dir):
         print(f"❌ 分组目录不存在: {groups_dir}")
         sys.exit(1)
 
-    if not args.canvas_uuid:
-        print("❌ 必须提供 --canvas-uuid")
-        sys.exit(1)
+    # 画布 UUID 查找：优先 CLI 参数，其次从 episodes 映射自动查找
+    canvas_uuid = args.canvas_uuid
+    if not canvas_uuid:
+        canvas_uuid, _ = lookup_episode_canvas_uuid(project_root, args.episode)
+        if canvas_uuid:
+            print(f"  自动查找画布 UUID: {canvas_uuid}（来自 episodes.{args.episode}.canvas_uuid）")
+        else:
+            print("❌ 未提供 --canvas-uuid，且 project_config.json 中未找到该集的画布映射")
+            print(f"   请先创建画布，或在 project_config.json 的 episodes.{args.episode} 中配置 canvas_uuid")
+            sys.exit(1)
 
     custom_refs = parse_refs(args.refs) if args.refs else {}
 
@@ -565,14 +716,55 @@ def build_pipeline(args):
     # ========== 步骤2: 建立画布缓存 + 上传参考图（按需）==========
     canvas_cache = build_canvas_cache(canvas_uuid)
 
+    # 读取 reference_image_mode 配置
+    reference_image_mode = load_reference_image_mode(project_root)
+    print(f"参考图模式: {reference_image_mode}")
+
     # 收集所有分组实际需要的参考图名，实现按需上传（避免全量上传无关素材）
     all_needed_refs = set()
     for ref_list in custom_refs.values():
         all_needed_refs.update(ref_list)
 
+    # storyboard_images 模式：自动收集各组对应分镜图作为需要上传的参考
+    storyboard_refs_by_group = {}
+    if reference_image_mode == "storyboard_images":
+        sb_dir = os.path.join(project_root, args.episode, STORYBOARD_IMAGE_PATH)
+        if os.path.isdir(sb_dir):
+            for f in sorted(os.listdir(sb_dir)):
+                if not f.lower().endswith(".png"):
+                    continue
+                name = os.path.splitext(f)[0]
+                # 分镜图文件名格式：组{N}_镜{M} → 提取组号
+                match = re.match(r"组(\d+)_镜(\d+)", name)
+                if match:
+                    group_num = match.group(1)
+                    node_name = f"分镜_{name}"
+                    storyboard_refs_by_group.setdefault(f"组{group_num}", []).append(node_name)
+                    all_needed_refs.add(node_name)
+            for g, refs in storyboard_refs_by_group.items():
+                print(f"  📋 {g} 分镜图: {len(refs)} 张（自动扫描）")
+
+    # visual_anchor 模式：扫描视觉锚点图，按场号建立映射
+    visual_anchor_by_scene = {}
+    if reference_image_mode == "visual_anchor":
+        va_dir = os.path.join(project_root, args.episode, VISUAL_ANCHOR_PATH)
+        if os.path.isdir(va_dir):
+            for f in sorted(os.listdir(va_dir)):
+                if not f.lower().endswith(".png"):
+                    continue
+                name = os.path.splitext(f)[0]
+                match = re.match(r"锚点_场(\d+)", name)
+                if match:
+                    scene_num = match.group(1)
+                    node_name = f"视觉锚点_场{scene_num}"
+                    visual_anchor_by_scene[scene_num] = node_name
+                    all_needed_refs.add(node_name)
+            print(f"  📋 视觉锚点: {len(visual_anchor_by_scene)} 张（自动扫描，按场号映射）")
+
     ref_nodes = upload_references(
         project_root, canvas_cache,
-        needed_refs=all_needed_refs if all_needed_refs else None
+        needed_refs=all_needed_refs if all_needed_refs else None,
+        episode=args.episode,
     )
 
     # ========== 步骤2.5: 上传音色参考（按需）==========
@@ -617,6 +809,27 @@ def build_pipeline(args):
         for r in refs_for_group:
             available_refs.extend(match_ref_name(r, ref_nodes))
         available_refs = list(dict.fromkeys(available_refs))
+
+        # storyboard_images 模式：自动将该组的分镜图加入参考
+        if reference_image_mode == "storyboard_images":
+            sb_refs = storyboard_refs_by_group.get(group_name, [])
+            for sb_name in sb_refs:
+                if sb_name in ref_nodes and sb_name not in available_refs:
+                    available_refs.append(sb_name)
+            if sb_refs:
+                print(f"    📋 {group_name} 分镜图连线: {len(sb_refs)} 张")
+
+        # visual_anchor 模式：按场号自动将该组的视觉锚点加入参考
+        if reference_image_mode == "visual_anchor":
+            scene_num = extract_scene_number(group)
+            if scene_num and scene_num in visual_anchor_by_scene:
+                va_node = visual_anchor_by_scene[scene_num]
+                if va_node in ref_nodes and va_node not in available_refs:
+                    available_refs.append(va_node)
+                    print(f"    📋 {group_name} 视觉锚点连线: 场{scene_num}")
+            elif scene_num:
+                print(f"    ⚠ {group_name} 场号{scene_num} 未找到对应视觉锚点图", file=sys.stderr)
+
         if not available_refs:
             print(f"  ⚠ {group_name} 未指定参考图（--refs），将以纯文生视频模式生成", file=sys.stderr)
 
@@ -627,6 +840,8 @@ def build_pipeline(args):
             print(f"    🎤 音色参考: {', '.join(group_voice_refs)}（统一连线，由 agent 判断适用性）")
 
         # --left 顺序决定 {{Image N}} 和 {{Audio N}} 编号
+        # build_prompt 内部按 分镜图→角色→道具→其他 排序，--left 连线顺序必须与之一致
+        ordered_refs = sort_ref_names(available_refs) if available_refs else []
         prompt = build_prompt(group, available_refs, group_voice_refs)
 
         mode_type = "mixed2video" if available_refs else "text2video"
@@ -642,12 +857,12 @@ def build_pipeline(args):
             "--set", f"duration={duration}",
             "--set", f"enableSound={sound}",
         ]
-        for ref_name in available_refs:
+        for ref_name in ordered_refs:
             cmd += ["--left", ref_name]
         for vn in group_voice_refs:
             cmd += ["--left", vn]
 
-        all_left = list(available_refs) + list(group_voice_refs)
+        all_left = list(ordered_refs) + list(group_voice_refs)
         refs_desc = ", ".join(all_left) if all_left else "(无参考素材)"
         print(f"\n  创建 {group_name}（{duration}s）")
         print(f"    模式: {mode_type} | 连线: {refs_desc}")
@@ -795,7 +1010,7 @@ def main():
     parser.add_argument("--process", action="store_true", help="仅处理已有节点")
     parser.add_argument("--project", default=None, help="项目名")
     parser.add_argument("--episode", default="EP01", help="剧集号")
-    parser.add_argument("--canvas-uuid", default=None, help="画布项目 UUID")
+    parser.add_argument("--canvas-uuid", default=None, help="画布 UUID（可选，不传时自动从 project_config.json 的 episodes 映射查找）")
     parser.add_argument("--groups", nargs="+", type=int, default=None, help="组号列表")
     parser.add_argument("--refs", action="append", default=None,
                         help='参考图映射（必填，由 agent 根据分组内容判断）格式: "组N:类型_名,类型_名"（如 "组1:角色_掌柜,场景_茶馆"）；选角参考图自动过滤')

@@ -2,7 +2,7 @@
 name: Stylized3DCGI
 description: 风格化3D CGI动画风格分镜图
 keywords: 风格化3D, 蜘蛛侠平行宇宙, Spider-Verse,Into the Spider-Verse, 3D混合2D, hybrid 3D, stylized CGI, 美漫风3D, 3D漫画风
-production_type: a stylized 3D CGI animation storyboard
+production_type: a stylized 3D CGI animation cinematic frame
 neg_1: photorealistic 3D
 neg_2: flat 2D cartoon
 neg_3: concept art
@@ -23,12 +23,12 @@ camera_language: |
   - dynamic comic-inspired composition with bold angles
   - creative depth of field with stylized focus transitions
   - dynamic camera movement with exaggerated perspective
-  - mixed-media framing combining 3D depth and 2D graphic panels
+  - mixed-media framing combining 3D depth and 2D graphic elements
   - snap zoom and speed line effects for dramatic impact
   - expressive character animation with exaggerated posing
 
-  Do not make the frames look like separate illustrations.
-  They must look like consecutive frames from the same stylized 3D production.
+  Output exactly one single cinematic still that fills the entire canvas.
+  Do not create multi-panel, grid, collage, comic-strip, or storyboard-sheet layouts.
 quality: |
   Premium stylized 3D animation quality.
 
@@ -53,6 +53,16 @@ avoid: |
   Watermarks.
   Logos.
   Unwanted text.
+  Subtitles or captions burned into the image.
+  Lower-thirds or title cards.
+  On-screen dialogue text.
+  Shot numbers or frame labels on the image.
+  Multi-panel layout.
+  Comic grid or manga panels.
+  Collage or contact sheet.
+  2x2 or any N×M grid of shots.
+  Split-screen.
+  Storyboard sheet layout.
 ---
 
 ## 适用场景

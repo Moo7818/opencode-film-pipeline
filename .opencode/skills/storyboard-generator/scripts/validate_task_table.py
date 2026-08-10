@@ -3,18 +3,34 @@
 
 校验项：
 1. JSON 语法正确性
-2. 模型必须为 nano-banana-pro
-3. 分辨率必须为 4K
-4. 画面比例必须为 16:9 或 9:16
-5. images 数组不得为空
-6. images 路径必须为具体文件（非目录）
-7. prompt 中 Image N: 映射块数量与 images 数组一致
-8. Image N: 编号必须从 1 开始连续递增
-9. 参考图优先级：角色 → 场景 → 道具 → 风格
-10. 角色和场景参考图必须在前五个参考中
-11. prompt 包含必需的七段标题
-12. 每个 FRAME 包含 Purpose 字段
-13. 禁止焦距参数（35mm/50mm/85mm）
+2. 模型必须为 nano-banana-2
+3. 分辨率必须为 2K
+4. 画面比例必须为 16:9
+5. mode 必须为 sequential 或 batch
+6. sequential 任务必须有 id、group、scene；batch 视觉锚点任务必须有 id、scene、scene_name
+7. sequential 场级参考帧链完整：同 scene 排序后第1帧无 depends_on，其后 depends_on=直接前帧
+8. depends_on 引用的 id 必须存在于同场任务中
+9. 含 depends_on 的 sequential 任务 images 必须包含 {{PREV_OUTPUT}}
+10. batch 任务不得含 depends_on 或 {{PREV_OUTPUT}}
+11. images 路径必须为具体文件（非目录）或 {{PREV_OUTPUT}}
+12. prompt 中 Image N: 映射块数量与 images 数组一致
+13. Image N: 编号必须从 1 开始连续递增
+14. 参考图优先级：首帧 角色→场景→道具→风格；后续帧 角色→前帧→场景→道具→风格
+15. {{PREV_OUTPUT}} 须在全部角色之后、风格之前
+16. prompt 包含必需的段落标题
+17. FRAME DETAIL 包含 Purpose 和 Feeling 字段
+18. 禁止焦距参数（35mm/50mm/85mm）
+19. 禁止 "storyboard" 关键词（会导致宫格图生成）
+20. 禁止 "frame N of M" 帧数声明（会导致宫格图生成）
+21. 禁止网格/拼贴/分屏等布局词汇
+22. 禁止未解析的模板占位符（{...} 格式）
+23. cast 字段必填（可为 []）；每个 cast 名须匹配角色参考路径文件名
+24. 角色参考数量 = Character Identity Anchor 数量 = cast 长度
+25. visual_anchor batch 的身份锁必须包含 actor/person 连续性、脸部身份绝对优先、历史冲突处理和绑定式角色写法
+26. visual_anchor batch 的背景人物必须包含 `not a referenced character, background-only, smaller visual weight, secondary placement, not a main character, not a focal point, never become the visual focus`
+27. prompt 必须含单帧画布声明
+28. TEXT POLICY 必须含禁字幕约束
+29. AVOID 必须含 multi-panel/layout 与 empty/lifeless pose 禁令；字幕仅由 TEXT POLICY 检查
 
 CLI:
   python validate_task_table.py --check "project/{项目名}/{剧集号}/分镜/分镜图_任务表.json"
@@ -30,23 +46,23 @@ from pathlib import Path
 
 # ─── 校验规则 ─────────────────────────────────────────────
 
-REQUIRED_MODEL = "nano-banana-pro"
+REQUIRED_MODEL = "nano-banana-2"
 
-REQUIRED_IMAGE_SIZE = "4K"
+REQUIRED_IMAGE_SIZE = "2K"
 
-VALID_ASPECT_RATIOS = {"16:9", "9:16"}
+VALID_ASPECT_RATIOS = {"16:9"}
 
-REF_PRIORITY = {
-    "角色": 0,
-    "场景": 1,
-    "道具": 2,
-    "风格": 3,
-}
+PREV_OUTPUT_PLACEHOLDER = "{{PREV_OUTPUT}}"
+
+# 参考帧模式：前帧紧接角色之后，权重高于场景/道具/风格
+REF_PRIORITY_FIRST = ["角色", "场景", "道具", "风格"]
+REF_PRIORITY_SUBSEQUENT = ["角色", "前帧", "场景", "道具", "风格"]
 
 REQUIRED_SECTIONS = [
-    "SCENE CONTINUITY:",
+    # SCENE CONTINUITY 允许 "SCENE CONTINUITY:" 或 "SCENE CONTINUITY (REFERENCE-FRAME MODE):"
+    "SCENE CONTINUITY",
     "REFERENCE IMAGE MAPPING:",
-    "STORYBOARD SEQUENCE:",
+    "FRAME DETAIL:",
     "TEXT POLICY:",
     "CINEMATIC QUALITY:",
     "AVOID:",
@@ -54,11 +70,75 @@ REQUIRED_SECTIONS = [
 
 FOCAL_LENGTH_PATTERN = re.compile(r"\b(?:35|50|85)mm\b", re.IGNORECASE)
 
+STORYBOARD_PATTERN = re.compile(r"\bstoryboard\b", re.IGNORECASE)
+
+FRAME_COUNT_PATTERN = re.compile(r"frame\s+\d+\s+of\s+\d+", re.IGNORECASE)
+
+# 宫格/拼贴：含模型常见诱发词
+GRID_PATTERN = re.compile(
+    r"\b(?:grid|multi-frame|multiple frames|multi-panel|multipanel|"
+    r"collage|contact sheet|split-?screen|comic strip|manga panel|"
+    r"four-panel|2\s*[x×]\s*2|3\s*[x×]\s*3|panel layout|tiled layout)\b|"
+    r"网格|宫格|多格|四宫格|拼贴|分屏|连镜图",
+    re.IGNORECASE,
+)
+
+UNRESOLVED_PLACEHOLDER_PATTERN = re.compile(r"\{(?![{])[^}]+\}")
+
+# 单帧声明：至少命中一组
+SINGLE_FRAME_PATTERNS = [
+    re.compile(r"exactly one image", re.IGNORECASE),
+    re.compile(r"single (?:photographic )?still", re.IGNORECASE),
+    re.compile(r"fills the entire canvas", re.IGNORECASE),
+    re.compile(r"single frame only", re.IGNORECASE),
+]
+
+# TEXT POLICY 禁字幕
+SUBTITLE_BAN_IN_TEXT_POLICY = re.compile(
+    r"(?:no\s+subtitles|without\s+subtitles|ban[^\n]{0,40}subtitle|"
+    r"hard ban on burned-in|burned-in graphics)",
+    re.IGNORECASE,
+)
+
+# AVOID 段应出现的关键禁令（小写匹配）
+AVOID_MUST_CONTAIN_ANY = {
+    "multi_panel": ["multi-panel", "multipanel", "comic grid", "collage", "2x2"],
+    "empty_poses": ["empty or lifeless", "lifeless character poses"],
+}
+
+CHAR_ANCHOR_PATTERN = re.compile(
+    r"Image\s+(\d+)\s*:\s*Character Identity Anchor",
+    re.IGNORECASE,
+)
+
+IDENTITY_LOCK_PATTERN = re.compile(r"IDENTITY\s+LOCK", re.IGNORECASE)
+
+# 只把实际提到 unreferenced/background character 的 prompt 视为背景人物场景。
+# 单独的 "background people" 可能只是时代错位禁令，不应让纯空镜被强制加降权句。
+BACKGROUND_CHARACTER_SIGNAL_PATTERN = re.compile(
+    r"(?:unreferenced\s*/\s*background(?:\s+(?:character|characters|person|people))?|"
+    r"unreferenced|background[- ](?:only|character|characters|person)|"
+    r"unnamed\s+(?:background\s+)?(?:character|person|people))",
+    re.IGNORECASE,
+)
+
+BACKGROUND_WEIGHT_REQUIREMENTS = (
+    "not a referenced character",
+    "background-only",
+    "smaller visual weight",
+    "secondary placement",
+    "not a main character",
+    "not a focal point",
+    "never become the visual focus",
+)
+
 
 # ─── 校验逻辑 ─────────────────────────────────────────────
 
 def _classify_ref(path: str) -> str:
     """根据路径判断参考图类型"""
+    if path == PREV_OUTPUT_PLACEHOLDER:
+        return "前帧"
     if "角色参考图" in path or "角色设定" in path:
         return "角色"
     if "场景参考图" in path or "场景设定" in path:
@@ -71,7 +151,9 @@ def _classify_ref(path: str) -> str:
 
 
 def _is_file_path(path: str) -> bool:
-    """判断路径是否为文件路径（而非目录路径）"""
+    """判断路径是否为文件路径（而非目录路径）或 {{PREV_OUTPUT}} 占位符"""
+    if path == PREV_OUTPUT_PLACEHOLDER:
+        return True
     if path.endswith("\\") or path.endswith("/"):
         return False
     basename = os.path.basename(path)
@@ -85,7 +167,7 @@ def _extract_reference_section(prompt: str) -> str:
     start = prompt.find("REFERENCE IMAGE MAPPING:")
     if start < 0:
         return ""
-    end_markers = ["STORYBOARD SEQUENCE:", "TEXT POLICY:", "CINEMATIC QUALITY:"]
+    end_markers = ["FRAME DETAIL:", "TEXT POLICY:", "CINEMATIC QUALITY:"]
     end = len(prompt)
     for marker in end_markers:
         pos = prompt.find(marker, start)
@@ -94,12 +176,20 @@ def _extract_reference_section(prompt: str) -> str:
     return prompt[start:end]
 
 
-def _extract_image_refs(prompt: str) -> list[int]:
-    """提取 REFERENCE IMAGES 段中的 Image {N}: 编号列表
+def _extract_section(prompt: str, header: str, end_markers: list[str]) -> str:
+    start = prompt.find(header)
+    if start < 0:
+        return ""
+    end = len(prompt)
+    for marker in end_markers:
+        pos = prompt.find(marker, start + len(header))
+        if pos > 0:
+            end = min(end, pos)
+    return prompt[start:end]
 
-    返回按出现顺序的编号列表，如 [1, 2, 3]。
-    匹配模式：Image 1: / Image 2: / ...
-    """
+
+def _extract_image_refs(prompt: str) -> list[int]:
+    """提取 REFERENCE IMAGES 段中的 Image {N}: 编号列表"""
     section = _extract_reference_section(prompt)
     if not section:
         return []
@@ -107,8 +197,141 @@ def _extract_image_refs(prompt: str) -> list[int]:
     return [int(m) for m in matches]
 
 
+def _count_char_anchors(prompt: str) -> int:
+    section = _extract_reference_section(prompt)
+    if not section:
+        return 0
+    return len(CHAR_ANCHOR_PATTERN.findall(section))
+
+
+def _check_visual_anchor_identity_lock(
+    prompt: str, images: list, cast: list | None, mode: str
+) -> list[str]:
+    """校验 visual_anchor 的身份锁是否位于场景构建之前。
+
+    视觉锚点是 batch 模式；sequential 旧/现有分镜模板不强制此段，避免把
+    两种参考图模式的输出契约混在一起。
+    """
+    if mode != "batch":
+        return []
+
+    char_images = [p for p in images if _classify_ref(p) == "角色"]
+    errors = []
+    background_signal = BACKGROUND_CHARACTER_SIGNAL_PATTERN.search(prompt)
+    if not char_images and not cast:
+        if background_signal:
+            low_prompt = prompt.lower()
+            for phrase in BACKGROUND_WEIGHT_REQUIREMENTS:
+                if phrase not in low_prompt:
+                    errors.append(
+                        "unreferenced/background character 缺少英文降权硬约束 "
+                        f"[{phrase}]"
+                    )
+        return errors
+
+    lock_match = IDENTITY_LOCK_PATTERN.search(prompt)
+    scene_pos = prompt.lower().find("scene continuity")
+    if not lock_match:
+        errors.append(
+            "visual_anchor prompt 缺少 IDENTITY LOCK — HIGHEST PRIORITY 段"
+        )
+        return errors
+
+    lock_pos = lock_match.start()
+    if scene_pos >= 0 and lock_pos > scene_pos:
+        errors.append(
+            "IDENTITY LOCK 必须位于 SCENE CONTINUITY 之前，先锁身份再构建空间"
+        )
+
+    lock_end = scene_pos if scene_pos >= 0 and scene_pos > lock_pos else len(prompt)
+    lock_block = prompt[lock_pos:lock_end]
+    low_lock = lock_block.lower()
+    if "highest priority" not in low_lock:
+        errors.append("IDENTITY LOCK 缺少 Highest priority 语义")
+    if "reference priority" not in low_lock:
+        errors.append("IDENTITY LOCK 缺少 Reference priority 顺序声明")
+    if "sole identity source" not in low_lock:
+        errors.append("IDENTITY LOCK 必须明确参考图是角色的 sole identity source")
+    if "same specific person" not in low_lock:
+        errors.append("IDENTITY LOCK 必须明确是参考图中的同一个具体人物")
+
+    required_lock_phrases = {
+        "recognizable as the same actor/person": "必须包含 actor/person 连续性：recognizable as the same actor/person",
+        "actor continuity": "必须明确 actor continuity",
+        "identity wins every conflict": "Reference priority 必须明确身份胜过环境/历史造型等冲突",
+        "face identity has absolute priority": "必须声明 face identity has absolute priority",
+        "historical appearance conflicts with reference identity": "必须包含历史外观与参考身份冲突时的决策规则",
+        "preserve the reference identity": "历史冲突处理必须保留 reference identity",
+        "modify only wardrobe, hairstyle, and setting": "历史冲突处理必须只修改 wardrobe、hairstyle、setting",
+        "same people from the reference images": "必须声明参考角色是 same people from the reference images",
+        "not similar-looking replacements": "必须禁止 similar-looking replacements",
+        "do not alter facial identity": "必须禁止改变 facial identity",
+        "facial structure": "必须禁止改变 facial structure",
+        "skin features": "必须禁止改变 skin features",
+        "body proportions": "必须禁止改变 body proportions",
+        "change only clothing and hairstyle required": "必须声明 Change only clothing and hairstyle required",
+        "must not create a new person": "必须声明服饰/发型/环境改变不得 create a new person",
+        "do not generate a generic": "必须禁止按历史/职业原型生成 generic 角色",
+    }
+    for phrase, message in required_lock_phrases.items():
+        if phrase not in low_lock:
+            errors.append(f"IDENTITY LOCK 缺少 actor continuity 语义：{message}")
+
+    # 每个角色图都必须在最前身份锁中有对应的 Reference Image N 绑定。
+    image_indexes = [i + 1 for i, p in enumerate(images) if _classify_ref(p) == "角色"]
+    for image_index in image_indexes:
+        if not re.search(rf"Reference\s+Image\s+{image_index}\b", lock_block, re.IGNORECASE):
+            errors.append(
+                f"IDENTITY LOCK 缺少角色参考图 Reference Image {image_index} 的逐一绑定"
+            )
+        if not re.search(
+            rf"(?:Reference\s+Image\s+{image_index}\s+character|"
+            rf"the\s+character\s+from\s+Reference\s+Image\s+{image_index})",
+            lock_block,
+            re.IGNORECASE,
+        ):
+            errors.append(
+                f"IDENTITY LOCK 缺少 Reference Image {image_index} 的绑定式角色写法"
+                "（应先写图像，再写中文角色名/职责）"
+            )
+        if not re.search(
+            rf"(?:Reference\s+Image\s+{image_index}\s+character|"
+            rf"the\s+character\s+from\s+Reference\s+Image\s+{image_index})"
+            rf"[\s\S]{{0,300}}recognizable\s+as\s+the\s+same\s+actor/person",
+            lock_block,
+            re.IGNORECASE,
+        ):
+            errors.append(
+                f"IDENTITY LOCK 缺少 Reference Image {image_index} 的 actor/person recognizable 连续性句"
+            )
+
+    if re.search(r"\bALL\s+characters\b", prompt, re.IGNORECASE):
+        errors.append(
+            "不得使用 ALL characters 混合 referenced characters 与 unreferenced/background characters"
+        )
+
+    mapping = _extract_reference_section(prompt).lower()
+    if char_images and "highest priority" not in mapping:
+        errors.append("角色映射块缺少 Reference priority / Highest priority 语义")
+    if any(_classify_ref(path) == "场景" for path in images) and "second priority" not in mapping:
+        errors.append("场景映射块缺少 Second priority 语义")
+    if any(_classify_ref(path) == "道具" for path in images) and "third priority" not in mapping:
+        errors.append("道具映射块缺少 Third priority 语义")
+    if any(_classify_ref(path) == "风格" for path in images) and "fourth priority" not in mapping:
+        errors.append("风格映射块缺少 Fourth priority 语义")
+
+    if background_signal:
+        for phrase in BACKGROUND_WEIGHT_REQUIREMENTS:
+            if phrase not in prompt.lower():
+                errors.append(
+                    "unreferenced/background character 缺少英文降权硬约束 "
+                    f"[{phrase}]"
+                )
+
+    return errors
+
+
 def _check_required_sections(prompt: str) -> list[str]:
-    """检查 prompt 是否包含所有必需的段落标题"""
     missing = []
     for section in REQUIRED_SECTIONS:
         if section not in prompt:
@@ -116,31 +339,203 @@ def _check_required_sections(prompt: str) -> list[str]:
     return missing
 
 
-def _check_frame_purposes(prompt: str) -> list[str]:
-    """检查每个 FRAME 块是否包含 Purpose 字段"""
+def _check_frame_purpose(prompt: str) -> list[str]:
     errors = []
-    frame_pattern = re.compile(r"FRAME\s+\d+\s*—", re.IGNORECASE)
-    frame_matches = list(frame_pattern.finditer(prompt))
+    start = prompt.find("FRAME DETAIL:")
+    if start < 0:
+        return errors
 
-    for i, match in enumerate(frame_matches):
-        frame_label = match.group(0).strip()
-        start = match.end()
-        next_frame = frame_pattern.search(prompt, start)
-        end = next_frame.start() if next_frame else len(prompt)
-        frame_block = prompt[start:end]
+    end_markers = ["TEXT POLICY:", "CINEMATIC QUALITY:", "AVOID:"]
+    end = len(prompt)
+    for marker in end_markers:
+        pos = prompt.find(marker, start)
+        if pos > 0:
+            end = min(end, pos)
 
-        if not re.search(r"^Purpose\s*:", frame_block, re.MULTILINE | re.IGNORECASE):
-            errors.append(f"{frame_label} 缺少 Purpose 字段")
-
+    frame_block = prompt[start:end]
+    if not re.search(r"^Purpose\s*:", frame_block, re.MULTILINE | re.IGNORECASE):
+        errors.append("FRAME DETAIL 缺少 Purpose 字段")
+    if not re.search(r"^Feeling\s*:", frame_block, re.MULTILINE | re.IGNORECASE):
+        errors.append("FRAME DETAIL 缺少 Feeling 字段")
     return errors
 
 
 def _check_focal_length(prompt: str) -> list[str]:
-    """检查 prompt 中是否包含禁止的焦距参数"""
     matches = FOCAL_LENGTH_PATTERN.findall(prompt)
     if matches:
         return [f"发现焦距参数 {matches}，禁止使用 35mm/50mm/85mm"]
     return []
+
+
+def _strip_negative_and_avoid(prompt: str) -> str:
+    """去掉 AVOID 段，以及否定句中的禁词，避免把禁令本身误判为违规。
+
+    保留需检查的正文（OPENING 里 'not a multi-panel' 是否定声明，应剔除匹配）。
+    """
+    # 去掉整段 AVOID（禁令列表会枚举 multi-panel 等布局词）
+    avoid_start = prompt.find("AVOID:")
+    body = prompt if avoid_start < 0 else prompt[:avoid_start]
+
+    # 去掉 TEXT POLICY 中的禁令枚举（含 subtitle 等）
+    tp = body.find("TEXT POLICY:")
+    if tp >= 0:
+        cq = body.find("CINEMATIC QUALITY:", tp)
+        end = cq if cq >= 0 else len(body)
+        body = body[:tp] + body[end:]
+
+    # 行级：明确否定/禁止的行不参与宫格/storyboard 阳性检测
+    kept = []
+    for line in body.splitlines():
+        low = line.lower().strip()
+        if not low:
+            kept.append(line)
+            continue
+        if low.startswith(("not ", "no ", "never ", "do not ", "don't ", "avoid ")):
+            continue
+        if re.search(
+            r"\b(?:not a|not an|no |never |without |ban |forbid|禁止|不要|而非)\b",
+            low,
+        ):
+            continue
+        if "—" in line and any(
+            k in low for k in ("multi-panel", "grid", "collage", "storyboard", "split-screen")
+        ):
+            # OPENING 长句枚举禁布局
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def _check_storyboard_keyword(prompt: str) -> list[str]:
+    body = _strip_negative_and_avoid(prompt)
+    matches = STORYBOARD_PATTERN.findall(body)
+    if matches:
+        return [f'发现禁止关键词 "storyboard" {matches}，使用 "cinematic frame" 替代']
+    return []
+
+
+def _check_frame_count(prompt: str) -> list[str]:
+    matches = FRAME_COUNT_PATTERN.findall(prompt)
+    if matches:
+        return [f"发现帧数声明 {matches}，禁止声明总帧数"]
+    return []
+
+
+def _check_grid_pattern(prompt: str) -> list[str]:
+    body = _strip_negative_and_avoid(prompt)
+    matches = GRID_PATTERN.findall(body)
+    if matches:
+        return [f"发现网格/拼贴相关词汇 {matches}，禁止 multi-panel/grid/collage/宫格等"]
+    return []
+
+
+def _check_unresolved_placeholders(prompt: str) -> list[str]:
+    matches = UNRESOLVED_PLACEHOLDER_PATTERN.findall(prompt)
+    if matches:
+        return [f"发现未解析的模板占位符 {matches}，所有 {{...}} 占位符必须被替换为实际值"]
+    return []
+
+
+def _check_single_frame_declaration(prompt: str) -> list[str]:
+    if any(p.search(prompt) for p in SINGLE_FRAME_PATTERNS):
+        return []
+    return [
+        "缺少单帧画布声明：prompt 须含 "
+        "'exactly one image' / 'single frame only' / 'fills the entire canvas' 等"
+    ]
+
+
+def _check_text_policy_subtitle_ban(prompt: str) -> list[str]:
+    section = _extract_section(
+        prompt,
+        "TEXT POLICY:",
+        ["CINEMATIC QUALITY:", "AVOID:"],
+    )
+    if not section:
+        return ["缺少 TEXT POLICY 段，无法校验禁字幕"]
+    if SUBTITLE_BAN_IN_TEXT_POLICY.search(section):
+        return []
+    # 宽松：段内同时出现 no 与 subtitle
+    low = section.lower()
+    if "subtitle" in low and ("no " in low or "not " in low or "ban" in low or "never" in low):
+        return []
+    return [
+        "TEXT POLICY 缺少禁字幕约束（须含 No subtitles / Hard ban on burned-in graphics 等）"
+    ]
+
+
+def _check_avoid_bans(prompt: str) -> list[str]:
+    section = _extract_section(prompt, "AVOID:", [])
+    if not section:
+        return ["缺少 AVOID 段"]
+    low = section.lower()
+    errors = []
+    for key, options in AVOID_MUST_CONTAIN_ANY.items():
+        if not any(opt in low for opt in options):
+            errors.append(
+                f"AVOID 段缺少 {key} 类禁令（须含其一: {', '.join(options)}）"
+            )
+    return errors
+
+
+def _cast_name_in_path(name: str, path: str) -> bool:
+    """角色中文名是否出现在参考图路径/文件名中"""
+    if not name or not path:
+        return False
+    base = os.path.basename(path)
+    # 直接包含；或去空白后包含
+    if name in base or name in path:
+        return True
+    return False
+
+
+def _validate_cast(task: dict, images: list, prompt: str, label: str, filename: str) -> list[str]:
+    errors = []
+    if "cast" not in task:
+        errors.append(
+            f"{label} ({filename}): 缺少 cast 字段"
+            f"（本帧在场具名角色列表；纯空镜写 []）"
+        )
+        cast = None
+    else:
+        cast = task.get("cast")
+        if not isinstance(cast, list):
+            errors.append(f"{label} ({filename}): cast 必须为数组")
+            cast = None
+        else:
+            for i, c in enumerate(cast):
+                if not isinstance(c, str) or not c.strip():
+                    errors.append(f"{label} ({filename}): cast[{i}] 必须为非空字符串")
+
+    char_images = [p for p in images if _classify_ref(p) == "角色"]
+    anchor_count = _count_char_anchors(prompt)
+
+    if cast is not None and isinstance(cast, list):
+        if len(cast) != len(char_images):
+            errors.append(
+                f"{label} ({filename}): cast 长度 {len(cast)} != 角色参考图数量 {len(char_images)}"
+            )
+        for name in cast:
+            if not isinstance(name, str):
+                continue
+            if not any(_cast_name_in_path(name.strip(), p) for p in char_images):
+                errors.append(
+                    f"{label} ({filename}): cast 角色 [{name}] 未在 images 角色路径文件名中找到对应参考图"
+                )
+
+    if len(char_images) != anchor_count:
+        errors.append(
+            f"{label} ({filename}): 角色参考图数量 {len(char_images)} != "
+            f"Character Identity Anchor 数量 {anchor_count}"
+        )
+
+    if cast is not None and isinstance(cast, list) and len(cast) != anchor_count:
+        errors.append(
+            f"{label} ({filename}): cast 长度 {len(cast)} != "
+            f"Character Identity Anchor 数量 {anchor_count}"
+        )
+
+    return errors
 
 
 def validate_task_table(data: dict, verbose=True) -> list[str]:
@@ -154,111 +549,292 @@ def validate_task_table(data: dict, verbose=True) -> list[str]:
     if not isinstance(tasks, list) or len(tasks) == 0:
         return ["缺少 tasks 数组或为空"]
 
+    mode = data.get("mode", "")
+    if mode not in {"sequential", "batch"}:
+        errors.append(
+            f"mode [{mode or '(未设置)'}] 必须为 sequential 或 batch"
+        )
+
+    id_to_scene = {}
+    id_to_task = {}
+    for t in tasks:
+        tid = t.get("id")
+        if tid:
+            id_to_scene[tid] = t.get("scene", "")
+            id_to_task[tid] = t
+
+    # 只有 storyboard_images 的 sequential 模式建立场级参考帧链；
+    # visual_anchor 的 batch 模式每场独立，不得误套链式约束。
+    if mode == "sequential":
+        errors.extend(_validate_scene_chains(tasks))
+
     for i, task in enumerate(tasks):
-        group_label = f"组{i+1}"
+        task_id = task.get("id", "?")
+        label = f"任务{task_id}" if task_id != "?" else f"任务{i+1}"
         filename = task.get("filename", "?")
         prompt = task.get("prompt", "")
         images = task.get("images", [])
         model = task.get("model", "")
         image_size = task.get("imageSize", "")
+        depends_on = task.get("depends_on", "")
+        group = task.get("group", "")
+        scene = task.get("scene", "")
 
         # 1. 模型校验
-        if model != REQUIRED_MODEL:
-            errors.append(f"{group_label} ({filename}): 模型 [{model}] 必须为 {REQUIRED_MODEL}")
+        effective_model = model or data.get("model", "")
+        if effective_model and effective_model != REQUIRED_MODEL:
+            errors.append(f"{label} ({filename}): 模型 [{effective_model}] 必须为 {REQUIRED_MODEL}")
 
         # 2. 分辨率校验
-        if image_size != REQUIRED_IMAGE_SIZE:
-            errors.append(f"{group_label} ({filename}): 分辨率 [{image_size}] 必须为 {REQUIRED_IMAGE_SIZE}")
+        effective_size = image_size or data.get("imageSize", "")
+        if effective_size and effective_size != REQUIRED_IMAGE_SIZE:
+            errors.append(f"{label} ({filename}): 分辨率 [{effective_size}] 必须为 {REQUIRED_IMAGE_SIZE}")
 
         # 3. 画面比例校验
-        aspect = task.get("aspectRatio", "")
-        if aspect not in VALID_ASPECT_RATIOS:
+        aspect = task.get("aspectRatio", "") or data.get("aspectRatio", "")
+        if aspect and aspect not in VALID_ASPECT_RATIOS:
             errors.append(
-                f"{group_label} ({filename}): 画面比例 [{aspect}] 无效，"
+                f"{label} ({filename}): 画面比例 [{aspect}] 无效，"
                 f"仅支持 {' 或 '.join(sorted(VALID_ASPECT_RATIOS))}"
             )
 
-        # 4. images 路径校验
+        # 4. id 字段校验
+        if not task.get("id"):
+            errors.append(f"{label} ({filename}): 缺少 id 字段（任务表必填）")
+
+        # 5. 模式专属字段校验
+        if mode == "sequential" and not group:
+            errors.append(f"{label} ({filename}): 缺少 group 字段（sequential 模式必填）")
+        if mode == "batch" and not task.get("scene_name"):
+            errors.append(f"{label} ({filename}): 缺少 scene_name 字段（visual_anchor batch 模式必填）")
+
+        # 5b. scene 字段校验
+        if not scene:
+            errors.append(f"{label} ({filename}): 缺少 scene 字段（任务表必填）")
+
+        # 6. depends_on 引用校验（场级串行：depends_on 必须在同一场内）
+        if depends_on:
+            if mode == "batch":
+                errors.append(f"{label} ({filename}): batch 视觉锚点任务不得含 depends_on")
+            elif depends_on not in id_to_task:
+                errors.append(f"{label} ({filename}): depends_on [{depends_on}] 引用的任务不存在")
+            elif id_to_scene.get(depends_on) != scene:
+                errors.append(
+                    f"{label} ({filename}): depends_on [{depends_on}] 引用的任务不在同一场"
+                    f"（场级串行链要求同场）"
+                )
+
+        # 7. {{PREV_OUTPUT}} 一致性校验
+        has_prev_output = PREV_OUTPUT_PLACEHOLDER in images
+        if mode == "batch" and has_prev_output:
+            errors.append(f"{label} ({filename}): batch 视觉锚点任务不得含 {PREV_OUTPUT_PLACEHOLDER}")
+        if mode == "sequential" and depends_on and not has_prev_output:
+            errors.append(f"{label} ({filename}): 含 depends_on 但 images 中缺少 {PREV_OUTPUT_PLACEHOLDER}")
+        if mode == "sequential" and not depends_on and has_prev_output:
+            errors.append(f"{label} ({filename}): 无 depends_on 但 images 中含 {PREV_OUTPUT_PLACEHOLDER}")
+
+        # 8. images 路径校验
         if len(images) == 0:
             errors.append(
-                f"{group_label} ({filename}): images 数组为空——分镜图必须引用角色/场景参考图。"
+                f"{label} ({filename}): images 数组为空——分镜图必须引用角色/场景参考图。"
                 f"请在任务表 JSON 中为每个 task 填写具体的参考图文件路径"
             )
         else:
             for j, img_path in enumerate(images):
                 if not _is_file_path(img_path):
-                    errors.append(f"{group_label} ({filename}): images[{j+1}] [{img_path}] 是目录路径，必须为具体文件")
+                    errors.append(
+                        f"{label} ({filename}): images[{j+1}] [{img_path}] 是目录路径，"
+                        f"必须为具体文件或 {PREV_OUTPUT_PLACEHOLDER}"
+                    )
 
-        # 5. 引用一致性校验 — Image N: 编号
+        # 9. 引用一致性校验 — Image N: 编号
         image_refs = _extract_image_refs(prompt)
         if len(image_refs) != len(images):
             errors.append(
-                f"{group_label} ({filename}): 提示词含 {len(image_refs)} 个 Image N: 映射块，"
+                f"{label} ({filename}): 提示词含 {len(image_refs)} 个 Image N: 映射块，"
                 f"但 images 数组有 {len(images)} 个，不一致"
             )
         elif image_refs:
             expected = list(range(1, len(images) + 1))
             if image_refs != expected:
                 errors.append(
-                    f"{group_label} ({filename}): Image N: 编号不连续或顺序错乱，"
+                    f"{label} ({filename}): Image N: 编号不连续或顺序错乱，"
                     f"期望 {expected}，实际 {image_refs}"
                 )
 
-        # 6. 必需段落校验
+        # 10. 必需段落校验
         missing_sections = _check_required_sections(prompt)
         if missing_sections:
             errors.append(
-                f"{group_label} ({filename}): 缺少必需段落: {', '.join(missing_sections)}"
+                f"{label} ({filename}): 缺少必需段落: {', '.join(missing_sections)}"
             )
 
-        # 7. FRAME Purpose 校验
-        purpose_errors = _check_frame_purposes(prompt)
-        for pe in purpose_errors:
-            errors.append(f"{group_label} ({filename}): {pe}")
+        # 11. FRAME Purpose 校验
+        for pe in _check_frame_purpose(prompt):
+            errors.append(f"{label} ({filename}): {pe}")
 
-        # 8. 焦距参数校验
-        focal_errors = _check_focal_length(prompt)
-        for fe in focal_errors:
-            errors.append(f"{group_label} ({filename}): {fe}")
+        # 12. 焦距参数校验
+        for fe in _check_focal_length(prompt):
+            errors.append(f"{label} ({filename}): {fe}")
 
-        # 9. 优先级排序校验
+        # 13. storyboard 关键词校验
+        for se in _check_storyboard_keyword(prompt):
+            errors.append(f"{label} ({filename}): {se}")
+
+        # 14. 帧数声明校验
+        for fce in _check_frame_count(prompt):
+            errors.append(f"{label} ({filename}): {fce}")
+
+        # 15. 网格布局词汇校验
+        for ge in _check_grid_pattern(prompt):
+            errors.append(f"{label} ({filename}): {ge}")
+
+        # 16. 未解析占位符校验
+        for pe in _check_unresolved_placeholders(prompt):
+            errors.append(f"{label} ({filename}): {pe}")
+
+        # 17-19. cast / 角色锚 / 单帧 / 字幕 / AVOID
+        for ce in _validate_cast(task, images, prompt, label, filename):
+            errors.append(ce)
+
+        for ie in _check_visual_anchor_identity_lock(
+            prompt, images, task.get("cast"), mode
+        ):
+            errors.append(f"{label} ({filename}): {ie}")
+
+        for se in _check_single_frame_declaration(prompt):
+            errors.append(f"{label} ({filename}): {se}")
+
+        for te in _check_text_policy_subtitle_ban(prompt):
+            errors.append(f"{label} ({filename}): {te}")
+
+        for ae in _check_avoid_bans(prompt):
+            errors.append(f"{label} ({filename}): {ae}")
+
+        # 优先级排序：首帧无前帧；后续帧 角色→前帧→场景→道具→风格
+        has_prev = PREV_OUTPUT_PLACEHOLDER in images
+        priority_order = (
+            REF_PRIORITY_SUBSEQUENT if mode == "sequential" and has_prev
+            else REF_PRIORITY_FIRST
+        )
         type_indices = {}
         for j, img_path in enumerate(images):
             ref_type = _classify_ref(img_path)
-            if ref_type not in type_indices:
-                type_indices[ref_type] = []
-            type_indices[ref_type].append(j)
+            if ref_type == "未知":
+                continue
+            type_indices.setdefault(ref_type, []).append(j)
 
-        priority_order = ["角色", "场景", "道具", "风格"]
         last_max_idx = -1
         for ref_type in priority_order:
-            if ref_type in type_indices:
-                min_idx = min(type_indices[ref_type])
-                if min_idx <= last_max_idx:
-                    errors.append(
-                        f"{group_label} ({filename}): {ref_type}参考图出现在前序类型之前，"
-                        f"优先级排序错误（{ref_type}最早位置 {min_idx} <= 前序最晚位置 {last_max_idx}）"
-                    )
-                last_max_idx = max(last_max_idx, max(type_indices[ref_type]))
+            if ref_type not in type_indices:
+                continue
+            min_idx = min(type_indices[ref_type])
+            if min_idx <= last_max_idx:
+                errors.append(
+                    f"{label} ({filename}): {ref_type}参考图出现在前序类型之前，"
+                    f"优先级排序错误（期望顺序 {' → '.join(priority_order)}；"
+                    f"{ref_type}最早位置 {min_idx} <= 前序最晚位置 {last_max_idx}）"
+                )
+            last_max_idx = max(last_max_idx, max(type_indices[ref_type]))
 
-        # 10. 角色和场景在前五个参考中
-        first5 = images[:5]
-        first5_types = [_classify_ref(p) for p in first5]
-        if "角色" not in first5_types:
-            errors.append(f"{group_label} ({filename}): 角色参考图不在前五个参考中")
-        if "场景" not in first5_types:
-            errors.append(f"{group_label} ({filename}): 场景参考图不在前五个参考中")
+        # 前帧位置：全部角色之后、风格之前
+        if has_prev:
+            prev_idx = images.index(PREV_OUTPUT_PLACEHOLDER)
+            char_indices = type_indices.get("角色", [])
+            style_indices = type_indices.get("风格", [])
+            if char_indices and prev_idx < max(char_indices):
+                errors.append(
+                    f"{label} ({filename}): {PREV_OUTPUT_PLACEHOLDER} 必须在全部角色参考图之后"
+                )
+            if style_indices and prev_idx > min(style_indices):
+                errors.append(
+                    f"{label} ({filename}): {PREV_OUTPUT_PLACEHOLDER} 必须在风格参考图之前"
+                    f"（禁止垫在风格之后）"
+                )
+
+        # 角色与场景须在风格之前
+        real_types = [_classify_ref(p) for p in images if p != PREV_OUTPUT_PLACEHOLDER]
+        if "风格" in real_types:
+            style_idx = real_types.index("风格")
+            pre_style = real_types[:style_idx]
+            if "角色" not in pre_style and (task.get("cast") or []):
+                errors.append(f"{label} ({filename}): 角色参考图不在风格参考之前")
+            if "场景" not in pre_style:
+                errors.append(f"{label} ({filename}): 场景参考图不在风格参考之前")
+
+    return errors
+
+
+def _parse_group_shot(task_id: str) -> tuple[int, int]:
+    """从 id '组-镜' 解析排序键；失败则 (0, 0)"""
+    if not task_id or "-" not in str(task_id):
+        return (0, 0)
+    parts = str(task_id).split("-", 1)
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except ValueError:
+        return (0, 0)
+
+
+def _validate_scene_chains(tasks: list) -> list[str]:
+    """校验每场内参考帧链：排序后首帧无依赖，其后 depends_on 等于直接前帧"""
+    errors = []
+    by_scene: dict[str, list] = {}
+    for t in tasks:
+        scene = str(t.get("scene", "") or "")
+        if not scene:
+            continue
+        by_scene.setdefault(scene, []).append(t)
+
+    for scene, scene_tasks in by_scene.items():
+        ordered = sorted(
+            scene_tasks,
+            key=lambda t: (
+                _parse_group_shot(t.get("id", "")),
+                str(t.get("group", "")),
+                str(t.get("id", "")),
+            ),
+        )
+        if not ordered:
+            continue
+
+        first = ordered[0]
+        first_id = first.get("id", "?")
+        if first.get("depends_on"):
+            errors.append(
+                f"场{scene}: 链首帧 [{first_id}] 不应有 depends_on"
+                f"（参考帧链每场仅一个无依赖起点）"
+            )
+        if PREV_OUTPUT_PLACEHOLDER in first.get("images", []):
+            errors.append(
+                f"场{scene}: 链首帧 [{first_id}] 不应包含 {PREV_OUTPUT_PLACEHOLDER}"
+            )
+
+        for prev, curr in zip(ordered, ordered[1:]):
+            prev_id = prev.get("id", "")
+            curr_id = curr.get("id", "?")
+            dep = curr.get("depends_on", "")
+            if dep != prev_id:
+                errors.append(
+                    f"场{scene}: 参考帧链断裂 — [{curr_id}] 的 depends_on "
+                    f"应为直接前帧 [{prev_id}]，实际为 [{dep or '(空)'}]"
+                )
+            if PREV_OUTPUT_PLACEHOLDER not in curr.get("images", []):
+                errors.append(
+                    f"场{scene}: [{curr_id}] 在链中非首帧，images 必须含 "
+                    f"{PREV_OUTPUT_PLACEHOLDER}"
+                )
 
     return errors
 
 
 def format_report(errors, verbose=True):
-    """格式化校验报告"""
+    """格式化校验报告（ASCII，避免 Windows GBK 控制台炸）"""
     if not errors:
-        return "✅ 分镜图任务表校验通过"
-    lines = [f"❌ 发现 {len(errors)} 个问题："]
+        return "[PASS] 分镜图任务表校验通过"
+    lines = [f"[FAIL] 发现 {len(errors)} 个问题："]
     for e in errors:
-        lines.append(f"  · {e}")
+        lines.append(f"  - {e}")
     return "\n".join(lines)
 
 
@@ -274,7 +850,7 @@ def main():
 
     check_path = Path(args.check)
     if not check_path.exists():
-        print(f"❌ 文件不存在: {check_path}", file=sys.stderr)
+        print(f"[ERROR] 文件不存在: {check_path}", file=sys.stderr)
         sys.exit(1)
 
     with open(check_path, "r", encoding="utf-8-sig") as f:
@@ -284,33 +860,44 @@ def main():
 
     if args.verbose:
         tasks = data.get("tasks", [])
-        print(f"\n任务总数: {len(tasks)}")
+        mode = data.get("mode", "(未设置)")
+        model = data.get("model", "(未设置)")
+        print(f"\n执行模式: {mode}")
+        print(f"全局模型: {model}")
+        print(f"任务总数: {len(tasks)}")
         for i, task in enumerate(tasks):
+            task_id = task.get("id", "?")
             filename = task.get("filename", "?")
+            depends_on = task.get("depends_on", "")
+            group = task.get("group", "")
+            scene = task.get("scene", "")
+            cast = task.get("cast", "(缺省)")
             model = task.get("model", "")
             image_size = task.get("imageSize", "")
             images = task.get("images", [])
             prompt = task.get("prompt", "")
             ref_count = _extract_image_refs(prompt)
-            missing = _check_required_sections(prompt)
-            purpose_errors = _check_frame_purposes(prompt)
-            focal_errors = _check_focal_length(prompt)
-            print(f"\n--- 组{i+1} ({filename}) ---")
-            print(f"  模型: {model}")
-            print(f"  分辨率: {image_size}")
+            print(f"\n--- {task_id} ({filename}) ---")
+            print(f"  场: {scene}")
+            print(f"  组: {group}")
+            print(f"  cast: {cast}")
+            print(f"  依赖: {depends_on or '(场首帧)'}")
+            print(f"  模型: {model or '(继承全局)'}")
+            print(f"  分辨率: {image_size or '(继承全局)'}")
             print(f"  images 数量: {len(images)}")
             print(f"  Image N: 映射块: {ref_count}")
+            print(f"  Character Anchors: {_count_char_anchors(prompt)}")
             for j, img in enumerate(images):
                 ref_type = _classify_ref(img)
-                print(f"    [{j+1}] ({ref_type}) {os.path.basename(img)}")
-            if missing:
-                print(f"  ⚠️  缺少段落: {', '.join(missing)}")
-            if purpose_errors:
-                print(f"  ⚠️  Purpose 缺失: {', '.join(purpose_errors)}")
-            if focal_errors:
-                print(f"  ⚠️  焦距参数: {', '.join(focal_errors)}")
+                display = img if img == PREV_OUTPUT_PLACEHOLDER else os.path.basename(img)
+                print(f"    [{j+1}] ({ref_type}) {display}")
         print()
 
+    # 强制 UTF-8 输出，避免 GBK 下中文路径报错
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     print(format_report(errors, args.verbose))
     if errors:
         sys.exit(1)

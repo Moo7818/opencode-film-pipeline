@@ -2,7 +2,7 @@
 name: Western2D
 description: 欧美2D卡通动画风格分镜图
 keywords: 欧美卡通, 美式动画, Cartoon Network, Adventure Time, Rick and Morty, Western cartoon, 2D cartoon, flat cartoon, 卡通网络
-production_type: a Western-style 2D cartoon animation storyboard
+production_type: a Western-style 2D cartoon animation cinematic frame
 neg_1: live-action photography
 neg_2: 3D render
 neg_3: anime style
@@ -27,8 +27,8 @@ camera_language: |
   - snap-cut composition style
   - expressive character posing and exaggeration
 
-  Do not make the frames look like separate illustrations.
-  They must look like consecutive animation frames from the same cartoon series.
+  Output exactly one single cinematic still that fills the entire canvas.
+  Do not create multi-panel, grid, collage, comic-strip, or storyboard-sheet layouts.
 quality: |
   Premium Western 2D animation quality.
 
@@ -55,6 +55,16 @@ avoid: |
   Watermarks.
   Logos.
   Unwanted text.
+  Subtitles or captions burned into the image.
+  Lower-thirds or title cards.
+  On-screen dialogue text.
+  Shot numbers or frame labels on the image.
+  Multi-panel layout.
+  Comic grid or manga panels.
+  Collage or contact sheet.
+  2x2 or any N×M grid of shots.
+  Split-screen.
+  Storyboard sheet layout.
 ---
 
 ## 适用场景

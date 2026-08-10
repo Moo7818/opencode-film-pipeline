@@ -39,11 +39,27 @@
           },
           "images": {
             "type": "array",
-            "description": "参考图列表，支持 URL 或本地文件路径。本地路径会自动上传到 COS",
+            "description": "参考图列表：URL、本地路径或 {{PREV_OUTPUT}}。sequential 参考帧模式建议顺序：角色… → {{PREV_OUTPUT}} → 场景 → 道具… → 风格。{{PREV_OUTPUT}} 仅 sequential，运行时替换为 depends_on 任务的成图 URL（主空间连续参考）",
             "items": {
               "type": "string",
-              "description": "参考图 URL 或本地绝对路径"
+              "description": "参考图 URL、本地绝对路径或 {{PREV_OUTPUT}}"
             }
+          },
+          "id": {
+            "type": "string",
+            "description": "任务唯一标识，用于 sequential 模式的依赖引用。batch 模式可省略"
+          },
+          "scene": {
+            "type": "string",
+            "description": "物理场标识。sequential（参考帧）模式下：同 scene=同一连续物理空间，全部帧按 depends_on 连成一条参考帧链（跨组不断链）；不同 scene 并行。batch 可省略"
+          },
+          "depends_on": {
+            "type": "string",
+            "description": "声明本任务依赖的前序任务 ID。sequential 模式下，前序任务的输出 URL 会替换本任务 images 中的 {{PREV_OUTPUT}} 占位符。同场内形成串行链"
+          },
+          "group": {
+            "type": "string",
+            "description": "组标识（从属于场）。sequential 模式下，场内跨组串行。batch 模式可省略"
           }
         },
         "additionalProperties": false
@@ -54,6 +70,12 @@
       "description": "全局默认模型。model 有两层：任务列表声明 > 配置文件默认。task.model > JSON顶层.model > ~/.trae-cn/media_gen_config.json GRSAI_MODEL",
       "default": "gpt-image-2",
       "examples": ["gpt-image-2", "gpt-image-2-vip", "nano-banana-2"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["batch", "sequential"],
+      "description": "执行模式。batch（默认）：所有任务独立，可并行提交。sequential：场内任务串行（depends_on 链，跨组串联），场间并行。任一任务含 depends_on 时自动按 sequential 处理",
+      "default": "batch"
     },
     "output_path": {
       "type": "string",
@@ -90,6 +112,45 @@
       ],
       "model": "gpt-image-2-vip",
       "output_path": "./output/角色参考图"
+    },
+    {
+      "mode": "sequential",
+      "model": "nano-banana-2",
+      "output_path": "./output/分镜图",
+      "tasks": [
+        {
+          "id": "1-1",
+          "scene": "1",
+          "group": "1",
+          "prompt": "FRAME 1 — ESTABLISHING SHOT ...",
+          "aspectRatio": "16:9",
+          "imageSize": "2K",
+          "images": ["/path/to/character_ref.png", "/path/to/scene_ref.png", "/path/to/style_ref.png"],
+          "filename": "组1_镜1.png"
+        },
+        {
+          "id": "1-2",
+          "scene": "1",
+          "group": "1",
+          "depends_on": "1-1",
+          "prompt": "FRAME 2 — REACTION SHOT ... Previous Frame Anchor is primary spatial continuity ...",
+          "aspectRatio": "16:9",
+          "imageSize": "2K",
+          "images": ["/path/to/character_ref.png", "{{PREV_OUTPUT}}", "/path/to/scene_ref.png", "/path/to/style_ref.png"],
+          "filename": "组1_镜2.png"
+        },
+        {
+          "id": "2-1",
+          "scene": "1",
+          "group": "2",
+          "depends_on": "1-2",
+          "prompt": "FRAME — continues same physical scene from previous frame ...",
+          "aspectRatio": "16:9",
+          "imageSize": "2K",
+          "images": ["/path/to/character_ref.png", "{{PREV_OUTPUT}}", "/path/to/scene_ref.png", "/path/to/style_ref.png"],
+          "filename": "组2_镜1.png"
+        }
+      ]
     }
   ]
 }

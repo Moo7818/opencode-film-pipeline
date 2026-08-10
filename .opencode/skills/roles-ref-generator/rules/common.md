@@ -2,12 +2,20 @@
 
 三个定位模式（global / episode / group）共用以下规范。差异点在各自主文件中说明。
 
-## 七视图硬约束
+## 角色参考图硬约束
 
-- 一个角色 = 一个 task。每个角色只生成 1 个 task，该 task 的 prompt 描述 **一张网格图内包含 7 个视图**（左半侧半身近景（至肚脐上方）+ 右上表情三连图 + 右下全身三视图）。
+- 一个角色 = 一个 task。每个角色只生成 1 个 task，该 task 的 prompt 描述 **一张网格图内包含多个视图**。
 - **绝对禁止**为不同角度分别创建独立 task。
-- **aspectRatio 必须固定为 16:9**（横向构图才能容纳七视图并列排版）。
-- 此约束适用于 global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）。episode 模式不再生成七视图，仅做妆造匹配（见 `rules/episode.md`）。群像使用群像模板。
+- 此约束适用于 global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）。episode 模式不再生成角色参考图，仅做妆造匹配（见 `rules/episode.md`）。群像使用群像模板。
+
+### 构图模式（两选一）
+
+| 模式 | 状态 | 视图数 | aspectRatio | 构图说明 |
+|------|------|--------|-------------|---------|
+| **竖版三视图（默认）** | 默认 | 3 | **9:16** | 上方 50%：半身近景肖像（头顶至肘部）；下方 50%：全身正面 + 背面两视图并排（无头部） |
+| 横版七视图（备选） | 备选 | 7 | 16:9 | 左半侧半身近景 + 右上表情三连图 + 右下全身三视图 |
+
+> 默认使用竖版三视图模式。仅当角色设定或调用方明确要求横版七视图（如需要表情参考）时，才切换为备选模式。
 
 ## 缺省值原则（重要）
 
@@ -85,84 +93,20 @@ AI 图像模型对某些视觉属性有统计偏见——如果 prompt 不明确
 - 保持模板原文的词汇关联性，不重新排列顺序
 - 如需额外补充，追加在末尾而非插入中间
 
-## 七视图 Prompt 模板
+## Prompt 模板（按需加载）
 
-global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）共用此模板。Prompt 必须严格使用下方模板，逐字替换 `{}` 占位符。**禁止**自己编写新的 Prompt 格式，**禁止**改为单视图/单角度描述。
+两种构图模板已拆分至独立文件，按需加载：
 
-```
-Create a {opening_decl}.
+| 模板文件 | 模式 | aspectRatio | 视图数 | 加载时机 |
+|---------|------|-------------|--------|---------|
+| `rules/vertical-template.md` | 竖版三视图 | `9:16` | 3 | **默认**，global 模式始终加载此文件 |
+| `rules/horizontal-template.md` | 横版七视图 | `16:9` | 7 | 仅当角色设定或调用方明确要求横版（如需要表情参考）时加载 |
 
-This is a {opening_type},
-not {opening_neg_1},
-not {opening_neg_2},
-not {opening_neg_3}.
-
-{identity_ref}
-
-The image contains seven photographic references of the same character.
-
-Layout:
-
-The image is divided into two equal halves: the left side occupies exactly 50% of the frame width, and the right side occupies exactly 50% of the frame width.
-
-Left side:
-A cinematic portrait of the character,
-from the top of the head down to the elbow joints,
-showing the face, head, neck, shoulders, chest, and upper torso down to just above the navel,
-with both arms visible down to the elbow joints,
-filling the entire left half of the frame.
-The face and upper body are large and prominent,
-photographed like a {layout_portrait_style} with dramatic intimacy.
-
-Upper right:
-The upper one-third of the right side contains three facial expression references:
-happy, sad, angry.
-The same character identity must be preserved across all expressions.
-These are also close-up headshots, face only.
-
-Lower right:
-The lower two-thirds of the right side contains three full-body costume continuity references showing the character's body and costume only:
-front view, side view, back view.
-The head and face must not be visible in these three costume references.
-Frame the shots from the neck down,
-focusing on costume silhouette, garment structure, fabric layers, body proportions, and costume details.
-
-The character identity, hairstyle, and costume continuity must remain consistent with the portrait and expression references,
-but the lower-right costume views should intentionally exclude the head area.
-
-The character must maintain:
-same identity, same costume, same body proportions, same hairstyle continuity in the visible references.
-
-The reference should look like {output_format},
-not a designed poster or graphic layout.
-
-Character:
-{character}
-
-Appearance:
-{appearance}
-
-Hair and Costume:
-{hair_costume}
-
-Photography style:
-{photo_style}
-Shot at 85mm f4 with moderate depth of field, face and upper body sharply in focus, background gently blurred, maintaining clear detail from face to mid-torso.
-
-Lighting:
-{lighting}
-
-Background:
-{background}
-
-Avoid:
-{avoid_style},
-text, labels, captions, logos, watermarks, frames, decorative elements, graphic layout, beauty retouching, perfect symmetry.
-```
+> 两个模板共用相同的占位符体系和参数取值规则（见下方「参数说明」段）。模板内禁止自行编写新格式或改为单视图描述。
 
 ## 群像专用 Prompt 模板
 
-群像模式使用独立模板，不适用上述七视图模板。模板如下：
+群像模式使用独立模板，不适用上述角色参考图模板（竖版三视图/横版七视图）。模板如下：
 
 ```
 {string0}，
@@ -178,7 +122,7 @@ text, labels, captions, logos, watermarks, frames, decorative elements, graphic 
 
 ## 参数说明
 
-### 七视图参数
+### 角色参考图参数
 
 global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）使用以下参数。Tier 1 与 Tier 2 对参数的取值来源有差异，见 `rules/global.md`。
 
@@ -188,7 +132,7 @@ global 模式（Tier 1 选角 + Tier 2 定妆/新妆造）使用以下参数。T
 | `{opening_type}` | 正面类型确认 | 从 reference 文件 front-matter 提取 |
 | `{opening_neg_1~3}` | 三个否定消歧项 | 从 reference 文件 front-matter 提取 |
 | `{identity_ref}` | 参考图一致性引导 | 由 global.md 定义（模式 A/B、Tier 1/2） |
-| `{layout_portrait_style}` | 左侧半身近景风格定位 | 从 reference 文件 front-matter 提取。左侧为半身近景（头顶至肚脐上方），展示面部、肩部及上半身 |
+| `{layout_portrait_style}` | 半身近景风格定位 | 从 reference 文件 front-matter 提取。竖版三视图为上方半身近景（头顶至肘部）；横版七视图为左侧半身近景（头顶至肚脐上方），均展示面部、肩部及上半身。模板详见 `rules/vertical-template.md` / `rules/horizontal-template.md` |
 | `{output_format}` | 整体输出格式定位 | 从 reference 文件 front-matter 提取 |
 | `{character}` | 身份/时代/定位 | 从角色设定提取，如"A Chinese woman living in the Tang Dynasty, a noblewoman from the prosperous Tang period" |
 | `{appearance}` | 面部特征/皮肤质感 | 从角色设定提取，含缺省值防范（胡须/皱纹/发型/体态），末尾追加 `{style_injection}` |
@@ -246,7 +190,7 @@ A Chinese woman living in the Tang Dynasty, a noblewoman from the prosperous Tan
 | 群组-C位描述 | C位角色及其视觉突出描述 | 如"女主角居中，服装颜色略深于其他队员以突出主理人身份" |
 | 群组-整体定位描述 | 群组的身份 / 角色定位 | 如"现代卫浴工厂操作员与街舞舞者融合的年轻团队" |
 
-> **注意**：群像模式使用「群像专用 Prompt 模板」，不适用七视图模板。上述七视图参数表中的参数在群像模式中不适用（由 `{群组-` 前缀占位符替代）。
+> **注意**：群像模式使用「群像专用 Prompt 模板」，不适用角色参考图模板（竖版三视图/横版七视图）。上述角色参考图参数表中的参数在群像模式中不适用（由 `{群组-` 前缀占位符替代）。
 
 ## Schema 校验
 
@@ -259,7 +203,7 @@ A Chinese woman living in the Tang Dynasty, a noblewoman from the prosperous Tan
 | 校验项 | 说明 |
 |--------|------|
 | 基础字段 | 每个 task 必须包含：prompt, imageSize, aspectRatio, filename, images |
-| 类型检查 | imageSize **必须固定为** `4K`，aspectRatio **必须固定为** `16:9` |
+| 类型检查 | imageSize **必须固定为** `4K`，aspectRatio **必须为** `9:16`（竖版三视图，默认）或 `16:9`（横版七视图，备选） |
 | images/模式一致性 | 由 mode 参数决定：`global`（Tier 1 选角 + Tier 2 定妆）、`group`（群像） |
 | prompt 完整性 | 无模板占位符残留，长度 ≥ 50 字符 |
 | filename 合法性 | 必须以 .png 结尾 |

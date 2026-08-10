@@ -101,7 +101,7 @@
 
 > 精简模式的 MD 文件是讲戏式叙事，一段一镜，技术参数融入叙述。`组时长` 从首行 `组时长：Ns` 提取，`镜头数` 从 `镜头数：N` 行提取。全文直接作为 prompt 内容传入视频模型。
 
-引用行格式为 `{名称}{类型}参考{{Image N}}`，如 `掌柜角色参考{{Image 1}}、茶馆场景参考{{Image 2}}`。分镜图特殊处理：`分镜图仅作辅助参考（光影、色调）{{Image N}}`，且当引用中包含分镜图时，自动追加 `具体细节以角色/场景/道具参考图为准`。
+引用行格式为 `{名称}{类型}参考{{Image N}}`，如 `掌柜角色参考{{Image 1}}、茶馆场景参考{{Image 2}}`。分镜图引用为 `镜头{M}参考{{Image N}}`，视觉锚点引用为 `场{N}视觉锚点参考{{Image N}}`。
 
 ### 2.3 有音色参考时
 
@@ -202,12 +202,15 @@ group = {"_format": "md", "_raw_content": raw_md, "组时长": duration_match.gr
 
 **参考图的选取由视频导演 Agent 根据分组内容自行判断**，脚本不做自动匹配。Agent 需读取每个分组的实际内容，判断该组出场的角色、所在场景、使用的道具，然后通过 `--refs` 参数显式指定。**仅 `--refs` 中指定的参考图会被上传到画布**，未指定的素材不会上传，避免无关素材占用画布。
 
-`project_config.json` 的 `use_storyboard_images` 提供选取优先级参考：
+`project_config.json` 的 `reference_image_mode` 决定脚本自动扫描哪种参考图并按需上传：
 
-| use_storyboard_images | 优先级顺序 |
-|:---------------------:|-----------|
-| `true` | 分镜图 > 角色参考 > 道具参考 > 场景参考 |
-| `false` / 未设置 | 角色参考 > 场景参考 > 道具参考 > 风格参考 |
+| reference_image_mode | 自动扫描目录 | 匹配方式 | 优先级顺序 |
+|:--------------------:|------------|----------|-----------|
+| `visual_anchor`（默认） | `{剧集号}/分镜/视觉锚点/` | 按组文件的场号匹配锚点图 | 视觉锚点 > 角色参考 > 道具参考 > 场景参考 |
+| `storyboard_images` | `{剧集号}/分镜/分镜图/` | 按组号匹配分镜图 | 分镜图 > 角色参考 > 道具参考 > 场景参考 |
+| `none` | 不自动扫描 | — | 角色参考 > 场景参考 > 道具参考 > 风格参考 |
+
+> **向后兼容**：未设置 `reference_image_mode` 时，根据 `use_storyboard_images` 推断（`true`→`storyboard_images`，`false`/未设置→`visual_anchor`）。
 
 > **音色参考**：当 `enable_sound=true` 且分镜组包含台词时，额外选取对应角色的音色参考作为素材源，不参与上述优先级排序。
 
@@ -239,32 +242,51 @@ Agent 在为每个分组选取参考素材时，必须基于**分组实际内容
 | 角色参考图 | `角色_{名称}` | `全局依赖/角色设定/角色参考图/*.png`（自动过滤 `_选角.png`） |
 | 场景参考图 | `场景_{名称}` | `全局依赖/场景设定/场景参考图/*.png` |
 | 道具参考图 | `道具_{名称}` | `全局依赖/道具设定/道具参考图/*.png` |
-| 分镜图 | `分镜_{名称}` | `{剧集号}/分镜图/*.png` |
+| 分镜图 | `分镜_组{N}_镜{M}` | `{剧集号}/分镜/分镜图/组{N}_镜{M}.png` |
+| 视觉锚点图 | `视觉锚点_场{N}` | `{剧集号}/分镜/视觉锚点/锚点_场{N}_{场景名}.png` |
 | 音色参考 | `音色_{角色名}` | `全局依赖/音色参考/{角色名}-音色参考.{ext}` 或 `{角色名}音色.{ext}`（`.wav` `.mp3` `.m4a` `.ogg` `.flac`） |
 
 ### 6.3 连线示例
 
-`--left` 顺序决定 `{{Image N}}` 编号。
+`--left` 顺序决定 `{{Image N}}` 编号。参考图按类型排序：**分镜图（按镜号）→ 视觉锚点（按场号）→ 角色 → 道具 → 音色**。场景通常不引用（分镜图/视觉锚点已含场景信息）。
 
 **v1.1.1+ 注意**：`--left`/`--right` 改为 **ensure 模式**——只确保列出的节点已连线，不会删除未列出的已有边。需要增删时：
 - 追加：`--left-add <节点>` / `--left-rm <节点>`
 - 全量替换：先用 `--left-rm` 移除旧的、再加 `--left`（或 `--left-add`）新的
 
-**分镜图模式（use_storyboard_images=true）：**
+**视觉锚点模式（reference_image_mode=visual_anchor，默认）：**
 ```bash
 libtv node create "组1" -t video \
-  --prompt "分镜图仅作辅助参考（光影、色调）{{Image 1}}、场景参考{{Image 2}}
-具体细节以角色/场景/道具参考图为准
+  --prompt "场1视觉锚点参考{{Image 1}}、掌柜角色参考{{Image 2}}、茶友簿道具参考{{Image 3}}，掌柜音色参考{{Audio 1}}
 
 画面严禁出现任何字幕，无配乐
 ---
 {\"组号\":1}" \
   --set model=Seedance 2.0 VIP --set modeType=mixed2video \
-  --left 分镜图_组1 --left 场景参考_01 \
-  --left 音色_吉小泰   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
+  --left 视觉锚点_场1 \
+  --left 角色_掌柜 --left 道具_茶友簿 \
+  --left 音色_掌柜   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
 ```
 
-**非分镜图模式（use_storyboard_images=false）：**
+> 视觉锚点图由脚本自动扫描 `{剧集号}/分镜/视觉锚点/` 目录，按组文件的场号自动匹配并上传，无需在 `--refs` 中手动指定。Agent 只需通过 `--refs` 指定角色和道具参考。
+
+**分镜图模式（reference_image_mode=storyboard_images）：**
+```bash
+libtv node create "组1" -t video \
+  --prompt "镜头1参考{{Image 1}}、镜头2参考{{Image 2}}、镜头3参考{{Image 3}}、掌柜角色参考{{Image 4}}、茶友簿道具参考{{Image 5}}，掌柜音色参考{{Audio 1}}
+
+画面严禁出现任何字幕，无配乐
+---
+{\"组号\":1}" \
+  --set model=Seedance 2.0 VIP --set modeType=mixed2video \
+  --left 分镜_组1_镜1 --left 分镜_组1_镜2 --left 分镜_组1_镜3 \
+  --left 角色_掌柜 --left 道具_茶友簿 \
+  --left 音色_掌柜   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
+```
+
+> 分镜图由脚本自动扫描 `{剧集号}/分镜/分镜图/` 目录并上传，无需在 `--refs` 中手动指定。Agent 只需通过 `--refs` 指定角色和道具参考。
+
+**无参考图模式（reference_image_mode=none）：**
 ```bash
 libtv node create "组1" -t video \
   --prompt "掌柜角色参考{{Image 1}}、茶馆场景参考{{Image 2}}
@@ -273,8 +295,8 @@ libtv node create "组1" -t video \
 ---
 {\"组号\":1}" \
   --set model=Seedance 2.0 VIP --set modeType=mixed2video \
-  --left 角色参考_01 --left 场景参考_01 \
-  --left 音色_吉小泰   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
+  --left 角色_掌柜 --left 场景_春生茶肆 \
+  --left 音色_掌柜   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
 ```
 
 ### 6.4 音色参考选取逻辑（由 Agent 判断）
@@ -346,7 +368,7 @@ libtv node create "组1" -t video \
 # 精简模式完整流程（自动读取 project_config.json 的 storyboard_mode，
 # 也可用 --storyboard-mode simplified 显式指定）
 python ".opencode/skills/video-director-libtv/scripts/run_video_pipeline.py" --build ^
-  --project "吉泰安防" --episode EP01 --canvas-uuid <UUID> ^
+  --project "吉泰安防" --episode EP01 ^
   --groups 1 2 3 --model "Seedance 2.0 VIP" --ratio 16:9 ^
   --storyboard-mode simplified ^
   --refs "组1:场景_破茶馆,角色_掌柜" ^

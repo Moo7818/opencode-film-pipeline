@@ -80,8 +80,8 @@ def _cfg(key):
 def get_api_key():
     key = _cfg(CFG_API_KEY)
     if not key:
-        print(f"缺少 {CFG_API_KEY}，请在 {CONFIG_FILE} 或环境变量中配置", file=sys.stderr)
-        raise ValueError("缺少GRSAI_API_KEY，请检查环境变量或media_gen_config.json")
+        print(f"Missing {CFG_API_KEY}, configure in {CONFIG_FILE} or env var", file=sys.stderr)
+        raise ValueError("Missing GRSAI_API_KEY, check env var or media_gen_config.json")
     return key
 
 

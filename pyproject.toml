@@ -9,6 +9,7 @@ dependencies = [
     "pydantic",
     "python-docx>=1.2.0",
     "pillow>=12.3.0",
+    "numpy>=2.5.1",
 ]
 
 [build-system]
