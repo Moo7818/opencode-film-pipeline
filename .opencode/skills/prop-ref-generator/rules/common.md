@@ -154,7 +154,7 @@ Prompt 必须严格使用下方模板，逐字替换占位符（string0~string12
 
 ```
 {string0}，
-{style_desc}，{string1}，1K分辨率，极致细节，{string2}，上4下2六视图排版。
+{style_desc}，{string1}，4K分辨率，极致细节，{string2}，上4下2六视图排版。
 上方画面：左起依次为{string3}、{string4}、{string5}、{string6}。
 下方画面：左起依次为{string7}、{string8}。
 {string9}，

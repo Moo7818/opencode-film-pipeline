@@ -14,14 +14,15 @@ _PLACEHOLDER_PATTERN = re.compile(r"\{\{?\w+\}?\}")
 MIN_PROMPT_LENGTH = 50
 
 
-def validate_tasks(tasks, aspect_ratio="16:9", image_size="1K", model="gpt-image-2"):
+def validate_tasks(tasks, aspect_ratio="16:9", image_size="1K", model=None):
     """校验图像生成任务列表
 
     Args:
         tasks: 任务列表
         aspect_ratio: 期望的 aspectRatio 值，可为字符串（单值）或列表/元组（多值）
         image_size: 期望的 imageSize 值
-        model: 期望的 model 值
+        model: 期望的 model 值；为 None 时仅校验非空，
+               传入期望值时强制校验 task.model 必须等于该值（堵非空校验盲区）
 
     Returns:
         错误信息列表，空列表表示校验通过
@@ -51,10 +52,12 @@ def validate_tasks(tasks, aspect_ratio="16:9", image_size="1K", model="gpt-image
             if f not in task:
                 errors.append(f"[task {i}] missing field: {f}")
 
-        # model 非空检查
+        # model 检查：非空 +（可选）等于期望值
         model_val = task.get("model", "")
         if not model_val or not str(model_val).strip():
             errors.append(f"[task {i}] model is empty")
+        elif model is not None and str(model_val).strip() != model:
+            errors.append(f"[task {i}] model must be {model}, got {model_val}")
 
         # imageSize 检查
         image_size_val = task.get("imageSize")
@@ -100,7 +103,7 @@ def validate_tasks(tasks, aspect_ratio="16:9", image_size="1K", model="gpt-image
     return errors
 
 
-def validate_top_level(data, model="gpt-image-2"):
+def validate_top_level(data, model=None):
     """校验任务列表 JSON 的顶层字段
 
     检查 items：
@@ -113,7 +116,7 @@ def validate_top_level(data, model="gpt-image-2"):
 
     Args:
         data: 待校验的 JSON 对象（已解析为 dict）
-        model: 期望的默认模型名称（仅做格式参考，不强制匹配）
+        model: 预留参数，仅做格式参考，不参与校验（顶层 model 仅要求非空字符串）
 
     Returns:
         错误信息列表，空列表表示校验通过
