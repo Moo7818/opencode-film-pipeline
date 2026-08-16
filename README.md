@@ -76,10 +76,11 @@ Orchestrator（路由调度员）── 识别意图→spawn→汇总，禁止�
 
 ### GRSAI Server（唯一 MCP 服务器）
 - **协议**：FastMCP 标准范式
-- **能力**：LLM 对话 + 图像生成（`gpt-image-2` 等模型）
-- **架构**：`server.py` → `grsai_client.py`（API 调用）+ `cos_client.py`（腾讯云 COS 持久化）
-- **启动**：通过 `.venv/Scripts/python.exe` 直接调用，避免中间层超时问题
-- **工作流**：`submit`（提交任务）→ `poll`（轮询结果，最长 300s）→ `download`（本地保存+OSS 上传）
+- **能力**：图像生成（`gpt-image-2` 等）+ COS 上传
+- **架构**：独立子项目 `.opencode/mcp-servers/grsai-server/`（自有 `.venv` + `uv.lock`）
+- **启动**（跨平台）：`uv run --no-sync --directory .opencode/mcp-servers/grsai-server -m grsai_server`
+- **工作流**：`grsai_submit_image` → `grsai_poll_result` → 本地下载 / `grsai_upload_cos`
+- **部署**：见 `.opencode/rules/deployment.md` 与 `grsai-server/README.md`
 
 ## 图像生成 Schema
 
@@ -109,24 +110,27 @@ Orchestrator（路由调度员）── 识别意图→spawn→汇总，禁止�
 # 1. 安装 uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. 创建虚拟环境并安装依赖
-uv sync
+# 2. 一键同步根项目 + grsai-server（Windows 用 bootstrap_mcp.ps1）
+./.opencode/scripts/bootstrap_mcp.sh
 
-# 3. 配置 credentials
-#    将 credentials.json 放入 .opencode/mcp-servers/grsai-server/
+# 3. 配置凭证
+#    将 media_gen_config.json 放入 .opencode/credentials/
+#    详见 .opencode/rules/credential-management.md
 
-# 4. 重启 opencode 使 MCP 配置生效
+# 4. 启动 opencode 使 MCP 配置生效
 opencode
 ```
+
+完整平台说明、镜像/代理、Intel Mac cryptography 说明见 [`.opencode/rules/deployment.md`](.opencode/rules/deployment.md)。
 
 ## 环境要求
 
 | 项目 | 值 |
 |------|-----|
-| Python | 3.13.11（uv 管理） |
-| OS | Windows / macOS / Linux |
-| Shell | PowerShell 7+（Windows）/ bash（Unix） |
-| 关键依赖 | Pillow, pypdf, pdfplumber, python-docx, cadquery, ezdxf, matplotlib, mcp |
+| Python | 3.13.x（uv 管理，自动下载） |
+| OS | Windows / macOS（Intel + Apple Silicon）/ Linux |
+| Shell | PowerShell 5.1+（Windows）/ bash（Unix） |
+| 包管理 | uv（项目内 `.venv`，无全局 pip 依赖） |
 | 图像平台 | GRSAI（需 API Key） |
 | 视频平台 | LibTV（需 API Key） |
 | OSS | 腾讯云 COS（可选，用于持久化存储） |

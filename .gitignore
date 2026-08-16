@@ -7,6 +7,7 @@
 !opencode.json
 !pyproject.toml
 !uv.lock
+!.python-version
 !.opencode/
 !.opencode/**
 !doc/
@@ -26,3 +27,6 @@
 # MCP server venvs and storage
 .opencode/mcp-servers/*/.venv/
 .opencode/mcp-storage/
+
+# macOS 系统文件
+**/.DS_Store

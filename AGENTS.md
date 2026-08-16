@@ -3,21 +3,22 @@
 所有 agent 使用精简的中文与用户交互。严禁使用任何emoji！！
 
 ## Python 环境
-- 必须使用此虚拟环境，路径：`.venv/`（项目根目录）
-- Python 版本：3.13.x（uv 管理）
-- 依赖声明：`pyproject.toml`（项目根目录）
-- 依赖管理：`uv sync` 安装/同步，`uv add <包>` 新增
+- 根项目虚拟环境：`.venv/`（项目根目录）
+- GRSAI MCP 独立环境：`.opencode/mcp-servers/grsai-server/.venv/`（与根隔离）
+- Python 版本：3.13.x（uv 管理，自动下载，不依赖系统全局包）
+- 依赖声明：根 `pyproject.toml`；MCP 见 `.opencode/mcp-servers/grsai-server/pyproject.toml`
+- 依赖管理：`uv sync`；新机器推荐一键脚本 `.opencode/scripts/bootstrap_mcp.sh`（Unix）或 `bootstrap_mcp.ps1`（Windows）
 
 ### 部署流程（新机器）
 见 [.opencode/rules/deployment.md](.opencode/rules/deployment.md)。
 
 ### MCP 服务器配置
-opencode.json 使用 `.opencode/scripts/mcp_python.sh` 作为 Python 启动器，运行时自动检测 `.venv/bin/python3`（Unix）或 `.venv/Scripts/python.exe`（Windows）：
+opencode.json 使用 `uv run` 跨平台启动 grsai-server（无需 sh/bat 包装）：
 ```json
-"command": [".opencode/scripts/mcp_python.sh", ".opencode/mcp-servers/grsai-server/server.py"]
+"command": ["uv", "run", "--no-sync", "--directory", ".opencode/mcp-servers/grsai-server", "-m", "grsai_server"]
 ```
 
-> 包装脚本自动检测平台路径，无需手动配置 `{env:*}` 或 `.env`。
+> 须先 bootstrap / `uv sync` 生成子项目 `.venv`。`--no-sync` 避免 MCP 冷启动联网。详见 deployment.md 与 grsai-server/README.md。
 
 ## 文件操作规则
 - 项目业务文件存放在 `project/` 目录下

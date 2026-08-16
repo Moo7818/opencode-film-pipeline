@@ -4,14 +4,17 @@ version = "0.1.0"
 description = "另一条路 - 影视制作工作流"
 requires-python = ">=3.13"
 dependencies = [
-    "mcp>=1.27.0",
-    "httpx",
+    "mcp>=1.27.0,<2",
+    "httpx>=0.27.0,<0.29",
     "pydantic",
     "python-docx>=1.2.0",
     "pillow>=12.3.0",
     "numpy>=2.5.1",
     "pdfplumber>=0.11.10",
     "pypdf>=6.15.0",
+    # 与 grsai-server 对齐：48.x 有 macosx universal2 / manylinux / win wheel
+    # 49.x 无 Intel macOS x86_64 wheel，会触发源码编译失败
+    "cryptography==48.0.0",
 ]
 
 [build-system]
