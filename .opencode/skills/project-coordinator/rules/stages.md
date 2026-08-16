@@ -1,89 +1,43 @@
-# 阶段与状态管理
+# 阶段与状态管理（人读说明）
 
-## 阶段定义
+> **权威声明**：阶段链、label、expected_types 的唯一来源是 `.opencode/mcp-servers/meta-server/src/meta_server/templates.py` 的 `STAGES` 常量。本文仅为人类可读说明，两者不一致时以 templates.py 为准。
 
-`stages.json` 中的阶段名称和流转顺序由 `project.json` 中的 `type` 决定。目前支持的项目类型：
+## 阶段链（17 阶段，固定顺序）
 
-| `type` | 阶段链 |
-|--------|--------|
-| `animation_series` | `project_init` → `material_sorting` → `supervisor_extraction` → `global_character_tasks` → `global_character_art` → `global_prop_tasks` → `global_prop_art` → `global_scene_tasks` → `global_scene_art` → `episode_storyboard_script` → `episode_character_ref` → `episode_prop_ref` → `episode_scene_ref` → `episode_storyboard_images` → `asset_sync` → `video_generation` → `delivery` |
-| `film` | `project_init` → `material_sorting` → `supervisor_extraction` → `global_character_tasks` → `global_character_art` → `global_prop_tasks` → `global_prop_art` → `global_scene_tasks` → `global_scene_art` → `episode_storyboard_script` → `episode_character_ref` → `episode_prop_ref` → `episode_scene_ref` → `episode_storyboard_images` → `asset_sync` → `video_generation` → `delivery` |
+| idx | name | label | expected_types | 执行子 Agent |
+|-----|------|-------|----------------|-------------|
+| 0 | `project_init` | 项目初始化 | raw_script | Coordinator |
+| 1 | `material_sorting` | 前期素材归类 | — | Coordinator |
+| 2 | `supervisor_extraction` | 监制提取设定 | setting, character_design, scene_design, prop_design, script | Producer |
+| 3 | `global_character_tasks` | 全局角色参考图任务生成 | — | Character-director |
+| 4 | `global_character_art` | 全局角色参考图绘制 | character_ref | Art-director |
+| 5 | `global_prop_tasks` | 全局道具参考图任务生成 | — | Prop-maker |
+| 6 | `global_prop_art` | 全局道具参考图绘制 | prop_ref | Art-director |
+| 7 | `global_scene_tasks` | 全局场景参考图任务生成 | — | Set-designer |
+| 8 | `global_scene_art` | 全局场景参考图绘制 | scene_ref | Art-director |
+| 9 | `episode_storyboard_script` | 剧集分镜脚本 | storyboard | Storyboard-director |
+| 10 | `episode_character_ref` | 剧集级角色妆造匹配清单 | — | Character-director |
+| 11 | `episode_prop_ref` | 剧集级道具参考图生成 | prop_ref | Prop-maker → Art-director |
+| 12 | `episode_scene_ref` | 剧集级场景参考图生成 | scene_ref | Set-designer → Art-director |
+| 13 | `episode_storyboard_images` | 剧集参考图生成 | — | Storyboard-director → Art-director |
+| 14 | `asset_sync` | 资产同步 | — | 阶段推进由 Coordinator 负责 |
+| 15 | `video_generation` | 视频生成 | video, video_manifest | Video-director |
+| 16 | `delivery` | 交付归档 | — | Coordinator |
 
-各阶段说明（通用）：
+expected_types 为空（—）的阶段不做产物前置校验。
 
-| 阶段 name | label | 说明 | 执行子 Agent |
-|-----------|-------|------|-------------|
-| `project_init` | 项目初始化 | 创建项目骨架、注册原始剧本、建立目录结构 | Coordinator |
-| `material_sorting` | 前期素材归类 | 用户提供的参考素材（人物/场景/风格/道具）归类到 `前期采样/` | Coordinator |
-| `supervisor_extraction` | 监制提取设定 | 从原始剧本提取角色/场景/道具设定，产出分集剧本 | Producer |
-| `global_character_tasks` | 全局角色参考图任务生成 | 角色导演结合全局设定+角色设定+特征采样生成角色参考图任务表 | Character-director |
-| `global_character_art` | 全局角色参考图绘制 | 美术指导根据任务表绘制所有角色的全局参考图 | Art-director |
-| `global_prop_tasks` | 全局道具参考图任务生成 | 道具师结合全局设定+道具设定+特征采样生成道具参考图任务表 | Prop-maker |
-| `global_prop_art` | 全局道具参考图绘制 | 美术指导根据任务表绘制所有道具的全局参考图 | Art-director |
-| `global_scene_tasks` | 全局场景参考图任务生成 | 置景师结合全局设定+场景设定+特征采样生成场景参考图任务表 | Set-designer |
-| `global_scene_art` | 全局场景参考图绘制 | 美术指导根据任务表绘制所有场景的全局参考图 | Art-director |
-| `episode_storyboard_script` | 剧集分镜脚本 | 分镜导演先经 storytelling pipeline 精简版创作分镜稿（分镜稿_临时.md），再基于分镜稿创作分镜脚本 JSON；**必选**调用 `expand_scenes_to_groups.py` 拆分为独立组文件，产出物包含 `{剧集号}/分镜/分组/组{N}.json`（供 video-director 使用，不再视为可选） | Storyboard-director |
-| `episode_character_ref` | 剧集级角色妆造匹配清单 | 角色导演参考全局设定+角色设定+本集剧本，仅产出 `{剧集号}/角色参考图/妆造匹配清单.json`（不产出图片任务表，Art-director 本阶段不参与）；该清单由 coordinator 在 `asset_sync` 阶段消费 | Character-director |
-| `episode_prop_ref` | 剧集级道具参考图生成 | 道具师参考全局设定+道具设定+本集分镜脚本中道具使用描述，生成剧集级道具参考图；美术指导执行绘制 | Prop-maker → Art-director |
-| `episode_scene_ref` | 剧集级场景参考图生成 | 置景师参考全局设定+场景设定+本集分镜脚本中场景变化描述，生成剧集级场景参考图；美术指导执行绘制 | Set-designer → Art-director |
-| `episode_storyboard_images` | 剧集参考图生成 | 当 `reference_image_mode ≠ none` 时执行；**独立 session**（不继承 `episode_storyboard_script` 的对话上下文）；按 `reference_image_mode` 分支：`visual_anchor`（默认）→ 分镜导演读取组文件提取场清单，编写 `视觉锚点_任务表.json`（batch 模式，每场一张）；`storyboard_images` → 编写 `分镜图_任务表.json`（sequential 模式，每镜头一张）；运行 `validate_task_table.py` 校验，美术指导执行绘制 | Storyboard-director → Art-director |
-| `asset_sync` | 资产同步 | Coordinator 读取本集"妆造匹配清单.json"，将所需角色/场景/道具参考图从 `全局依赖/...` 复制到 `temp/分组素材/{剧集号}/角色参考|场景参考|道具参考/`，供 video-director 使用。当 `reference_image_mode ≠ none` 时同步复制视觉锚点图或分镜图。**降级策略**：若妆造匹配清单不存在，降级为复制全部全局角色参考图并记录 `asset_sync.degraded` 事件，不阻断后续流程 | Coordinator |
-| `video_generation` | 视频生成 | 前置依赖：分镜组 JSON 已就绪（`{剧集号}/分镜/分组/组{N}.json`）、参考图已就绪（如 `reference_image_mode ≠ none`）、资产同步已完成（`temp/分组素材/{剧集号}/` 下三类参考图齐全）。视频导演基于分镜组 JSON 生成视频，脚本自动按 `reference_image_mode` 扫描并匹配参考图（视觉锚点按场号/分镜图按组号）；如有下集回到 `episode_storyboard_script`，否则进入交付。**产物注册**：video-director 完成后须将视频文件（`video` 类型）和 `_manifest.json`（`video_manifest` 类型）注册到 manifest，Coordinator 推进 delivery 前须校验 `_manifest.json` 的 `status` 字段为 `success` 或 `partial`（`failed=0` 方可推进） | Video-director |
-| `delivery` | 交付归档 | 最终打包、阶段标记 complete | Coordinator |
+## 推进语义（meta_advance_stage）
 
-## 操作规则
+- 只允许逐阶段前进（idx 递增一格），禁止回退与越级；completed 不可逆
+- **前置校验**：当前阶段 expected_types 中每个 type 在 artifacts 表须至少有一条 status='final' 记录；不满足时返回 `{error, missing, code: 'invalid'}`，不修改任何状态
+- **skip**：skip=true 跳过前置校验，必须提供 skip_reason；事件类型改记 `stage.skip`
+- **delivery 终态**：最后一个阶段推进完成后无下一阶段，返回 finished=true；此后再次调用返回错误
+- 完成动作：当前阶段置 completed（写 completed_at），下一阶段置 in_progress（写 started_at），projects.current_stage 同步更新，写 stage.transition（或 stage.skip）事件
 
-| 操作 | 前置条件 | 后置动作 |
-|------|----------|----------|
-| 推进到下一阶段 | 当前阶段 `status` 为 `completed` | 当前阶段锁定不可改，下一阶段设为 `in_progress` |
-| 到达检查点 | — | 更新 `completed_at`，写入事件 |
+## 状态流转
 
-## 推进流程
-
-**禁止使用 `Read`/`Write` 文件工具。所有文件操作必须通过 `RunCommand` CLI 执行。**
-
-1. **使用 CLI 读取 stages.json**，**先校验阶段完整性**：确认 `stages` 数组包含全部 17 阶段（顺序见上方"阶段定义"表），且每个阶段字段齐全（`name` / `label` / `status` / `artifacts` / `started_at` / `completed_at`）。若阶段缺失或字段不全，**立即报错并停止操作**。
-
-   ```bash
-   python -c "
-   import json
-   with open('.meta/projects/{id}/stages.json', 'r', encoding='utf-8') as f:
-     s = json.load(f)
-   assert len(s['stages']) == 17, f'阶段数异常: {len(s[\"stages\"])}'
-   for x in s['stages']:
-     for k in ('name','label','status','artifacts','started_at','completed_at'):
-       assert k in x, f'阶段 {x.get(\"name\")} 缺字段 {k}'
-   "
-   ```
-2. 在 `stages` 数组中定位 `current` 阶段
-3. 验证其 `status` 是否为 `completed`，若是则推进到下一阶段；若不是则拒绝操作
-4. 将当前阶段的 `completed_at` 设为当前时间
-5. 将下一阶段的 `status` 设为 `in_progress`，`started_at` 设为当前时间
-6. 更新 `project.json` 中的 `current_stage`
-7. **使用 CLI 追加 events.jsonl**：
-   ```bash
-   python -c "
-   import json
-   event = {'timestamp':'...','type':'stage.transition','actor':'project-coordinator','data':{...}}
-   with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
-     f.write(json.dumps(event, ensure_ascii=False, separators=(',', ':')) + '\n')
-   "
-   ```
-8. **使用 CLI 写回 stages.json**：
-   ```bash
-   python -c "
-   import json
-   with open('.meta/projects/{id}/stages.json', 'w', encoding='utf-8') as f:
-     json.dump(stages, f, ensure_ascii=False, indent=2)
-   "
-   ```
-9. **校验**：调用 `validate.py` 校验 `.meta/projects/{id}/stages.json`、`project.json`、`events.jsonl` 语法，通过后才算完成
-
-> **`actor` 命名规范**：events.jsonl 中的 `actor` 字段必须是 opencode.json 中定义的 skill name（如 `producer`、`storyboard-generator`、`roles-ref-generator`、`scene-ref-generator`、`prop-ref-generator`、`art-director`、`video-director-libtv`、`project-coordinator`）。`coordinator` 角色发起的事件统一使用 `project-coordinator` 作为 actor。禁止使用 `script_writer`、`character-director` 这类未定义名（character-director 实际对应 skill 是 `roles-ref-generator`）。详见 `project_management.md` 的 events.jsonl 字段说明。
+`pending` → `in_progress` → `completed`，单向不可逆。项目创建时仅 project_init 为 in_progress，其余 pending。
 
 ## 查询
 
-遍历 `stages` 数组可获知：
-- 已完成阶段的总数和列表
-- 当前阶段及耗时
-- 后续待开始的阶段
+`meta_query`（scope=stages，需 project_id）：返回 17 阶段的 idx / status / started_at / completed_at，按 idx 排序；可用 filters.status 过滤。已删除项目的阶段记录同样可查（审计保留）。

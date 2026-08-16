@@ -1,30 +1,19 @@
-# 日志聚合
+# 导出与审计
 
-## 日志来源
+## 导出（meta_export_project）
 
-各技能在运行任务时，会将批次日志写入 `project/{项目名}/.logs/` 目录。统筹 agent 不直接产生日志，但需要监控和聚合这些日志。
+- **产物**：从 SQLite 生成旧版四件套结构 + project_config.json 共 5 个文件（project.json / stages.json / manifest.json / events.jsonl / project_config.json），打包为一个 ZIP
+- **输出路径**：缺省 `{工作区根}/temp/导出/{项目名}_{YYYYMMDD_HHMMSS}.zip`；可通过 dest 指定（相对路径按工作区根解析）
+- **性质**：只读数据库 + 写出 ZIP，不修改项目状态；完成后自动追加一条 `project.archived` 事件
+- **用途**：交付归档、备份、传输，以及注销项目前的最后存档。导出件是快照，仅作离线查阅，**不作为元数据源回读**（唯一元数据源仍是 registry.db）
 
-## 监控方式
+## 审计
 
-1. **被动引用**：当用户询问任务状态时，读取 `_index.json` 获取批次概览
-2. **主动巡检**：在阶段推进前，检查当前阶段的所有批次是否已完成
-3. **失败告警**：检查 `failed_batch_*.json` 是否存在失败任务
-
-## 关联方式
-
-`manifest.json` 中的产物与 `.logs/` 中的批次通过以下方式关联：
-
-- `manifest.artifacts[].path` 对应批次日志中 `results[].output_path`
-- `events.jsonl` 中的 `batch.submitted` / `batch.completed` 事件记录了 `batch_id`
-- 可通过 `batch_id` 在 `_index.json` 中定位全量日志
-- `_index.json` 中的 `project_id` 字段关联到 `.meta/projects/{id}/`，实现日志 ↔ 元数据双向追溯
-- 批次日志（`batch_*.json`）的 `project_id` 字段与 `events.jsonl` 的 `project_id` 字段一致，支持跨系统 JOIN 查询
-
-## 查询模式
-
-| 用户问题 | 操作 |
-|----------|------|
-| "生成任务完成了吗？" | 读取 `_index.json`，检查最后一批次的状态 |
-| "有多少失败的？" | 遍历 `_index.json` 累加 `failed` 字段，或检查 `failed_batch_*.json` |
-| "某张图是什么时候生成的？" | 在 `_index.json` 中按类型筛选，读取对应批次日志的 `timestamp` |
-| "我要重试失败的任务" | 读取 `failed_batch_*.json` 获取失败的 `task_index` 和 `prompt` |
+| 场景 | 操作 |
+|------|------|
+| 时间线回放 | meta_query（scope=events），按时间正序重建变更历史 |
+| 阶段耗时与跳过原因 | 筛选 stage.transition / stage.skip 事件 |
+| 产物盘点 | meta_query（scope=artifacts），按 type / stage / status 过滤 |
+| 产物缺失检测 | meta_scan_and_register（dry_run=true）的 missing 报告 |
+| 待归类文件跟踪 | meta_query（scope=pending） |
+| 注销后追溯 | 项目行仅置 deleted，stages / artifacts / events 均保留，仍可按 project_id 查询 |

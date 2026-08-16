@@ -1,121 +1,57 @@
 # 产物追踪
 
-## 何时注册产物
+## 产物生命周期
 
-以下情况需要注册或更新 `manifest.json`：
+```
+pending_review ──→ final ──→ deprecated
+（扫描到的未知文件）  （注册成功）  （同路径出现新 final 时旧行自动降级）
+```
 
-| 场景 | 操作 |
-|------|------|
-| 新产物创建 | 追加新条目 |
-| 产物内容更新 | 旧条目标记 `deprecated`，追加新条目 |
-| 产物废弃 | 标记 `deprecated` |
-| 产物恢复 | 标记 `final` 或 `draft` |
+- `pending_review`：`meta_scan_and_register` 扫描到但无法归类的文件，记录在 `pending_reviews` 表，等待人工用 `meta_archive_artifact` 归类后重扫
+- `final`：当前有效版本。DB 部分唯一索引保证**同项目同路径同时只有一条 final**
+- `deprecated`：历史版本，保留可追溯，不删除
 
-## 核心约束
+## 哈希（三种前缀）
 
-- **绝不读取产物内容**：SHA-256 哈希只通过二进制流计算，用于文件指纹识别和变更检测，不作为 LLM 分析内容的输入
-- **只操作元数据**：统筹 agent 对产物的操作限于：路径、名称、大小、哈希、类型、状态
+| 前缀 | 适用 | 生成规则 |
+|------|------|----------|
+| `sha256-{hex}` | 普通文件 | 全量 SHA-256 |
+| `fast-{mtime_ns}-{size}` | 图片文件（png/jpg/jpeg/gif/webp/bmp/tiff/tif，枚举见 templates.py IMAGE_EXTS） | 修改时间 + 大小快速指纹 |
+| `dir-fast-{文件数}-{总字节}-{最大mtime_ns}` | 目录 | 目录统计指纹 |
 
-## 注册流程
+哈希由工具自动计算，只读二进制流与 stat，**不解析内容**；哈希仅用于文件指纹识别与变更检测，不作为内容分析输入。
 
-**禁止使用 `Read`/`Write` 文件工具。所有文件操作必须通过 `RunCommand` CLI 执行。**
+## 注册与归档
 
-1. **使用 CLI 读取 manifest.json**：
-   ```bash
-   python -c "
-   import json
-   with open('.meta/projects/{id}/manifest.json', 'r', encoding='utf-8') as f:
-     m = json.load(f)
-   "
-   ```
-2. 为新产物生成唯一 `id`（`art_001`、`art_002` 递增，或使用 UUID 片段）
-3. 计算文件 SHA-256（使用内置脚本，只读二进制流，不解析内容）
-4. 获取文件大小
-5. 若同路径已有 `final` 状态的条目，将其标记为 `deprecated`
-6. 追加新条目
-7. **使用 CLI 追加 events.jsonl**：
-   ```bash
-   python -c "
-   import json
-   event = {'timestamp':'...','type':'artifact.created','actor':'project-coordinator','data':{...}}
-   with open('.meta/projects/{id}/events.jsonl', 'a', encoding='utf-8') as f:
-     f.write(json.dumps(event, ensure_ascii=False, separators=(',', ':')) + '\n')
-   "
-   ```
-8. **使用 CLI 写回 manifest.json**：
-   ```bash
-   python -c "
-   import json
-   with open('.meta/projects/{id}/manifest.json', 'w', encoding='utf-8') as f:
-     json.dump(m, f, ensure_ascii=False, indent=2)
-   "
-   ```
-9. **校验**：调用 `validate.py` 校验 `manifest.json`、`events.jsonl` 语法，通过后才算完成
+- **注册**（meta_register_artifact）：只登记，不移动文件。产物已在目标位置时使用
+- **归档**（meta_archive_artifact）：移动 + 注册，一个事务完成。src 必须位于工作区 `temp/` 或 `project/` 下；目标路径按 type 模板自动推导；目标已存在时拒绝覆盖（conflict）；目标目录不存在自动创建
+- **批量扫描**（meta_scan_and_register）：全量扫描 `project/{name}/`，按目录前缀逆向映射分类注册；每次扫描先清空并重建该项目的 pending_reviews；数据库中 final 但磁盘缺失的产物列入 missing（只报告，不改状态）；dry_run=true 时只报告不落库
 
-> **`actor` 命名规范**：events.jsonl 中的 `actor` 字段必须是 opencode.json 中定义的 skill name（如 `producer`、`storyboard-generator`、`roles-ref-generator`、`scene-ref-generator`、`prop-ref-generator`、`art-director`、`video-director-libtv`、`project-coordinator`），禁止使用 `script_writer`、`character-director` 这类未定义名（character-director 实际对应 skill 是 `roles-ref-generator`）。当事件由 producer 产出剧本触发时，`actor` 应填 `producer`，而非 `script_writer`。详见 `project_management.md` 的 events.jsonl 字段说明。
+## 类型与目录映射（人读说明）
 
-> **哈希计算（使用内置脚本，无需写临时脚本）**：
-> ```bash
-> python scripts/hash.py --fast "project/山与鱼/原始剧本.md"
-> ```
-> 输出：
-> ```
-> PATH=D:\Dev_project\...\原始剧本.md
-> HASH=sha256-xxxxxxxx
-> SIZE=12345
-> ```
-> 支持同时传入多个文件路径，批量计算。不要创建自定义哈希脚本。
-> 
-> **`--fast` 说明**：图片文件（.png/.jpg/.jpeg/.gif/.webp）跳过全量 SHA-256，改用修改时间+大小快速指纹，避免 I/O 开销。
+> 权威源：templates.py 的 `TYPE_TO_DIR`。占位符由工具按源路径自动推导（{character}/{scene}/{prop} 取源文件名去扩展名，{episode} 取路径中的纯数字目录，{subtype} 取源父目录名）。
 
-## 归档流程
-
-其他 agent 在临时路径生成产物后，统筹 agent 负责将产物移动到项目目录下的正确路径并注册。
-
-**归档与注册的关系**：归档包含注册。归档 = 移动文件 + 注册到 manifest。
-
-**操作步骤**：
-
-1. **接收通知**：其他 agent 通知统筹 agent，提供以下信息：
-   - 临时路径：`temp/{batch_id}/{filename}`
-   - 产物类型：`storyboard`、`character_ref` 等
-   - 元信息：角色名/场景名/剧集号等（用于确定目标路径）
-2. **计算目标路径**：根据产物类型和元信息，按路径映射规则确定 `project/{name}/.../{filename}`
-3. **使用 CLI 移动文件**（若目标目录不存在，先创建）：
-
-   ```bash
-   python -c "
-   import os, shutil
-   os.makedirs('project/{name}/.../', exist_ok=True)
-   shutil.move('temp/{batch_id}/{filename}', 'project/{name}/.../{filename}')
-   "
-   ```
-   - 绝不打开或读取文件内容
-4. **计算元数据**：`RunCommand` → `python scripts/hash.py "project/{name}/.../{filename}"` 获取 SHA-256 和文件大小
-5. **注册产物**：按"注册流程"步骤 1-9 在 `manifest.json` 中追加新条目
-6. **记录事件**：向 `events.jsonl` 追加 `artifact.archived` 事件（actor 必须是规范定义的 skill name，详见注册流程末尾的 actor 命名规范）
-
-**路径映射规则**（详见 [统筹管理规范](project_management.md#3-产物归档路径映射)）：
-
-## 产物类型对照
-
-| `type` | 对应目录/文件 |
-|--------|--------------|
-| `raw_script` | `*/原始剧本.md` |
-| `script` | `*/剧本.md` |
-| `character_design` | `*/角色设定/具体设定/{角色名}.md` |
-| `scene_design` | `*/场景设定/具体设定/{场景名}.md` |
-| `prop_design` | `*/道具设定/具体设定/{道具名}.md` |
-| `storyboard` | `*/分镜/*.png` |
-| `poster` | `*/海报设计/*.png` |
-| `reference` | `*/前期采样/**`, `*/角色设定/角色参考图/**` |
-| `setting` | `*/全局依赖/全局设定.md`（单一文件，不再使用 `全局设定/` 子目录） |
-| `audio_reference` | `*/音色参考/*.wav` |
-| `asset_sync` | `temp/分组素材/{剧集号}/角色参考|场景参考|道具参考/`（目录） |
-| `other` | 其他类型产物 |
+| type | 目标路径模板（相对 `project/{name}/`） |
+|------|----------------------------------------|
+| `raw_script` | `原始剧本.md` |
+| `project_config` | `.meta/projects/{uuid}/project_config.json` |
+| `script` | `{episode}/剧本.md` |
+| `character_design` | `全局依赖/角色设定/具体设定/{character}.md` |
+| `character_ref` | `全局依赖/角色设定/角色参考图/{character}.png` |
+| `scene_design` | `全局依赖/场景设定/具体设定/{scene}.md` |
+| `scene_ref` | `全局依赖/场景设定/场景参考图/{scene}.png` |
+| `prop_design` | `全局依赖/道具设定/具体设定/{prop}.md` |
+| `prop_ref` | `全局依赖/道具设定/道具参考图/{prop}_{出现场合}_基准.png` |
+| `storyboard` | `{episode}/分镜/{filename}` |
+| `poster` | `{episode}/海报设计/{filename}` |
+| `setting` | `全局依赖/全局设定.md` |
+| `reference` | `前期采样/{subtype}/{filename}` |
+| `audio_reference` | `全局依赖/音色参考/{filename}` |
+| `video` | `{episode}/视频/{filename}` |
+| `video_manifest` | `{episode}/视频/_manifest.json` |
+| `other` | `{path}` |
 
 ## 查询
 
-- 按 `type` 过滤：获取某类产物的所有版本
-- 按 `stage` 过滤：获取某个阶段的所有产物
-- 按 `status` 过滤：仅获取最终版（`final`）
+- `meta_query`（scope=artifacts）：按 created_at 倒序；filters 支持 type / stage / status / name 等值过滤
+- `meta_query`（scope=pending）：待人工归类文件清单
