@@ -1,0 +1,33 @@
+[project]
+name = "meta-server"
+version = "0.1.0"
+description = "Meta MCP Server — 动画短剧管线项目元数据管理（SQLite 单一数据源）"
+requires-python = ">=3.13"
+dependencies = [
+    # MCP SDK：唯一第三方依赖，此外仅用标准库
+    "mcp>=1.27.0,<2",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+meta-server = "meta_server.server:main"
+
+# ---------------------------------------------------------------------------
+# uv 配置：依赖全部落在本目录 .venv/，不污染用户全局环境
+# 安装：在本目录执行 `uv sync`
+# 启动：opencode.json 使用
+#   uv run --no-sync --directory .opencode/mcp-servers/meta-server -m meta_server
+#
+# 约束（非新增直接依赖，dependencies 仍仅 mcp）：mcp → pyjwt[crypto] → cryptography，
+# 49.x/50.x 在 Intel macOS 12 无预编译 wheel，会触发 maturin 源码构建并失败；
+# 48.0.0 提供 macosx_10_9_universal2 + manylinux + win_amd64 wheel，钉死避免编译。
+# ---------------------------------------------------------------------------
+[tool.uv]
+package = true
+constraint-dependencies = ["cryptography==48.0.0"]
