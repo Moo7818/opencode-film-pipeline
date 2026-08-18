@@ -3,15 +3,16 @@
 
 校验项：
 1. JSON 语法正确性
-2. 模型必须为 nano-banana-2
-3. 分辨率必须为 2K
+2. 模型必须在允许集合内（nano-banana-2 / nano-banana-pro）
+3. 分辨率必须在允许集合内（2K / 4K）
 4. 画面比例必须为 16:9
 5. mode 必须为 sequential 或 batch
 6. sequential 任务必须有 id、group、scene；batch 视觉锚点任务必须有 id、scene、scene_name
-7. sequential 场级参考帧链完整：同 scene 排序后第1帧无 depends_on，其后 depends_on=直接前帧
-8. depends_on 引用的 id 必须存在于同场任务中
+7. 视觉锚点任务（batch 及 sequential）必须有 shot_range 字段（如 '1-7'），同场内多阶段 shot_range 不得重叠
+8. sequential 场级参考帧链完整：同 scene 排序后第1帧无 depends_on，其后 depends_on=直接前帧
+9. depends_on 引用的 id 必须存在于同场任务中
 9. 含 depends_on 的 sequential 任务 images 必须包含 {{PREV_OUTPUT}}
-10. batch 任务不得含 depends_on 或 {{PREV_OUTPUT}}
+10. batch 任务不得含 depends_on 或 {{PREV_OUTPUT}}；sequential 视觉锚点任务：首阶段无 depends_on 且不得含 {{PREV_OUTPUT}}，非首阶段必须含 depends_on（指向同场前一阶段任务）且 images 必须含 {{PREV_OUTPUT}}
 11. images 路径必须为具体文件（非目录）或 {{PREV_OUTPUT}}
 12. prompt 中 Image N: 映射块数量与 images 数组一致
 13. Image N: 编号必须从 1 开始连续递增
@@ -31,6 +32,7 @@
 27. prompt 必须含单帧画布声明
 28. TEXT POLICY 必须含禁字幕约束
 29. AVOID 必须含 multi-panel/layout 与 empty/lifeless pose 禁令；字幕仅由 TEXT POLICY 检查
+30. （告警，不阻塞）元约束残留检测：prompt 不得含「提示词净化规范」11 类必删元约束（段落放置/编排指令、Decision rule、括号标签机制解释、编写者脑补禁令、编译器/流水线说明、中文事实保留指令、占位符机制解释、锚点职责定位从句与职责块、Mapping 内机制解释、道具配对说明括号）
 
 CLI:
   python validate_task_table.py --check "project/{项目名}/{剧集号}/分镜/分镜图_任务表.json"
@@ -46,9 +48,11 @@ from pathlib import Path
 
 # ─── 校验规则 ─────────────────────────────────────────────
 
-REQUIRED_MODEL = "nano-banana-2"
+# 允许模型集合（校验按集合放行；REQUIRED_MODEL 旧常量已废弃删除，避免与集合误导）
+ALLOWED_MODELS = {"nano-banana-2", "nano-banana-pro"}
 
-REQUIRED_IMAGE_SIZE = "2K"
+# 允许分辨率集合
+ALLOWED_IMAGE_SIZES = {"2K", "4K"}
 
 VALID_ASPECT_RATIOS = {"16:9"}
 
@@ -133,6 +137,113 @@ BACKGROUND_WEIGHT_REQUIREMENTS = (
 )
 
 
+# ─── 元约束残留检测（「提示词净化规范」11 类必删项，告警不阻塞）─────
+
+# 每项 = (类别名, 正则)。命中即告警：该内容属于智能体编写规范，
+# 不应出现在最终提交给生图模型的 prompt 中（EP11 验证：删除后生成质量正常）。
+META_CONSTRAINT_PATTERNS = [
+    (
+        "段落放置/编排指令",
+        re.compile(
+            r"write this block after[^\n.]*|in cast/images order|"
+            r"in the order of the (?:cast|images) array",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "Decision rule 决策说明",
+        re.compile(r"decision rule\s*:", re.IGNORECASE),
+    ),
+    (
+        "括号标签机制解释",
+        re.compile(r"binding content label|not a casting instruction", re.IGNORECASE),
+    ),
+    (
+        "编写者脑补禁令",
+        re.compile(
+            r"do not let the role label[^\n.]*|infer new (?:faces|ages|hairstyles|smiles|body types)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "编译器/流水线说明",
+        re.compile(
+            r"prompt compiler|the compiler (?:assembles|translates)|"
+            r"does not embellish|source fidelity rule",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "中文事实保留指令",
+        re.compile(
+            r"keep chinese character names[^\n.]*|do not translate or rewrite them",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "占位符机制解释",
+        re.compile(
+            r"prev[_-]?output placeholder[^\n.]*|"
+            r"the output from the previous (?:phase|frame) serves as|"
+            r"immediately preceding frame[^\n.]*\(may be prior group\)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "锚点职责定位从句",
+        re.compile(
+            r"a single establishing image that locks the scene[^\n.]*",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "锚点职责块",
+        re.compile(r"anchor frame responsibilities\s*:", re.IGNORECASE),
+    ),
+    (
+        "Mapping 内机制解释",
+        re.compile(r"describes duty and source content", re.IGNORECASE),
+    ),
+    (
+        "道具配对说明括号",
+        re.compile(r"same props\s*\((?:每个道具|every prop|each prop)[^)]{0,100}\)", re.IGNORECASE),
+    ),
+]
+
+
+def check_meta_residuals(data: dict) -> list[str]:
+    """元约束残留检测（告警级，不阻塞）。
+
+    扫描各 task 的 prompt，检测「提示词净化规范」必删 11 类元约束残留。
+    命中仅告警：这些内容属于编写规范而非模型输入，删除后生成质量正常；
+    校验通过与 exit code 仍由 errors 决定，告警不改变。
+    """
+    warnings = []
+    if not isinstance(data, dict):
+        return warnings
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        return warnings
+    for i, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            continue
+        tid = task.get("id") or f"#{i + 1}"
+        prompt = task.get("prompt", "")
+        if not isinstance(prompt, str) or not prompt:
+            continue
+        for name, pattern in META_CONSTRAINT_PATTERNS:
+            m = pattern.search(prompt)
+            if m:
+                snippet = m.group(0).strip()
+                if len(snippet) > 70:
+                    snippet = snippet[:70] + "…"
+                warnings.append(
+                    f"任务{tid}: 检测到元约束残留 [{name}]：{snippet!r}。"
+                    "prompt 必须为纯画面描述语言，请按「提示词净化规范」删除该内容"
+                )
+    return warnings
+
+
 # ─── 校验逻辑 ─────────────────────────────────────────────
 
 def _classify_ref(path: str) -> str:
@@ -205,14 +316,16 @@ def _count_char_anchors(prompt: str) -> int:
 
 
 def _check_visual_anchor_identity_lock(
-    prompt: str, images: list, cast: list | None, mode: str
+    prompt: str, images: list, cast: list | None, mode: str,
+    is_visual_anchor: bool = False,
 ) -> list[str]:
     """校验 visual_anchor 的身份锁是否位于场景构建之前。
 
-    视觉锚点是 batch 模式；sequential 旧/现有分镜模板不强制此段，避免把
-    两种参考图模式的输出契约混在一起。
+    仅对视觉锚点任务执行：batch 模式全部按视觉锚点处理；
+    sequential 模式仅视觉锚点任务（含 shot_range/scene_name 字段）强制此段。
+    分镜图 sequential 模板不强制此段，避免把两种参考图模式的输出契约混在一起。
     """
-    if mode != "batch":
+    if mode != "batch" and not is_visual_anchor:
         return []
 
     char_images = [p for p in images if _classify_ref(p) == "角色"]
@@ -563,10 +676,11 @@ def validate_task_table(data: dict, verbose=True) -> list[str]:
             id_to_scene[tid] = t.get("scene", "")
             id_to_task[tid] = t
 
-    # 只有 storyboard_images 的 sequential 模式建立场级参考帧链；
-    # visual_anchor 的 batch 模式每场独立，不得误套链式约束。
+    # sequential 模式建立场级参考帧链（分镜图），并校验视觉锚点阶段链
+    # （shot_range 必填/不重叠、首阶段无 depends_on）；visual_anchor 的 batch 模式每场独立，不得误套链式约束
     if mode == "sequential":
         errors.extend(_validate_scene_chains(tasks))
+        errors.extend(_validate_visual_anchor_sequential(tasks))
 
     for i, task in enumerate(tasks):
         task_id = task.get("id", "?")
@@ -580,15 +694,24 @@ def validate_task_table(data: dict, verbose=True) -> list[str]:
         group = task.get("group", "")
         scene = task.get("scene", "")
 
+        # visual_anchor 任务特征：含 shot_range / scene_name 字段（分镜图任务无）
+        is_visual_anchor = "shot_range" in task or "scene_name" in task
+
         # 1. 模型校验
         effective_model = model or data.get("model", "")
-        if effective_model and effective_model != REQUIRED_MODEL:
-            errors.append(f"{label} ({filename}): 模型 [{effective_model}] 必须为 {REQUIRED_MODEL}")
+        if effective_model and effective_model not in ALLOWED_MODELS:
+            errors.append(
+                f"{label} ({filename}): 模型 [{effective_model}] 无效，"
+                f"允许值: {' / '.join(sorted(ALLOWED_MODELS))}"
+            )
 
         # 2. 分辨率校验
         effective_size = image_size or data.get("imageSize", "")
-        if effective_size and effective_size != REQUIRED_IMAGE_SIZE:
-            errors.append(f"{label} ({filename}): 分辨率 [{effective_size}] 必须为 {REQUIRED_IMAGE_SIZE}")
+        if effective_size and effective_size not in ALLOWED_IMAGE_SIZES:
+            errors.append(
+                f"{label} ({filename}): 分辨率 [{effective_size}] 无效，"
+                f"允许值: {' / '.join(sorted(ALLOWED_IMAGE_SIZES))}"
+            )
 
         # 3. 画面比例校验
         aspect = task.get("aspectRatio", "") or data.get("aspectRatio", "")
@@ -605,8 +728,10 @@ def validate_task_table(data: dict, verbose=True) -> list[str]:
         # 5. 模式专属字段校验
         if mode == "sequential" and not group:
             errors.append(f"{label} ({filename}): 缺少 group 字段（sequential 模式必填）")
-        if mode == "batch" and not task.get("scene_name"):
-            errors.append(f"{label} ({filename}): 缺少 scene_name 字段（visual_anchor batch 模式必填）")
+        if is_visual_anchor and not task.get("scene_name"):
+            errors.append(f"{label} ({filename}): 缺少 scene_name 字段（visual_anchor 任务必填）")
+        if is_visual_anchor and not task.get("shot_range"):
+            errors.append(f"{label} ({filename}): 缺少 shot_range 字段（visual_anchor 任务必填，如 '1-7'）")
 
         # 5b. scene 字段校验
         if not scene:
@@ -698,7 +823,7 @@ def validate_task_table(data: dict, verbose=True) -> list[str]:
             errors.append(ce)
 
         for ie in _check_visual_anchor_identity_lock(
-            prompt, images, task.get("cast"), mode
+            prompt, images, task.get("cast"), mode, is_visual_anchor
         ):
             errors.append(f"{label} ({filename}): {ie}")
 
@@ -828,6 +953,81 @@ def _validate_scene_chains(tasks: list) -> list[str]:
     return errors
 
 
+def _parse_shot_range(shot_range) -> tuple[int, int] | None:
+    """解析 shot_range 字符串 '1-7' → (1, 7)；格式非法或 start>end 返回 None"""
+    if not isinstance(shot_range, str):
+        return None
+    m = re.match(r"^\s*(\d+)\s*-\s*(\d+)\s*$", shot_range)
+    if not m:
+        return None
+    start, end = int(m.group(1)), int(m.group(2))
+    if start > end:
+        return None
+    return (start, end)
+
+
+def _validate_visual_anchor_sequential(tasks: list) -> list[str]:
+    """校验 sequential 视觉锚点任务：shot_range 必填、同场多阶段不重叠、首阶段无 depends_on。
+
+    视觉锚点任务以含 shot_range / scene_name 字段为特征（分镜图任务无这些字段）。
+    同场阶段链：首阶段（按 shot_range 起始排序第一个）不得有 depends_on；
+    depends_on 同场与存在性由主循环逐任务校验。
+    """
+    errors = []
+    va_tasks = [t for t in tasks if "shot_range" in t or "scene_name" in t]
+    if not va_tasks:
+        return errors
+
+    # 按场分组
+    by_scene: dict[str, list] = {}
+    for t in va_tasks:
+        scene = str(t.get("scene", "") or "")
+        by_scene.setdefault(scene, []).append(t)
+
+    for scene, scene_tasks in by_scene.items():
+        ranges = []
+        for t in scene_tasks:
+            tid = t.get("id", "?")
+            parsed = _parse_shot_range(t.get("shot_range"))
+            if parsed is None:
+                errors.append(
+                    f"任务{tid}: visual_anchor 任务 shot_range [{t.get('shot_range') or '(未设置)'}] 无效，"
+                    f"须为 '起始-结束' 数字区间（如 '1-7'）"
+                )
+                continue
+            ranges.append((tid, parsed))
+
+        # 同场多阶段 shot_range 不得重叠
+        for i in range(len(ranges)):
+            for j in range(i + 1, len(ranges)):
+                id_a, (sa, ea) = ranges[i]
+                id_b, (sb, eb) = ranges[j]
+                if sa <= eb and sb <= ea:
+                    errors.append(
+                        f"场{scene}: 任务 [{id_a}] 与 [{id_b}] 的 shot_range 重叠"
+                        f"（{id_a} 覆盖 {sa}-{ea}，{id_b} 覆盖 {sb}-{eb}），同场多阶段不得重叠"
+                    )
+
+        # 首阶段无 depends_on：同场按 (shot_range 起始, group, id) 排序后第一个任务
+        if scene_tasks:
+            ordered = sorted(
+                scene_tasks,
+                key=lambda t: (
+                    _parse_shot_range(t.get("shot_range")) or (0, 0),
+                    str(t.get("group", "")),
+                    str(t.get("id", "")),
+                ),
+            )
+            first = ordered[0]
+            if first.get("depends_on"):
+                errors.append(
+                    f"场{scene}: 首阶段锚点 [{first.get('id', '?')}] 不应有 depends_on"
+                    f"（首阶段是阶段链起点，depends_on 仅用于同场非首阶段）"
+                )
+
+    return errors
+
+
 def format_report(errors, verbose=True):
     """格式化校验报告（ASCII，避免 Windows GBK 控制台炸）"""
     if not errors:
@@ -857,6 +1057,7 @@ def main():
         data = json.load(f)
 
     errors = validate_task_table(data, verbose=args.verbose)
+    warnings = check_meta_residuals(data)
 
     if args.verbose:
         tasks = data.get("tasks", [])
@@ -899,6 +1100,10 @@ def main():
     except Exception:
         pass
     print(format_report(errors, args.verbose))
+    if warnings:
+        print(f"\n[WARN] 元约束残留告警 {len(warnings)} 条（提示词净化规范，不阻塞通过）：")
+        for w in warnings:
+            print(f"  - {w}")
     if errors:
         sys.exit(1)
 

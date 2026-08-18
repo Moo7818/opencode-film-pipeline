@@ -60,6 +60,22 @@
           "group": {
             "type": "string",
             "description": "组标识（从属于场）。sequential 模式下，场内跨组串行。batch 模式可省略"
+          },
+          "shot_range": {
+            "type": "string",
+            "description": "视觉锚点阶段覆盖的镜头范围（如 '1-7'），visual_anchor 任务必填。同场多阶段范围不得重叠、按播放顺序递增"
+          },
+          "scene_name": {
+            "type": "string",
+            "description": "场名称（中文，visual_anchor 任务必填），用于文件名与记录"
+          },
+          "cast": {
+            "type": "array",
+            "description": "本阶段锚点镜头在场的具名角色中文名列表（visual_anchor 必填，顺序=角色参考顺序；纯空镜/无角色帧可为 []）",
+            "items": {
+              "type": "string",
+              "description": "具名角色中文名，须能匹配对应角色参考图路径文件名"
+            }
           }
         },
         "additionalProperties": false

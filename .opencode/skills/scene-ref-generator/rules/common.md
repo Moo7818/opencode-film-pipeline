@@ -1,6 +1,8 @@
 # 共享定义
 
-以下规范适用于全局基础参考模式。
+以下规范适用于双视图模式（默认）。
+
+> 备选全景模式（左俯瞰+右二宫格）见 `rules/common_panoramic.md`。
 
 ## 参考图严格遵循原则
 
@@ -15,84 +17,35 @@
 | **P2 — 允许补充** | 中 | 参考图未覆盖的方位视角（如背面、右侧）可基于正面/左侧图合理推断 |
 | **P3 — 可补充细节** | 低 | 仅参考图完全无法提供的视觉信息（如特定时间段的事件动作），可额外补充 |
 
-### 参考图对 Prompt 各位置的约束
-
-| prompt 位置 | 约束来源 | 约束规则 |
-|-------------|---------|---------|
-| string0（一致性引导词） | 场景采样图 | **必须**声明"严格遵循"语气 |
-| string3（空间整体描述） | 场景采样图的全局环境 | 空间尺度、地形地貌、天际线的描述必须与参考图一致 |
-| string4（核心特征） | 采样图中的主体建筑/场景 | 核心建筑/场景主体的样式、配色、结构须与参考图匹配 |
-| string6（光线与色彩） | 采样图的光影 | 从参考图中提取色温、光线方向、对比度等具体特征 |
-| images[] | 所有参考图 | **必须**列出所有可用的参考图路径，场景采样图在前，风格图在后 |
-
 ### 参考图分析步骤
 
 在构建 prompt 之前，**必须**先执行以下分析：
 
 ```
 1. 列出所有匹配的场景采样图文件（文件名、路径）
-2. 根据文件名推断覆盖的方位/视角（如"卧室-1.jpg" → 卧室正面全景）
-3. 确认采样图覆盖了多少方位（若仅有正面，需推断背面/侧面的布局）
-4. 提取核心视觉特征：建筑风格、色调色温、空间尺度、光线方向
-5. 将提取的特征融入 string3~string7 的描述
+2. 根据文件名推断覆盖的方位/视角
+3. 提取核心视觉特征：建筑风格、色调色温、空间尺度、光线方向
+4. 将提取的特征融入 prompt 的 Scene / Lighting / Atmosphere 段落
 ```
 
-## 场景空间参考图布局约束
+## 场景参考图布局约束（双视图）
 
-- 一个场景 = 一个 task。每个场景只生成 1 个 task，该 task 的 prompt 引导生图模型输出**左俯瞰 + 右二宫格**的复合排版。
-- **左区**：一张 **1:1 比例**的空间垂直俯瞰图（覆盖约 **400 平米**范围），**左上角标明北向（N）**，**在图中用箭头标记角色所在位置（箭头方向为角色面向的方向），不加入文字标注**，展现场景的整体空间布局与建筑/地形俯视关系。
-- **右区**：**2 行 1 列等比的二宫格**，各视图内容如下：
-  - **第一行**：从**正面**拍摄角色所在位置的 **120° 超广角视图**
-  - **第二行**：从**反面**拍摄角色所在位置的 **120° 超广角视图**
-- **严格保证各个视图都是对该空间整体的一致性还原**，**严禁出现任何非群众角色的剧情人物**。
-- 每张图**左上角用英文小字标明各视图的名称**（如 top-down、front 120°、back 120° 等）。
-- **绝对禁止**为不同视角分别创建独立 task，也**禁止**只生成单张全景图或无排版结构的散图。
-- **aspectRatio 必须固定为 2:1**（超宽横向构图才能容纳左俯瞰 + 右二宫格的排版，2:1 比 16:9 更宽，为二宫格提供更多横向空间）。
-- Prompt 中**必须包含**用户指定的前置布局引导语（见 Prompt 模板），以及各视图的标注要求。
-
-### 排版布局
-
-```
-┌───────────┬──────────────────────┐
-│           │  Row1: Front 120°    │
-│  左:俯瞰   ├──────────────────────┤
-│  (1:1)    │  Row2: Back 120°     │
-│  北向标注   │                      │
-│  角色朝向   │                      │
-└───────────┴──────────────────────┘
-```
-
-不要逐一描述每个方格画面内的具体构图。应该：
-1. 前置布局引导指令（固定文本，指定整体排版结构）
-2. 描述场景整体的环境特征（空间尺度、建筑风格、环境基调）
-3. 补充关键的细节要素（核心建筑、特殊结构、标志元素）
-4. 模型会自行理解各方位的内容呈现
-
-### 标注要求
-
-- **左区俯瞰图**：左上角标注**北向（N）**，可用简易指北针或"顶视图"文字。**在图中用箭头标记角色所在位置（箭头方向为角色面向的方向），不加入文字标注**
-- **右区二宫格**：每张图左上角用**英文小字**标明视图名称（front 120° / back 120° 等，根据场景需要选择最合适的标注）
-- **样式**：简洁白底黑字或半透明底白字标签，不遮挡主体内容
-
-**正确示例：**
-```
-生成一张实景环境空间展示图，左边为一张1:1比例的空间垂直俯瞰（展示大约400平米空间即可，在左上角标明北向，在图中用箭头标记角色所在位置箭头方向为角色面向的方向，不加入文字标注），右侧为2行1列等比的二宫格（第一行：从正面拍摄角色所在位置的120°超广角视图，第二行：从反面拍摄角色所在位置的120°超广角视图，严格保证各个视图都是对该空间整体的一致性还原，严禁出现任何非群众角色），每张图左上角用英文小字标明各视图的名称。
-影视级写实摄影，现代南京长江边黄金时刻江景，1K分辨率，极致细节，照片级真实质感，镜头语言焦点精准、场景纵深强烈。
-南京长江边壮阔江景江面宽达二三里巨轮穿梭往来，多层次天际线构成壮美画卷，滨江步道观景平台，江面万吨货轮集装箱船穿梭有序，现代化港口吊机林立南京长江大桥横跨江面都市天际线剪影晚霞绚烂，
-核心视觉为长江黄金水道的壮阔与现代化港口工业景观，滨江步道栏杆与观景平台构成前景框架，
-黄金时刻的辉煌壮丽与都市繁华交融，历史厚重与现代活力并存，
-暖金橙色晚霞映照江面波光粼粼，逆光勾勒港口吊机与长江大桥的剪影，天际线在暮色中层次分明，
-晴朗傍晚，晚霞绚烂，江面暖金色波光粼粼，都市天际线在暮色中灯火初上，
-影视级写实摄影，空气透视与颗粒质感.
-```
+- 一个场景 = 两个 task（内景 + 外景）。每个场景生成 2 张独立超宽全景单帧图。
+- **内景**（`{场景名}_内景.png`）：聚焦室内空间——建筑结构、家具陈设、材质纹理、室内光线氛围。
+- **外景**（`{场景名}_外景.png`）：聚焦室外空间——建筑外观、周边环境、街道/地形、天际线、天气光线。
+- 每张图为**独立单帧**，充满整个画布。**禁止**多面板、拼贴、二宫格等复合排版。
+- **aspectRatio 固定为 4:1**（超宽全景画幅），**imageSize 固定为 4K**，**model 固定为 nano-banana-2**。
+- Prompt 采用**英文控制层 + 中文内容层**的双语结构（7 段结构，参考分镜 skill 视觉锚点图模板），移除角色身份锁定（IDENTITY LOCK），聚焦于场景空间环境本身。
+- **绝对禁止**在 prompt 中描述剧情角色（如郑和、一岛等人物外观、服饰、动作）。仅聚焦场景空间环境本身。若需要人物提供尺度参照，使用"群众角色"等泛化描述。
+- **images 数组中严禁**包含角色参考图或道具参考图。
 
 ## 单场景图文对应
 
-全局依赖的 `场景设定/具体设定/` 下每个 `.md` 文件代表一个独立场景。全局基础参考阶段需要为每个场景生成 1 张场景参考图，因此 task 数量 = 具体设定中的场景数量。
+全局依赖的 `场景设定/具体设定/` 下每个 `.md` 文件代表一个独立场景。双视图模式为每个场景生成 2 张场景参考图（内景 + 外景），因此 task 数量 = 场景数量 x 2。
 
 | 场景设定文件 | 对应的 task 数 |
 |-------------|--------|
-| 每个 `.md` 文件 | 1 个 task |
+| 每个 `.md` 文件 | 2 个 task（内景 + 外景） |
 
 ## 缺省值原则（重要）
 
@@ -108,20 +61,18 @@ AI 图像模型对某些环境属性有统计偏见——如果 prompt 不明确
 | 建筑风格 | 古代默认中式古典 | 具体描述建筑风格与历史时期 |
 | 植被/环境 | 忽略季节/地域 | 描述植被、水域、地域环境 |
 | 人群密度 | 空无一人或过度拥挤 | 按设定明确多少人或无人 |
-| 剧情人物 | 默认引入角色人物 | **场景参考图严禁出现剧情角色（如郑和、一岛等）**。Prompt 中不得描述任何角色人物的外观、动作、服饰，仅聚焦场景空间环境本身。若需要人物提供尺度参照，使用"一名普通群众角色"等泛化描述（不特指剧情角色）。**二宫格各视图描述中同样禁止出现非群众角色** |
-| 参考图范围 | 默认添加角色/道具参考图来辅助风格一致性 | **images 数组中严禁包含角色参考图（角色设定/角色参考图/）和道具参考图（道具设定/道具参考图/）**。场景参考图仅需场景采样图和风格参考图作为视觉参考，角色和道具的视觉特征与场景空间环境无关，引入后会干扰生图模型对场景的独立理解 |
+| 剧情人物 | 默认引入角色人物 | **场景参考图严禁出现剧情角色**。Prompt 中不得描述任何角色人物的外观、动作、服饰，仅聚焦场景空间环境本身。若需要人物提供尺度参照，使用"群众角色"等泛化描述 |
+| 参考图范围 | 默认添加角色/道具参考图来辅助风格一致性 | **images 数组中严禁包含角色参考图和道具参考图**。场景参考图仅需场景采样图和风格参考图作为视觉参考 |
 
 ## 场景间描述差异化原则（重要）
 
-多个场景可能共用相同的地理位置（如不同时代但同一片长江江面），**必须防止不同场景的 prompt 中出现重复的短语或句式**：
+多个场景可能共用相同的地理位置，**必须防止不同场景的 prompt 中出现重复的短语或句式**：
 
 | 风险 | 错误做法 | 正确做法 |
 |------|---------|---------|
-| 地理描述重复 | 所有场景都写"江面宽达二三里"、"巨轮穿梭" | 每个场景只提取其**独有的**地理/时代特征，跳过在多个场景间重复出现的描述词 |
-| 句式结构雷同 | 所有场景都用"X位于Y，Z如何如何"开头 | 每个场景的开篇从不同角度切入——空间、时代、光线、氛围各选其一作为首句焦点 |
-| 关键元素复制 | 将场景设定中的关键元素表逐条翻译进 prompt | 从关键元素中提取最高优先级的 1-2 个核心特征深入描述，而非罗列清单 |
-
-**核心思想**：每个场景的 prompt 应像一篇独立的环境描写，让读 prompt 的人能感知到这是不同的场景，而不是同一个模板换了个名字。
+| 地理描述重复 | 所有场景都写相同的地理特征 | 每个场景只提取其**独有的**地理/时代特征 |
+| 句式结构雷同 | 所有场景都用相同句式开头 | 每个场景的开篇从不同角度切入——空间、时代、光线、氛围各选其一 |
+| 关键元素复制 | 将场景设定中的关键元素表逐条翻译进 prompt | 从关键元素中提取最高优先级的 1-2 个核心特征深入描述 |
 
 ### 风格类型自适应规则
 
@@ -136,7 +87,7 @@ AI 图像模型对某些环境属性有统计偏见——如果 prompt 不明确
 
 ## 视觉风格提取
 
-Run prompt 构建前，从全局设定中提取视觉风格描述：
+Prompt 构建前，从全局设定中提取视觉风格描述：
 
 1. 读取 `project/{项目名}/全局依赖/全局设定.md`
 2. 提取**视觉风格关键字**：如"影视级写实摄影"、"手绘赛璐璐卡通"、"3D 渲染皮克斯风格"、"水墨淡彩"等
@@ -144,36 +95,235 @@ Run prompt 构建前，从全局设定中提取视觉风格描述：
 
 > **无全局设定时**：退而求其次从 `前期采样/风格/` 中的参考图文件名判断风格倾向。仍无法判断时使用"超写实影视级画面"。
 
+### 英文风格参数提取
+
+同时从全局设定和风格参考文件中提取以下英文风格参数（用于英文控制层）：
+
+| 参数 | 来源 | 示例 |
+|------|------|------|
+| `{film_context}` | 全局设定.通用设定.风格 -> 英文 | a historical drama film |
+| `{production_type}` | 风格参考文件 front-matter | cinematic photorealistic frame |
+| `{neg_1}` / `{neg_2}` / `{neg_3}` | 风格参考文件 front-matter | anime / cartoon / watercolor |
+| `{style_anchor}` | 风格参考文件 front-matter | Photorealistic cinematic quality... |
+| `{style_footer}` | 风格参考文件 front-matter | Film grain, natural color science... |
+| `{camera_language}` | 风格参考文件 front-matter | Composed framing... |
+| `{quality}` | 风格参考文件 front-matter | 4K, high dynamic range... |
+| `{style_avoid}` | 风格参考文件 front-matter | No stylization... |
+
+> 若项目无风格参考文件（`.opencode/skills/storyboard-generator/references/styles/*.md`），则从 `{style_desc}` 推导合理的英文等价描述。
+
+## 内景与外景的内容划分
+
+从场景具体设定文件（`具体设定/{场景名}.md`）中提取内容时，按以下规则划分内/外景：
+
+| 内容类型 | 内景 | 外景 |
+|---------|------|------|
+| 建筑结构（室内） | 斗拱、房梁、木柱、门窗内饰 | 屋顶、檐角、外墙、门面 |
+| 家具陈设 | 桌椅、茶案、器皿、帘幕 | 门外摊位、灯笼、招牌 |
+| 空间纵深 | 室内纵深、隔间层次 | 街道纵深、建筑群天际线 |
+| 光线 | 室内光源（烛光、油灯、天窗） | 自然光（阳光、月光、阴雨漫射） |
+| 天气/氛围 | 雨滴从房梁滴落、潮湿空气 | 街面雨水、远山雾气、天空 |
+| 人群 | 室内茶客（泛化群众） | 街上行人（泛化群众） |
+
+> 若场景仅有室内或室外设定（如纯室外场景"长安街市"），仍生成 2 个 task，但外景 task 聚焦街市整体环境，内景 task 聚焦某一标志性建筑的内部空间（如街边茶肆内部）。
+
+## Prompt 双语分工规则
+
+参考分镜 skill 视觉锚点图模板的双语分工原则：
+
+| 语言 | 负责内容 |
+|------|---------|
+| **英文（控制层）** | 段落标题、场景类型声明、参考图映射标签、单帧声明、构图/摄影/镜头/灯光/材质/画质/风格质感、技术质量要求、负面约束、TEXT POLICY、AVOID |
+| **中文（内容层）** | 场景名与空间内容、环境描述、氛围描述、时代事实、建筑细节、家具陈设、光线氛围的具体描述 |
+
+> **关键原则**：中文内容层保留原始设定中的中文描述，不做翻译。英文控制层围绕中文内容组装控制语言，不篡改场景内容本身。
+
 ## Prompt 模板
 
-Prompt 必须严格使用下方模板，逐字替换占位符（string0~string8）和风格占位符（style_desc）。
+双视图模式使用**英文控制层 + 中文内容层**的双语 Prompt 结构，参考分镜 skill 视觉锚点图模板，但移除角色身份锁定（IDENTITY LOCK），聚焦于场景空间环境本身。
+
+每个场景生成 2 个 prompt：内景 prompt 和外景 prompt。
+
+### 内景 Prompt 模板（7 段结构）
 
 ```
-{string0}，
-生成一张实景环境空间展示图，左边为一张1:1比例的空间垂直俯瞰（展示大约400平米空间即可，在左上角标明北向，在图中用箭头标记角色所在位置箭头方向为角色面向的方向，不加入文字标注），右侧为2行1列等比的二宫格（第一行：从正面拍摄角色所在位置的120°超广角视图，第二行：从反面拍摄角色所在位置的120°超广角视图，严格保证各个视图都是对该空间整体的一致性还原，严禁出现任何非群众角色），每张图左上角用英文小字标明各视图的名称。
-{style_desc}，{string1}，1K分辨率，极致细节，照片级真实质感，镜头语言{string2}。
-{string3}，
-{string4}，
-{string5}，
-{string6}，
-{string7}，
-{string8}.
+SCENE REFERENCE FRAME — INTERIOR
+
+Create a professional cinematic interior scene reference frame for {film_context}.
+
+This is an interior scene reference image for {scene_name_zh} — a single establishing image that locks the scene's interior spatial layout, architecture, furniture, materials, and atmosphere.
+Generate exactly one image for this single frame only.
+One single photographic still that fills the entire canvas.
+
+This is {production_type},
+not {neg_1},
+not {neg_2},
+not {neg_3}.
+
+SCENE CONTINUITY:
+
+This is an interior reference for {scene_name_zh} — the definitive spatial and atmospheric reference for this indoor location.
+
+Maintain strict continuity with reference materials:
+- same {environment_description_zh}
+- same furniture layout and architectural details
+- same lighting atmosphere
+- same {period_description_zh}
+- no anachronistic elements from other eras or dynasties
+
+REFERENCE IMAGE MAPPING:
+Image {N}: Environment Anchor — Highest priority
+{scene_name_zh} — {场景室内空间中文描述：建筑结构、家具陈设、材质纹理、装饰细节与空间关系}。
+Preserve: architecture, spatial layout, materials, atmosphere.
+
+Image {N}: Visual Style Anchor — Second priority
+{brief English style description}.
+Preserve: color palette, lighting mood, visual style.
+
+FRAME DETAIL:
+
+Scene:
+{场景室内空间完整描述 → 中文叙事，包含建筑结构、家具陈设、材质纹理、装饰细节、空间纵深}
+
+Composition:
+{景别 + 摄影机角度 → 英文电影语义，如 ultra-wide panoramic shot, eye-level, showing the full interior space from entrance to back wall}
+
+Camera feeling:
+{摄影机运动 → 英文电影语义，如 static camera, locked-off, establishing framing with subtle atmospheric depth}
+
+Lighting:
+{光线描述 → 英文，如 warm candlelight as key, soft ambient fill from windows}
+
+Atmosphere:
+{场级氛围与感受 → 中文}
+
+CINEMATIC QUALITY:
+
+{style_anchor}
+
+{全局风格氛围基调 → English}
+{全局色彩调性 → English}
+{全局光线基调 → English}
+
+{style_footer}
+
+Camera principles:
+{camera_language}
+
+{quality}
+
+TEXT POLICY:
+
+Hard ban on burned-in graphics (non-negotiable):
+- No subtitles, captions, lower-thirds, or title cards
+- No on-screen dialogue text or lyric text
+- No watermarks, logos, shot numbers, timecode, or UI chrome
+
+Diegetic in-world text only (shop signs, book pages, packaging) when the scene itself contains them:
+- Preserve original Chinese characters
+- Do not translate into English
+
+AVOID:
+
+{style_avoid}
+
+Compact final bans:
+- No multi-panel, grid, collage, contact sheet, or split-screen layout; one clean panoramic frame only.
+- No anachronistic costumes or elements for the period.
+- No character focus; this is a scene environment reference, not a character portrait.
+- No empty or lifeless space; every interior must feel lived-in and atmospheric.
 ```
 
-## 参数说明
+### 外景 Prompt 模板（7 段结构）
 
-| 参数 | 含义 | 说明 |
-|------|------|------|
-| style_desc | 视觉风格 | 从全局设定提取的风格描述，如"影视级写实摄影"、"手绘赛璐璐卡通风格" |
-| string0 | 一致性引导词 | 由 global.md 的模式判断确定。**写实风格**: 严格遵循参考图所有维度；**非写实风格**: 仅参考构图与空间布局 |
-| string1 | 时代/风格标识 | 如"明朝东方古典建筑与江景" |
-| string2 | 镜头语言 | 如"焦点精准、场景纵深强烈" |
-| string3 | 空间整体描述 | 场景所在环境的综合描述——空间尺度（约400平米范围）、天际线、水域/地形等，≥80字 |
-| string4 | 核心特征 | 核心建筑/场景主体的特征描述，含关键细节，作为空间整体一致性还原的视觉锚点，≥60字 |
-| string5 | 氛围/基调 | 如"厚重威严、壮志昂扬的大明盛世气象"，≥40字 |
-| string6 | 光线与色彩 | 如"晨光熹微，暖金黄/橙红色调，逆光勾勒船帆轮廓，江面波光粼粼"，≥60字 |
-| string7 | 天气与氛围 | 天气条件与整体环境氛围，≥60字。**禁止套用前/中/远景的景别层次结构** |
-| string8 | 整体质感 | 与 style_desc 风格一致的质感描述，如"影视级写实摄影，空气透视与颗粒质感" |
+```
+SCENE REFERENCE FRAME — EXTERIOR
+
+Create a professional cinematic exterior scene reference frame for {film_context}.
+
+This is an exterior scene reference image for {scene_name_zh} — a single establishing image that locks the scene's exterior architecture, surrounding environment, street/landscape, and atmospheric conditions.
+Generate exactly one image for this single frame only.
+One single photographic still that fills the entire canvas.
+
+This is {production_type},
+not {neg_1},
+not {neg_2},
+not {neg_3}.
+
+SCENE CONTINUITY:
+
+This is an exterior reference for {scene_name_zh} — the definitive spatial and atmospheric reference for this outdoor location.
+
+Maintain strict continuity with reference materials:
+- same {environment_description_zh}
+- same building exterior style and architectural details
+- same surrounding landscape and street layout
+- same weather and time-of-day atmosphere
+- same {period_description_zh}
+- no anachronistic elements from other eras or dynasties
+
+REFERENCE IMAGE MAPPING:
+Image {N}: Environment Anchor — Highest priority
+{scene_name_zh} — {场景室外空间中文描述：建筑外观、周边环境、街道/地形、天际线与空间关系}。
+Preserve: architecture, spatial layout, environment, atmosphere.
+
+Image {N}: Visual Style Anchor — Second priority
+{brief English style description}.
+Preserve: color palette, lighting mood, visual style.
+
+FRAME DETAIL:
+
+Scene:
+{场景室外空间完整描述 → 中文叙事，包含建筑外观、周边环境、街道/地形、植被、天际线、空间纵深}
+
+Composition:
+{景别 + 摄影机角度 → 英文电影语义，如 ultra-wide panoramic establishing shot, eye-level, showing the building facade and street context with surrounding architecture}
+
+Camera feeling:
+{摄影机运动 → 英文电影语义，如 static camera, locked-off, establishing framing with subtle atmospheric depth}
+
+Lighting:
+{光线描述 → 英文，如 overcast diffused light, golden hour rim light}
+
+Atmosphere:
+{场级氛围与感受 → 中文}
+
+CINEMATIC QUALITY:
+
+{style_anchor}
+
+{全局风格氛围基调 → English}
+{全局色彩调性 → English}
+{全局光线基调 → English}
+
+{style_footer}
+
+Camera principles:
+{camera_language}
+
+{quality}
+
+TEXT POLICY:
+
+Hard ban on burned-in graphics (non-negotiable):
+- No subtitles, captions, lower-thirds, or title cards
+- No on-screen dialogue text or lyric text
+- No watermarks, logos, shot numbers, timecode, or UI chrome
+
+Diegetic in-world text only (shop signs, street signs, banners) when the scene itself contains them:
+- Preserve original Chinese characters
+- Do not translate into English
+
+AVOID:
+
+{style_avoid}
+
+Compact final bans:
+- No multi-panel, grid, collage, contact sheet, or split-screen layout; one clean panoramic frame only.
+- No anachronistic costumes or elements for the period.
+- No character focus; this is a scene environment reference, not a character portrait.
+- No empty or lifeless space; every exterior must feel atmospheric and grounded.
+```
 
 ## images 数组约束
 
@@ -196,28 +346,31 @@ images 数组**仅允许**包含以下类型的参考图，**禁止**混入任�
 调用 `scripts/validators.py` 的两个函数进行校验：
 
 **顶层固定值（不可变）：**
-- `model` **必须固定为** `"gpt-image-2"`
-- `imageSize` **必须固定为** `"1K"`
-- `aspectRatio` **必须固定为** `"2:1"`
+- `model` **必须固定为** `"nano-banana-2"`
+- `imageSize` **必须固定为** `"4K"`
+- `aspectRatio` **必须固定为** `"4:1"`
 
 **任务级校验** — `validate_tasks(tasks)`：
 
 | 校验项 | 说明 |
 |------|------|
-| 基础字段 | prompt, imageSize, aspectRatio, filename, images |
-| 类型 | imageSize **必须固定为** `1K`，aspectRatio **必须固定为** `2:1` |
+| 基础字段 | prompt, model, imageSize, aspectRatio, filename, images |
+| 类型 | model **必须固定为** `nano-banana-2`，imageSize **必须固定为** `4K`，aspectRatio **必须固定为** `4:1` |
 | images/模式 | 至少 1 张参考图（场景采样图或风格参考图） |
-| images/范围 | **images 中不得包含角色参考图路径（角色设定/角色参考图/）或道具参考图路径（道具设定/道具参考图/）**，仅允许场景采样图（前期采样/场景/）和风格参考图（前期采样/风格/） |
-| prompt | 无占位符，必须包含「二宫格」或（「俯瞰」+「北向」）或（「环境空间展示图」+「1:1」），长度 ≥ 50 |
+| images/范围 | **images 中不得包含角色参考图路径或道具参考图路径**，仅允许场景采样图和风格参考图 |
+| prompt | 无占位符，长度 ≥ 50 |
 | filename | 必须以 .png 结尾 |
 
 **顶层校验** — `validate_top_level(data)`：
-- `model` **必须固定为** `"gpt-image-2"`
+- `model` **必须固定为** `"nano-banana-2"`
 - `output_path` 非空
 - `tasks` 存在
+
+> 备选全景模式使用 `validate_tasks_panoramic()` 校验，参数为 gpt-image-2 / 1K / 2:1。
 
 ## 输出完成提示
 
 ```
-任务 JSON 已生成，等待 Art-director 执行生图
+双视图场景参考图任务表已生成，等待 Art-director 执行生图
+- {N} 个场景，已生成 {N*2} 个 task（内景 {N} + 外景 {N}）
 ```

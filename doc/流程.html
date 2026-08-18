@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 影视生产管线 · 节点制作思路与提示词模板教学</title>
+<style>
+  :root{
+    --bg:#14110d;
+    --bg-2:#1c1812;
+    --bg-3:#221d15;
+    --bg-code:#0e0c09;
+    --line:#3a3126;
+    --line-soft:#2a241c;
+    --ink:#f2ece2;
+    --ink-2:#b8ad9c;
+    --ink-3:#8a7f6e;
+    --brown:#c08a4f;
+    --brown-deep:#8a5a2b;
+    --brown-soft:#e0b98a;
+    --brown-faint:rgba(192,138,79,.09);
+    --serif:"Songti SC","Noto Serif SC","STSong","SimSun",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.75;
+    font-size:15px;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--brown);color:#1a140d}
+
+  /* ── 顶部 Hero ─────────────────────────── */
+  .hero{
+    position:relative;
+    padding:96px 40px 72px;
+    text-align:center;
+    overflow:hidden;
+    border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(1200px 420px at 50% -120px, rgba(192,138,79,.14), transparent 65%),
+      linear-gradient(180deg, #191510 0%, var(--bg) 78%);
+  }
+  .hero .kicker{
+    font-size:12px;
+    letter-spacing:.42em;
+    text-transform:uppercase;
+    color:var(--brown);
+    margin-bottom:22px;
+    font-family:var(--sans);
+  }
+  .hero h1{
+    font-family:var(--serif);
+    font-size:44px;
+    font-weight:600;
+    letter-spacing:.12em;
+    line-height:1.35;
+    margin-bottom:18px;
+  }
+  .hero h1 em{font-style:normal;color:var(--brown-soft)}
+  .hero .sub{
+    max-width:680px;
+    margin:0 auto;
+    color:var(--ink-2);
+    font-size:14.5px;
+    letter-spacing:.04em;
+  }
+  .hero .divider{
+    width:64px;height:1px;
+    margin:34px auto 0;
+    background:linear-gradient(90deg, transparent, var(--brown), transparent);
+  }
+  .hero .meta{
+    margin-top:26px;
+    display:flex;gap:28px;justify-content:center;flex-wrap:wrap;
+    font-size:12px;color:var(--ink-3);letter-spacing:.14em;
+  }
+  .hero .meta b{color:var(--brown-soft);font-weight:600;letter-spacing:.05em}
+
+  /* ── 顶部导航 ─────────────────────────── */
+  nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(20,17,13,.92);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  nav .inner{
+    max-width:1080px;margin:0 auto;
+    display:flex;align-items:center;gap:4px;
+    padding:0 24px;overflow-x:auto;
+    scrollbar-width:none;
+  }
+  nav .inner::-webkit-scrollbar{display:none}
+  nav .brand{
+    font-family:var(--serif);
+    font-size:13px;letter-spacing:.28em;color:var(--brown);
+    padding:14px 18px 14px 0;white-space:nowrap;font-weight:600;
+  }
+  nav a{
+    color:var(--ink-2);text-decoration:none;
+    font-size:12.5px;letter-spacing:.06em;
+    padding:14px 12px;white-space:nowrap;
+    border-bottom:2px solid transparent;
+    transition:color .18s,border-color .18s;
+  }
+  nav a:hover{color:var(--ink)}
+  nav a.on{color:var(--brown-soft);border-bottom-color:var(--brown)}
+
+  /* ── 主体 ─────────────────────────────── */
+  main{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+
+  section.node{padding-top:84px}
+  .node-head{
+    display:flex;align-items:baseline;gap:18px;
+    margin-bottom:10px;
+  }
+  .node-no{
+    font-family:var(--serif);
+    font-size:26px;font-weight:600;color:var(--brown);
+    letter-spacing:.05em;
+    min-width:56px;
+  }
+  .node-title{
+    font-family:var(--serif);
+    font-size:26px;font-weight:600;letter-spacing:.08em;
+  }
+  .node-tag{
+    font-size:11px;color:var(--brown-soft);
+    border:1px solid var(--brown-deep);
+    padding:2px 10px;border-radius:999px;
+    letter-spacing:.14em;white-space:nowrap;
+  }
+  .node-line{
+    height:1px;flex:1;margin:0 4px;
+    background:linear-gradient(90deg, var(--brown-deep), transparent);
+    align-self:center;
+  }
+  .node-desc{
+    color:var(--ink-2);
+    font-size:14.5px;
+    margin:14px 0 30px;
+    max-width:860px;
+  }
+  .node-desc b{color:var(--brown-soft);font-weight:600}
+
+  /* 小节 */
+  .block{margin:34px 0}
+  .block-title{
+    font-family:var(--serif);
+    font-size:16.5px;font-weight:600;color:var(--brown-soft);
+    letter-spacing:.16em;
+    display:flex;align-items:center;gap:12px;
+    margin-bottom:16px;
+  }
+  .block-title::before{
+    content:"";width:18px;height:1px;background:var(--brown);
+    flex:none;
+  }
+
+  /* 思路卡片 / 步骤 */
+  .steps{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:14px;
+  }
+  .step{
+    background:var(--bg-2);
+    border:1px solid var(--line-soft);
+    border-radius:8px;
+    padding:18px 18px 16px;
+    transition:border-color .2s, transform .2s;
+  }
+  .step:hover{border-color:var(--brown-deep);transform:translateY(-2px)}
+  .step .n{
+    font-family:var(--serif);
+    font-size:12px;color:var(--brown);
+    letter-spacing:.2em;
+    display:block;margin-bottom:8px;
+  }
+  .step h4{
+    font-size:14px;font-weight:600;letter-spacing:.05em;
+    margin-bottom:6px;color:var(--ink);
+  }
+  .step p{font-size:12.8px;color:var(--ink-2);line-height:1.65}
+
+  /* 流程链 */
+  .flow{
+    display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;
+    margin:6px 0 4px;
+  }
+  .flow .f{
+    background:var(--bg-2);
+    border:1px solid var(--line-soft);
+    border-radius:6px;
+    padding:9px 14px;
+    font-size:12.5px;color:var(--ink-2);
+    letter-spacing:.03em;
+  }
+  .flow .f b{color:var(--brown-soft);font-weight:600}
+  .flow .arr{
+    color:var(--brown-deep);align-self:center;font-size:12px;
+    flex:none;
+  }
+
+  /* 表格 */
+  table{
+    width:100%;border-collapse:collapse;
+    font-size:13px;
+    margin:6px 0 2px;
+    background:var(--bg-2);
+    border-radius:8px;overflow:hidden;
+  }
+  th{
+    background:var(--bg-3);
+    color:var(--brown-soft);
+    font-weight:600;letter-spacing:.08em;
+    text-align:left;
+    padding:10px 14px;
+    font-size:12px;
+    border-bottom:1px solid var(--line);
+  }
+  td{
+    padding:9px 14px;
+    border-bottom:1px solid var(--line-soft);
+    color:var(--ink-2);
+    vertical-align:top;
+  }
+  tr:last-child td{border-bottom:none}
+  td:first-child{color:var(--ink);white-space:nowrap;font-weight:500}
+  table.code-tbl td{font-family:var(--mono);font-size:12px}
+  .tbl-note{
+    font-size:12px;color:var(--ink-3);
+    margin-top:8px;letter-spacing:.03em;
+  }
+
+  /* 代码块 */
+  pre{
+    background:var(--bg-code);
+    border:1px solid var(--line-soft);
+    border-radius:8px;
+    padding:18px 20px;
+    overflow-x:auto;
+    font-family:var(--mono);
+    font-size:12.3px;
+    line-height:1.7;
+    color:#e9dcc4;
+    margin:6px 0 4px;
+    white-space:pre;
+  }
+  pre .k{color:var(--brown-soft)}
+  pre .c{color:#7d7260;font-style:italic}
+  pre .s{color:#d8c9a3}
+  .code-wrap{position:relative;margin:10px 0 6px}
+  .code-cap{
+    display:flex;align-items:center;gap:8px;
+    font-size:11px;letter-spacing:.12em;color:var(--ink-3);
+    margin-bottom:6px;
+  }
+  .code-cap::before{content:"";width:8px;height:8px;background:var(--brown);flex:none}
+  .code-cap b{color:var(--brown-soft);font-weight:600;letter-spacing:.05em}
+  .code-cap .path{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+
+  /* 铁律 */
+  .laws{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+  .law{
+    background:var(--bg-2);
+    border:1px solid var(--line-soft);
+    border-left:3px solid var(--brown-deep);
+    border-radius:6px;
+    padding:13px 16px;
+    font-size:12.8px;color:var(--ink-2);
+    line-height:1.7;
+  }
+  .law b{color:var(--brown-soft);font-weight:600}
+
+  /* 引言 / 提示 */
+  .note{
+    background:var(--brown-faint);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:16px 20px;
+    font-size:13px;color:var(--ink-2);
+    margin:14px 0;
+  }
+  .note b{color:var(--brown-soft);font-weight:600}
+  .note .h{
+    display:block;font-size:11px;letter-spacing:.28em;color:var(--brown);
+    margin-bottom:8px;font-weight:600;
+  }
+
+  /* 管线图 */
+  .pipe{
+    display:flex;flex-direction:column;gap:0;
+    margin:10px 0 6px;
+  }
+  .pipe .row{
+    display:grid;grid-template-columns:118px 1fr;
+    gap:0;align-items:stretch;
+  }
+  .pipe .st{
+    font-family:var(--serif);
+    font-size:13px;color:var(--brown-soft);
+    letter-spacing:.1em;
+    padding:13px 16px 13px 0;
+    border-top:1px solid var(--line-soft);
+    display:flex;align-items:baseline;gap:8px;
+  }
+  .pipe .st small{color:var(--ink-3);font-size:10.5px;letter-spacing:.05em}
+  .pipe .who{
+    padding:13px 16px;
+    border-top:1px solid var(--line-soft);
+    font-size:12.8px;color:var(--ink-2);
+  }
+  .pipe .who b{color:var(--ink);font-weight:600}
+  .pipe .who .role{color:var(--brown-soft)}
+  .pipe .row:first-child .st,.pipe .row:first-child .who{border-top:none}
+
+  footer{
+    border-top:1px solid var(--line);
+    padding:56px 32px 64px;
+    text-align:center;
+    color:var(--ink-3);font-size:12px;letter-spacing:.14em;
+  }
+  footer .mark{
+    width:34px;height:1px;margin:0 auto 20px;
+    background:linear-gradient(90deg,transparent,var(--brown),transparent);
+  }
+  footer b{color:var(--brown-soft);font-weight:600;letter-spacing:.05em}
+
+  @media(max-width:720px){
+    .hero{padding:64px 20px 48px}
+    .hero h1{font-size:30px}
+    main{padding:0 18px 80px}
+    .node-title{font-size:20px}
+    .node-no{font-size:20px}
+    .pipe .row{grid-template-columns:1fr}
+    .pipe .st{border-top:none;padding-bottom:2px}
+    .pipe .who{padding-top:6px;border-top:1px solid var(--line-soft)}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero">
+  <div class="kicker">Node Production Guide</div>
+  <h1>节点制作思路与<em>默认提示词模板</em></h1>
+  <p class="sub">AI 影视生产管线教学材料 —— 从项目初始化到视频交付，逐节点拆解「制作思路」与「系统内置的默认提示词模板」，即学即用。</p>
+  <div class="divider"></div>
+  <div class="meta">
+    <span>管线阶段 <b>7 大节点 / 17 子阶段</b></span>
+    <span>技能模块 <b>12 个 Skill</b></span>
+    <span>内容载体 <b>SKILL.md + rules/references</b></span>
+  </div>
+</header>
+
+<!-- ═══════════ NAV ═══════════ -->
+<nav>
+  <div class="inner">
+    <span class="brand">管线 · 节点</span>
+    <a href="#n1">01 项目初始化</a>
+    <a href="#n2">02 监制提取设定</a>
+    <a href="#n3">03 全局视觉资产</a>
+    <a href="#n4">04 分镜脚本</a>
+    <a href="#n5">05 参考图生成</a>
+    <a href="#n6">06 视频生成</a>
+    <a href="#n7">07 辅助节点</a>
+    <a href="#pipe">管线总览</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ═══════════ 管线总览 ═══════════ -->
+<section class="node" id="pipe">
+  <div class="node-head">
+    <span class="node-no">〇</span>
+    <h2 class="node-title">生产管线总览</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">PIPELINE</span>
+  </div>
+  <p class="node-desc">本系统以 <b>17 个阶段</b>组织一部影视剧的完整生产：每阶段由专职子 Agent（加载对应 Skill）执行，产出物经 <b>Coordinator</b> 注册归档后推进下一阶段。核心制作节点共 <b>7 类</b>，下文逐一拆解。</p>
+
+  <div class="block">
+    <div class="block-title">阶段链与执行者</div>
+    <div class="pipe">
+      <div class="row"><div class="st">1 · 项目初始化 <small>project_init</small></div><div class="who"><b>coordinator</b> —— 建骨架、17 阶段状态机、<span class="role">project_config.json</span> 配置</div></div>
+      <div class="row"><div class="st">2 · 前期素材归类 <small>material_sorting</small></div><div class="who"><b>coordinator</b> —— 采样图/素材归类到 <span class="role">前期采样/</span></div></div>
+      <div class="row"><div class="st">3 · 监制提取设定 <small>supervisor_extraction</small></div><div class="who"><b>producer</b> —— 多模态分析 + 联网检索 → 全局/角色/场景/道具设定 + 分集剧本</div></div>
+      <div class="row"><div class="st">4 · 全局角色资产 <small>global_character_tasks/art</small></div><div class="who"><b>roles-ref-generator</b> → <b>art-director</b> —— Tier1 选角 + Tier2 定妆 + 群像</div></div>
+      <div class="row"><div class="st">5 · 全局道具资产 <small>global_prop_tasks/art</small></div><div class="who"><b>prop-ref-generator</b> → <b>art-director</b> —— 上4下2六视图基准资产</div></div>
+      <div class="row"><div class="st">6 · 全局场景资产 <small>global_scene_tasks/art</small></div><div class="who"><b>scene-ref-generator</b> → <b>art-director</b> —— 内景+外景双视图基准资产</div></div>
+      <div class="row"><div class="st">7 · 分镜脚本 <small>episode_storyboard_script</small></div><div class="who"><b>storyboard-generator</b> —— 场→组→镜三级结构（详细 JSON / 精简 MD）</div></div>
+      <div class="row"><div class="st">8-10 · 剧集级参考图 <small>episode_*_ref</small></div><div class="who"><b>roles/prop/scene-ref-generator</b> —— 妆造匹配清单、剧集场景变化、剧集道具</div></div>
+      <div class="row"><div class="st">11 · 参考图生成 <small>episode_storyboard_images</small></div><div class="who"><b>storyboard-generator</b>（独立 session）→ <b>art-director</b> —— 视觉锚点 / 串行分镜图（按 reference_image_mode 分支）</div></div>
+      <div class="row"><div class="st">12 · 资产同步 <small>asset_sync</small></div><div class="who"><b>coordinator</b> —— 拷贝全局/剧集资产到 <span class="role">temp/分组素材/{剧集号}/</span></div></div>
+      <div class="row"><div class="st">13 · 视频生成 <small>video_generation</small></div><div class="who"><b>video-director-libtv</b> + <b>seedance-prompt-optimizer</b> —— libtv 画布节点化生成</div></div>
+      <div class="row"><div class="st">14 · 交付归档 <small>delivery</small></div><div class="who"><b>coordinator</b> —— 校验 _manifest.json（failed=0）后归档</div></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">核心设计原则</div>
+    <div class="laws">
+      <div class="law"><b>Agent 决策 + 脚本校验：</b>所有智能决策（读设定、构 Prompt、组任务表）由 Agent 完成；Python 脚本仅做无状态 Schema 校验，保证任务表与共享 Schema（<span class="path" style="font-family:var(--mono)">.opencode/schemas/image-generation.json</span>）一致。</div>
+      <div class="law"><b>prompt 原样传递：</b>art-director 禁止修改任务表 prompt；质量靠上游节点按模板生成的 prompt 保证，执行层不做「智能改写」。</div>
+      <div class="law"><b>场 = 连续物理空间：</b>分镜、分镜图、视觉锚点共用同一分场口径，保证参考帧链与视频连续性不因拆场而断裂。</div>
+      <div class="law"><b>独立 Session 隔离：</b>分镜脚本（创作密集）与参考图任务表（格式严格）由不同 Session 执行，避免上下文稀释导致模板遗漏。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 节点 1 项目初始化 ═══════════ -->
+<section class="node" id="n1">
+  <div class="node-head">
+    <span class="node-no">01</span>
+    <h2 class="node-title">项目初始化</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">coordinator</span>
+  </div>
+  <p class="node-desc">每个项目的起点。Coordinator 负责创建<b>元数据状态机（17 阶段）</b>与<b>目录骨架</b>，并逐项询问用户确认视频生成参数，写入 <b>project_config.json</b> —— 该文件是后续所有节点的运行时配置来源。</p>
+
+  <div class="block">
+    <div class="block-title">制作思路 · 操作流程</div>
+    <div class="steps">
+      <div class="step"><span class="n">STEP 1</span><h4>生成 UUID v4</h4><p>为项目分配唯一标识，元数据存放于 <span style="font-family:var(--mono)">.meta/projects/{uuid}/</span>。</p></div>
+      <div class="step"><span class="n">STEP 2</span><h4>初始化 4 元数据文件</h4><p>project.json、stages.json（17 阶段状态机）、manifest.json（产物注册表）、events.jsonl（事件日志）。</p></div>
+      <div class="step"><span class="n">STEP 3</span><h4>创建目录骨架</h4><p>全局依赖（角色/场景/道具设定及参考图目录）+ 前期采样（人物/场景/道具/风格）+ 全局设定占位文件。</p></div>
+      <div class="step"><span class="n">STEP 4</span><h4>整理原始剧本</h4><p>用户剧本 → project/{项目名}/原始剧本.md，计算 SHA-256 注册 manifest，追加 artifact.created 事件。</p></div>
+      <div class="step"><span class="n">STEP 5</span><h4>配置 project_config.json</h4><p>逐项询问用户：画幅、分辨率、视频模型、参考图模式、生成模式、音效开关；未指定则用默认值。</p></div>
+      <div class="step"><span class="n">STEP 6</span><h4>登记归档</h4><p>注册 project_config 到 manifest，写入 project.created 事件，进入 material_sorting 阶段。</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">默认配置模板 · project_config.json</div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>运行配置</b><span class="path">.meta/projects/{uuid}/project_config.json</span></div>
+      <pre>{
+  "aspect_ratio": "16:9",        <span class="c">// 画幅比例（默认 16:9）</span>
+  "resolution": "720p",          <span class="c">// 分辨率（默认 720p）</span>
+  "model": "Seedance 2.0 VIP",   <span class="c">// 视频模型「中文名」modelName，禁止填 modelKey</span>
+  "reference_image_mode": "visual_anchor",
+                                 <span class="c">// 参考图模式：visual_anchor（默认，每场一张视觉锚点）</span>
+                                 <span class="c">//  | storyboard_images（串行分镜图）| none（跳过）</span>
+  "mode": "mixed2video",         <span class="c">// 生成模式（默认）</span>
+  "enable_sound": true           <span class="c">// 是否生成音效</span>
+}</pre>
+    </div>
+    <table>
+      <tr><th>可用模型（modelName）</th><th>说明</th><th>modelKey（仅排查用）</th></tr>
+      <tr><td>Seedance 2.0 VIP</td><td>最强视频模型，15s 音画同步</td><td>star-video2</td></tr>
+      <tr><td>Seedance 2.0 Fast VIP</td><td>最强视频模型快速版，15s 音画同步</td><td>star-video2-fast</td></tr>
+      <tr><td>Happy Horse 1.0</td><td>阿里最新视频模型，支持多参生成</td><td>happy-horse-1</td></tr>
+      <tr><td>可灵 3.0 Omni</td><td>视频编辑模型，参考一致性，音画同出，多镜头</td><td>kling-v3-omni</td></tr>
+      <tr><td>可灵 3.0</td><td>视频生成模型，高质感，支持多镜头</td><td>kling-video-o3</td></tr>
+    </table>
+    <p class="tbl-note">workspace_id 与 episodes 映射不在初始化时写入，由 video-director 首次运行时创建/绑定后回写。</p>
+  </div>
+
+  <div class="block">
+    <div class="block-title">默认状态模板 · stages.json（17 阶段节选）</div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>阶段状态机</b><span class="path">.meta/projects/{uuid}/stages.json</span></div>
+      <pre>{
+  "_version": 1,
+  "current": "project_init",
+  "stages": [
+    { "name": "project_init",            "label": "项目初始化",            "status": "in_progress", "artifacts": [], "started_at": null, "completed_at": null },
+    { "name": "material_sorting",        "label": "前期素材归类",          "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    { "name": "supervisor_extraction",   "label": "监制提取设定",          "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    { "name": "global_character_tasks",  "label": "全局角色参考图任务生成", "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    { "name": "global_character_art",    "label": "全局角色参考图绘制",    "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    <span class="c">// ... global_prop_tasks/art、global_scene_tasks/art ...</span>
+    { "name": "episode_storyboard_script", "label": "剧集分镜脚本",         "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    <span class="c">// ... episode_character_ref、episode_prop_ref、episode_scene_ref ...</span>
+    { "name": "episode_storyboard_images", "label": "剧集参考图生成",       "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    { "name": "asset_sync",              "label": "资产同步",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    { "name": "video_generation",        "label": "视频生成",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null },
+    { "name": "delivery",                "label": "交付归档",              "status": "pending",     "artifacts": [], "started_at": null, "completed_at": null }
+  ]
+}</pre>
+    </div>
+    <div class="note"><span class="h">注意</span>阶段顺序固定不可缺漏；仅 project_init 初始为 in_progress。Coordinator 只做元数据管理（创建/推进/归档），<b>不参与任何内容制作</b>。</div>
+  </div>
+</section>
+
+<section class="node" id="n2">
+  <div class="node-head">
+    <span class="node-no">02</span>
+    <h2 class="node-title">监制 · 提取设定与分集剧本</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">producer</span>
+  </div>
+  <p class="node-desc">管线最上游的内容处理节点：将<b>原始剧本</b>转化为结构化的<b>全局设定、角色设定、场景设定、道具设定与分集剧本</b>。融合两条增强链路 —— <b>前期采样多模态分析</b>（采样图 → 视觉信息注入设定）与<b>联网历史检索</b>（真实历史人物/事件/规制精确化）。</p>
+
+  <div class="block">
+    <div class="block-title">制作思路 · 工作流程</div>
+    <div class="flow">
+      <div class="f">读项目目录</div><span class="arr">→</span>
+      <div class="f">读原始剧本</div><span class="arr">→</span>
+      <div class="f">前期采样<b>多模态分析</b></div><span class="arr">→</span>
+      <div class="f">识别<b>历史真实内容</b></div><span class="arr">→</span>
+      <div class="f">联网检索<b>权威资料</b></div><span class="arr">→</span>
+      <div class="f">提取全局设定</div><span class="arr">→</span>
+      <div class="f">角色/场景/道具设定</div><span class="arr">→</span>
+      <div class="f">分集剧本</div><span class="arr">→</span>
+      <div class="f">产物清单</div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">制作思路 · 要点拆解</div>
+    <div class="steps">
+      <div class="step"><span class="n">MULTIMODAL</span><h4>前期采样分析</h4><p>角色采样看发型/脸型/服饰/气质，场景采样看色调/光照/布局，道具采样看材质/形制，画风采样看线条/上色；结果注入「外貌特征」「视觉描述」等字段。</p></div>
+      <div class="step"><span class="n">SEARCH</span><h4>历史内容检索</h4><p>仅对「真实历史」触发：人物官职品级、服饰规制、时代建筑、器物形制。用精确信息替代模糊描述（如「明朝官服」→「四品内官监太监赐服蟒袍」），并标注参考来源。</p></div>
+      <div class="step"><span class="n">SCOPE</span><h4>提取范围过滤</h4><p>只为核心角色/核心场景/关键道具建设定文件；过场龙套、装饰性道具不建。信息不足用 [待补充] 占位，禁止编造。</p></div>
+      <div class="step"><span class="n">MERGE</span><h4>物理空间合并</h4><p>一个场景文件 = 一个独立物理空间。同一空间内不同区域（舞台中心/宾客席 = 宴会厅）必须合并，禁止拆分。</p></div>
+      <div class="step"><span class="n">FAITHFUL</span><h4>分集剧本保真</h4><p>台词逐字原样保留；按场景变化分幕；约 30 秒/幕段估算时长；不做镜头分解；音效按场景标注。</p></div>
+      <div class="step"><span class="n">HANDOFF</span><h4>产物清单交接</h4><p>仅输出产物路径清单，由 Coordinator 计算哈希、注册 manifest、推进阶段，不越权加载其他 Skill。</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">默认格式模板 · 设定文件</div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>独立角色文档</b><span class="path">全局依赖/角色设定/具体设定/{角色名}.md</span></div>
+      <pre># {角色名} — 角色设定
+
+## 基本信息
+| 字段 | 内容 |
+|------|------|
+| 姓名 | ...      | <span class="c">// 时代 / 身份职业 / 性别年龄</span>
+
+## 性格特征
+## 外貌特征                  <span class="c">// 优先采样分析结果</span>
+## 造型设计
+### 默认                      <span class="c">// 发型 + 服装完整描述（Tier2 定妆来源）</span>
+### {妆造名2}（如有）          <span class="c">// 多套妆造，供分镜 [妆造:名] 标注引用</span>
+## 动作习惯
+## 台词特征
+## 设计参考                   <span class="c">// 画风参考注入</span>
+## 参考来源                   <span class="c">// 联网检索来源标注</span></pre>
+    </div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>场景设定</b><span class="path">全局依赖/场景设定/具体设定/{场景名}.md</span></div>
+      <pre># {场景名} — 场景设定
+## 基本信息（名称/时代）
+## 氛围/基调
+## 视觉描述                  <span class="c">// 融合检索的建筑规制 + 采样色调</span>
+## 关键元素
+## 光线/色彩要求
+## 参考来源</pre>
+    </div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>道具设定（含「出现场合」必填）</b><span class="path">全局依赖/道具设定/具体设定/{道具名}.md</span></div>
+      <pre># {道具名}
+## 基本信息
+| 字段 | 内容 |
+|------|------|
+| 名称 | ... |
+| 用途 | ... |
+| 出现场合 | 全剧 / EP01 / EP01,EP13   <span class="c">// 必须，决定资产文件名与引用范围</span>
+## 外观描述                  <span class="c">// 融合历史形制</span>
+## 参考来源</pre>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">约束铁律</div>
+    <div class="laws">
+      <div class="law"><b>台词原样保留：</b>原始剧本只读不改，台词逐字保留，不做任何润色。</div>
+      <div class="law"><b>只为核心项做设定：</b>主角/关键配角、核心场景、关键道具才建独立文件；龙套与装饰性道具不做。</div>
+      <div class="law"><b>[待补充] 占位：</b>信息不足优先用检索结果填充，仍不足用占位符，绝不编造。</div>
+      <div class="law"><b>检索有界：</b>仅真实历史内容触发联网；纯虚构不检索；检索信息必须标注参考来源。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 节点 3 全局视觉资产 ═══════════ -->
+<section class="node" id="n3">
+  <div class="node-head">
+    <span class="node-no">03</span>
+    <h2 class="node-title">全局视觉资产生成</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">roles / prop / scene-ref-generator</span>
+  </div>
+  <p class="node-desc">三类基准资产，锁定全剧视觉一致性：<b>角色</b>（Tier1 选角 → Tier2 定妆）、<b>道具</b>（六视图）、<b>场景</b>（内景+外景双视图）。统一产出 <b>任务表 JSON</b>（符合共享 Schema），由 art-director 执行批量生图。</p>
+
+  <!-- 3A 角色 -->
+  <div class="block">
+    <div class="block-title">3A · 角色参考图（roles-ref-generator）</div>
+    <div class="flow">
+      <div class="f">角色设定 + 采样图 + 风格参考</div><span class="arr">→</span>
+      <div class="f">模式判断 <b>A/B</b></div><span class="arr">→</span>
+      <div class="f">风格匹配<b>（默认 PhotoRealistic）</b></div><span class="arr">→</span>
+      <div class="f">Tier1 <b>选角</b>（白T恤）</div><span class="arr">→</span>
+      <div class="f">Tier2 <b>定妆</b>（造型设计）</div><span class="arr">→</span>
+      <div class="f">妆造衣橱初始化</div><span class="arr">→</span>
+      <div class="f">Schema 校验</div>
+    </div>
+
+    <div class="code-wrap">
+      <div class="code-cap"><b>竖版三视图模板（默认）</b><span class="path">nano-banana-2 · 4K · 9:16</span></div>
+      <pre>Create a {opening_decl}.
+
+This is a {opening_type},
+not {opening_neg_1},
+not {opening_neg_2},
+not {opening_neg_3}.
+
+{identity_ref}
+
+The image contains three photographic references of the same character in a vertical composition.
+
+Layout:
+
+The image is divided into two equal horizontal bands: the top half occupies exactly 50% of the frame height, and the bottom half occupies exactly 50% of the frame height.
+
+Top half:
+A cinematic portrait of the character,
+from the top of the head down to the elbow joints,
+showing the face, head, neck, shoulders, chest, and upper torso down to just above the navel,
+with both arms visible down to the elbow joints,
+filling the entire top half of the frame.
+The face and upper body are large and prominent,
+photographed like a {layout_portrait_style} with dramatic intimacy.
+
+Bottom half:
+The bottom half contains two full-body costume continuity references showing the character's body and costume only:
+front view on the left, back view on the right, placed side by side.
+The head and face must not be visible in these two costume references.
+Frame the shots from the neck down,
+focusing on costume silhouette, garment structure, fabric layers, body proportions, and costume details.
+
+The character identity, hairstyle, and costume continuity must remain consistent with the portrait reference,
+but the bottom costume views should intentionally exclude the head area.
+
+The character must maintain:
+same identity, same costume, same body proportions, same hairstyle continuity in the visible references.
+
+The reference should look like {output_format},
+not a designed poster or graphic layout.
+
+Character:
+{character}
+
+Appearance:
+{appearance}
+
+Hair and Costume:
+{hair_costume}
+
+Photography style:
+{photo_style}
+Shot at 85mm f4 with moderate depth of field, face and upper body sharply in focus, background gently blurred, maintaining clear detail from face to mid-torso.
+
+Lighting:
+{lighting}
+
+Background:
+{background}
+
+Avoid:
+{avoid_style},
+text, labels, captions, logos, watermarks, frames, decorative elements, graphic layout, beauty retouching, perfect symmetry.</pre>
+    </div>
+
+    <div class="note"><span class="h">两阶段取参要点</span><b>Tier1 选角</b>固定值：hair_costume = 「Plain white short-sleeve T-shirt, minimal, no patterns, no text. Natural hairstyle as described in character setting.」；lighting = 「Soft studio lighting with even illumination, no color cast, minimal shadows.」；background = 「Industrial mid-grey seamless backdrop...」。<b>Tier2 定妆</b>三项改为从角色设定「造型设计」与风格参考文件提取；images[0] 引用 Tier1 选角资产，仅锁脸部骨相，<b>禁止从参考图推断服装</b>。</div>
+
+    <table>
+      <tr><th>占位符</th><th>含义</th><th>来源</th></tr>
+      <tr><td>{opening_decl} / {opening_type}</td><td>开篇类型声明 / 正面类型确认</td><td>风格参考文件 front-matter</td></tr>
+      <tr><td>{opening_neg_1~3}</td><td>三个否定消歧项（非 3D 角色卡/游戏角色/概念图）</td><td>风格参考文件 front-matter</td></tr>
+      <tr><td>{identity_ref}</td><td>参考图一致性引导</td><td>模式 A：&quot;Character features strictly reference Image 1 through Image N.&quot;；Tier2 固定 Image 1</td></tr>
+      <tr><td>{character}</td><td>身份/时代/定位，格式 A {性别+年龄} {身份} {时代}, {定位}.</td><td>角色设定</td></tr>
+      <tr><td>{appearance}</td><td>面部/皮肤/发型/体态 + style_injection；<b>含缺省值防范</b></td><td>角色设定 + reference</td></tr>
+      <tr><td>{hair_costume}</td><td>发型与服装</td><td>Tier1 固定白T恤 / Tier2 造型设计</td></tr>
+      <tr><td>{photo_style} / {lighting} / {background}</td><td>摄影 / 光影 / 背景</td><td>风格参考文件 front-matter</td></tr>
+      <tr><td>{avoid_style}</td><td>风格专属否定约束</td><td>风格参考文件 front-matter</td></tr>
+    </table>
+
+    <div class="code-wrap">
+      <div class="code-cap"><b>缺省值原则（防止模型「自动填空」）</b><span class="path">appearance 段显式声明</span></div>
+      <pre>{面部特征描述}。
+{皮肤质感描述}。
+{发型描述}。
+{体态描述}。
+{胡须状态}（男性必填：clean-shaven, no facial hair / goatee / full beard）
+{style_injection}
+
+<span class="c">// 示例（写实 · 唐代贵族女性）</span>
+Natural Chinese facial features, soft oval face, gentle but expressive eyes, natural facial proportions.
+Real human skin texture with subtle imperfections.
+Traditional Tang Dynasty hairstyle, elaborate but historically grounded hair arrangement, natural black hair.
+Elegant and confident posture with refined temperament.
+<span class="c">// + {style_injection}（如：Natural facial features, real human skin texture with subtle imperfections, authentic historical appearance）</span></pre>
+    </div>
+
+    <table>
+      <tr><th>构图模式</th><th>aspectRatio</th><th>视图</th><th>说明</th></tr>
+      <tr><td>竖版三视图（默认）</td><td>9:16</td><td>3</td><td>上 50% 半身近景肖像 + 下 50% 全身正面/背面并排（无头部）</td></tr>
+      <tr><td>横版七视图（备选）</td><td>16:9</td><td>7</td><td>左半身近景 + 右上表情三连（happy/sad/angry）+ 右下全身前/侧/后</td></tr>
+      <tr><td>群像（独立模板）</td><td>—</td><td>—</td><td>纯色背景并排全身群像展示，string 参数体系</td></tr>
+    </table>
+    <p class="tbl-note">风格匹配表：PhotoRealistic（默认，真人摄影/写真/live-action）· 3DCartoon（Pixar/迪士尼/三维动画）· Ghibli（吉卜力/宫崎骏）· GTAV（GTA V/Rockstar）。参数整组注入，不可拆分。</p>
+  </div>
+
+  <!-- 3B 道具 -->
+  <div class="block">
+    <div class="block-title">3B · 道具参考图（prop-ref-generator）</div>
+    <div class="flow">
+      <div class="f">道具设定（出现场合必填）</div><span class="arr">→</span>
+      <div class="f">采样图<b>P0-P3 遵循</b></div><span class="arr">→</span>
+      <div class="f">模式判断 <b>A/B</b></div><span class="arr">→</span>
+      <div class="f">六视图 prompt 组装</div><span class="arr">→</span>
+      <div class="f">任务表 + 校验</div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>上4下2六视图模板</b><span class="path">gpt-image-2 · 1K · 16:9</span></div>
+      <pre>{string0}，
+{style_desc}，{string1}，4K分辨率，极致细节，{string2}，上4下2六视图排版。
+上方画面：左起依次为{string3}、{string4}、{string5}、{string6}。
+下方画面：左起依次为{string7}、{string8}。
+{string9}，
+{string10}，
+{string11}.
+{string12}</pre>
+    </div>
+    <table>
+      <tr><th>参数</th><th>模式 B（无采样图）</th><th>模式 A（有采样图，零文字描述）</th></tr>
+      <tr><td>string0 一致性引导</td><td>声明「严格遵循设定描述」</td><td>写实：&quot;道具形态、结构、材质与质感严格遵循参考图片1-图片n&quot;（n=采样图数，唯一产品细节来源）</td></tr>
+      <tr><td>string1/string2</td><td>道具类型标识 / 镜头语言</td><td>同左</td></tr>
+      <tr><td>string3~6 四方位</td><td>正面/背面/侧面/顶部，各 ≥50 字</td><td><b>零文字</b>，仅写「正面/背面/侧面/顶部」</td></tr>
+      <tr><td>string7/8 特写</td><td>关键部位描述 ≥50 字</td><td>仅写部位名，如「烫金纹样细节」「盒角工艺特写」</td></tr>
+      <tr><td>string9 光线氛围</td><td>从使用场景推断 ≥50 字</td><td>仅写「光线与氛围严格遵循参考图」</td></tr>
+      <tr><td>string10 状态关联</td><td>道具状态 + 环境关联</td><td>仅写「道具状态与品相严格遵循参考图所示」</td></tr>
+      <tr><td>string12 风格声明</td><td>留空</td><td>必须写：&quot;图片{n+1}为视觉风格参考，用于引导整体色调、光影氛围与画面质感，不约束道具形态与结构。&quot;</td></tr>
+    </table>
+    <div class="note"><span class="h">关键</span><b>一个道具 = 一个 task</b>，禁止拆分为 6 个独立 task；aspectRatio 固定 16:9。出现场合决定资产文件名：全剧 → <span style="font-family:var(--mono)">{道具名}_全剧_基准.png</span>；多集出场取首集号。</div>
+  </div>
+
+  <!-- 3C 场景 -->
+  <div class="block">
+    <div class="block-title">3C · 场景参考图（scene-ref-generator）</div>
+    <div class="flow">
+      <div class="f">场景设定</div><span class="arr">→</span>
+      <div class="f">风格提取 style_desc</div><span class="arr">→</span>
+      <div class="f">内景/外景划分</div><span class="arr">→</span>
+      <div class="f">双语 7 段 prompt ×2</div><span class="arr">→</span>
+      <div class="f">任务表（N×2 tasks）+ 校验</div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>内景/外景模板（英文控制层 + 中文内容层）</b><span class="path">nano-banana-2 · 4K · 4:1</span></div>
+      <pre>SCENE REFERENCE FRAME — INTERIOR
+
+Create a professional cinematic interior scene reference frame for {film_context}.
+
+This is an interior scene reference image for {scene_name_zh} — a single establishing image
+that locks the scene's interior spatial layout, architecture, furniture, materials, and atmosphere.
+Generate exactly one image for this single frame only.
+One single photographic still that fills the entire canvas.
+
+This is {production_type},
+not {neg_1},
+not {neg_2},
+not {neg_3}.
+
+SCENE CONTINUITY:
+
+This is an interior reference for {scene_name_zh} — the definitive spatial and atmospheric reference for this indoor location.
+
+Maintain strict continuity with reference materials:
+- same {environment_description_zh}
+- same furniture layout and architectural details
+- same lighting atmosphere
+- same {period_description_zh}
+- no anachronistic elements from other eras or dynasties
+
+REFERENCE IMAGE MAPPING:
+Image {N}: Environment Anchor — Highest priority
+{scene_name_zh} — {场景室内空间中文描述：建筑结构、家具陈设、材质纹理、装饰细节与空间关系}。
+Preserve: architecture, spatial layout, materials, atmosphere.
+
+Image {N}: Visual Style Anchor — Second priority
+{brief English style description}.
+Preserve: color palette, lighting mood, visual style.
+
+FRAME DETAIL:
+
+Scene:
+{场景室内空间完整描述 → 中文叙事}
+
+Composition:
+{景别 + 摄影机角度 → 英文，如 ultra-wide panoramic shot, eye-level}
+
+Camera feeling:
+{摄影机运动 → 英文，如 static camera, locked-off}
+
+Lighting:
+{光线描述 → 英文，如 warm candlelight as key}
+
+Atmosphere:
+{场级氛围与感受 → 中文}
+
+CINEMATIC QUALITY:
+
+{style_anchor}
+{全局风格氛围基调 → English}
+{全局色彩调性 → English}
+{全局光线基调 → English}
+{style_footer}
+
+Camera principles:
+{camera_language}
+
+{quality}
+
+TEXT POLICY:
+
+Hard ban on burned-in graphics (non-negotiable):
+- No subtitles, captions, lower-thirds, or title cards
+- No on-screen dialogue text or lyric text
+- No watermarks, logos, shot numbers, timecode, or UI chrome
+
+Diegetic in-world text only (shop signs, book pages, packaging) when the scene itself contains them:
+- Preserve original Chinese characters
+- Do not translate into English
+
+AVOID:
+
+{style_avoid}
+
+Compact final bans:
+- No multi-panel, grid, collage, contact sheet, or split-screen layout; one clean panoramic frame only.
+- No anachronistic costumes or elements for the period.
+- No character focus; this is a scene environment reference, not a character portrait.
+- No empty or lifeless space; every interior must feel lived-in and atmospheric.</pre>
+    </div>
+    <table>
+      <tr><th>模式</th><th>模型 / 分辨率 / 比例</th><th>产出</th><th>适用</th></tr>
+      <tr><td>双视图（默认）</td><td>nano-banana-2 / 4K / 4:1</td><td>{场景名}_内景.png + {场景名}_外景.png</td><td>独立超宽全景，锁定氛围与空间纵深</td></tr>
+      <tr><td>备选全景</td><td>gpt-image-2 / 1K / 2:1</td><td>{场景名}_基准.png（左俯瞰+右二宫格）</td><td>需要俯瞰空间布局总览</td></tr>
+      <tr><td>Episode 模式</td><td>继承基准参数</td><td>{场景名}_内景_{剧集号}.png</td><td>仅叠加本集变化（夜雨/残骸/节庆装饰）</td></tr>
+    </table>
+    <div class="note"><span class="h">铁律</span><b>严禁描述剧情角色</b>——仅聚焦空间环境，需要人物时用「群众角色」泛化；images 数组<b>严禁混入角色/道具参考图</b>，仅允许场景采样图 + 风格参考图；<b>场景间描述差异化</b>，防止共用地理位置的重复句式；缺省值防范：风格、色调、天气、建筑、植被、人群密度全部显式声明。</div>
+  </div>
+</section>
+
+<!-- ═══════════ 节点 4 分镜脚本 ═══════════ -->
+<section class="node" id="n4">
+  <div class="node-head">
+    <span class="node-no">04</span>
+    <h2 class="node-title">分镜脚本</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">storyboard-generator</span>
+  </div>
+  <p class="node-desc">将分集剧本拆解为<b>场 → 组 → 镜</b>三级结构。核心口径：<b>场 = 连续物理空间</b>（与监制场景设定一致），同空间内多个戏剧节拍用「组」表达。产出主要供 <b>AI 视频生成</b>消费：描写精炼直接，表演抓核心动作。分两个 Session 执行（创作与格式严格分离）。</p>
+
+  <div class="block">
+    <div class="block-title">制作思路 · 两阶段流程</div>
+    <div class="flow">
+      <div class="f"><b>Phase A</b> 轻量总体规划</div><span class="arr">→</span>
+      <div class="f">读剧本+设定</div><span class="arr">→</span>
+      <div class="f">物理分场</div><span class="arr">→</span>
+      <div class="f">场次戏剧地图</div><span class="arr">→</span>
+      <div class="f">shot flow</div><span class="arr">→</span>
+      <div class="f">台词时长校验</div><span class="arr">→</span>
+      <div class="f"><b>Phase B</b> 逐场生成</div><span class="arr">→</span>
+      <div class="f">拆分组文件</div>
+    </div>
+    <div class="steps">
+      <div class="step"><span class="n">PHASE A</span><h4>总体规划（快速落盘）</h4><p>产出「分镜稿_临时.md」：物理分场列表、场次戏剧地图、逐场戏核与 shot flow、粗略缩略图任务。</p></div>
+      <div class="step"><span class="n">PHASE B</span><h4>逐场生成（Write+Edit 追加）</h4><p>按模式分支：详细 JSON（17 字段×N 镜头）或精简 Markdown（讲戏式，一段一镜）；每场分析仅持当前场上下文。</p></div>
+      <div class="step"><span class="n">STAGE 2</span><h4>参考图任务表（独立 Session）</h4><p>fresh context 读取组文件与 project_config，按 reference_image_mode 分支生成视觉锚点或串行分镜图任务表。</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">物理分场规则（硬约束）</div>
+    <div class="laws">
+      <div class="law"><b>必须新开一场：</b>① 物理空间切换（茶肆→街口→包子铺=3 场）② 显著时间断裂（日/夜切换、三日后）③ 平行切出（切走即断链，返回开新场）。</div>
+      <div class="law"><b>禁止拆场：</b>同空间多个戏剧节拍（发布→问答→排队同在茶肆）应为<b>一场多组</b>；机位/景别变化不拆场；纯情绪变化不拆场。</div>
+      <div class="law"><b>场级连贯性：</b>物理空间唯一、调度设计连贯、不越轴（180° 规则，越轴需中性镜头缓冲）、组间情绪落点承接。</div>
+      <div class="law"><b>错误后果：</b>同空间被切断 → 分镜图串行参考帧链断裂 → 角色/布景在组间漂移。</div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">默认格式模板 · 详细模式 JSON（场→组→镜）</div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>分镜脚本.json</b><span class="path">{剧集号}/分镜/分镜脚本.json</span></div>
+      <pre>[
+  {
+    "场号": 1,
+    "场名称": "春生茶肆 日/内",
+    "场叙事概述": "...",
+    "场转场": "切",
+    "场总时长": "18",
+    "通用设定": {
+      "风格": "...",
+      "场景名称": "...",
+      "全局光线基调": "...",
+      "全局色彩调性": "...",
+      "全局氛围基调": "..."
+    },
+    "组列表": [
+      {
+        "组号": 1,
+        "组时长": "6",
+        "组叙事概述": "...",
+        "组转场": "切",
+        "镜头列表": [
+          {
+            "镜号": 1,
+            "开始/结束时间": "0-3",
+            "时长": "3",
+            "场景描述": "...",
+            "站位/调度": "...",
+            "人物心理活动": "...",
+            "表演/微表情": "...",
+            "景别": "...",
+            "摄影机角度": "...",
+            "摄影机运动": "...",
+            "焦距景深": "...",
+            "光线": "...",
+            "氛围": "...",
+            "台词": "角色名：台词内容",
+            "音效": "...",
+            "剪辑转场": "...",
+            "后期特效": "..."
+          }
+        ]
+      }
+    ]
+  }
+]</pre>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">17 条硬约束（节选）</div>
+    <table>
+      <tr><th>约束</th><th>要求</th></tr>
+      <tr><td>台词时长</td><td>含台词镜头 hold ≥ 台词需时（情绪语速模型计算）</td></tr>
+      <tr><td>组时长 / 镜头数</td><td>每组 ≤ 15 秒；每组 ≤ 9 个镜头</td></tr>
+      <tr><td>长镜头 / 快切</td><td>≥10 秒镜头独占一组；快切镜头组单独成组</td></tr>
+      <tr><td>台词格式</td><td>「角色名：台词内容」或「旁白：内容」，与剧本逐字一致，供音色匹配</td></tr>
+      <tr><td>字段完整</td><td>每镜头 17 字段全量；同组首镜从 0 开始</td></tr>
+      <tr><td>字数范围</td><td>场景描述 20~40 字 / 站位 25~50 / 心理 10~25 / 表演 15~30 / 光线 20~40 / 氛围 15~30</td></tr>
+      <tr><td>音频 / 修辞</td><td>仅对白+音效，禁背景音乐；禁止「仿佛/让观众感受到/营造出」等引导性修辞</td></tr>
+      <tr><td>表演必含眼神</td><td>每镜头「表演/微表情」必须描述眼神方向（望向镜头/看向产品/与对手对视）</td></tr>
+      <tr><td>妆造标注</td><td>非默认妆造标注 <span style="font-family:var(--mono)">[妆造:名]</span>，供妆造衣橱匹配</td></tr>
+    </table>
+  </div>
+
+  <div class="block">
+    <div class="block-title">台词时长 · 情绪语速模型</div>
+    <table>
+      <tr><th>情绪</th><th>系数</th><th>实际语速</th><th>典型场景</th></tr>
+      <tr><td>悲恸</td><td>0.50x</td><td>2.0 chars/s</td><td>哽咽 / 啜泣 / 泣不成声</td></tr>
+      <tr><td>犹豫</td><td>0.60x</td><td>2.4 chars/s</td><td>结巴 / 迟疑 / 支吾</td></tr>
+      <tr><td>沉重</td><td>0.75x</td><td>3.0 chars/s</td><td>颤抖 / 压抑 / 悲愤</td></tr>
+      <tr><td>低语</td><td>0.85x</td><td>3.4 chars/s</td><td>轻声 / 耳语 / 呢喃</td></tr>
+      <tr><td>正常（基础）</td><td>1.00x</td><td>4.0 chars/s</td><td>对白 / 旁白叙述</td></tr>
+      <tr><td>急促</td><td>1.15x</td><td>4.6 chars/s</td><td>紧张 / 慌张 / 匆忙</td></tr>
+      <tr><td>激昂</td><td>1.25x</td><td>5.0 chars/s</td><td>高声 / 洪亮 / 坚定</td></tr>
+      <tr><td>爆发</td><td>1.30x</td><td>5.2 chars/s</td><td>呐喊 / 咆哮 / 怒吼</td></tr>
+    </table>
+    <p class="tbl-note">总需时 = 朗读时间 + 标点停顿（逗号 0.3s / 句号·感叹号·问号 0.5s / 省略号 0.8s / 破折号 0.5s）+ 情绪停顿（悲恸 +0.5s/分句 …爆发 +0.1s）。校验：台词需时 ≤ 面板 hold；超时修复优先级：压缩台词 → 调整情绪 → 延长 hold → 拆分面板。</p>
+  </div>
+</section>
+
+<!-- ═══════════ 节点 5 参考图生成 ═══════════ -->
+<section class="node" id="n5">
+  <div class="node-head">
+    <span class="node-no">05</span>
+    <h2 class="node-title">参考图生成 · 视觉锚点 / 串行分镜图</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">storyboard-generator + art-director</span>
+  </div>
+  <p class="node-desc">按 <b>reference_image_mode</b> 分支：<b>visual_anchor</b>（默认）每场一张视觉锚点图锁定场景/氛围/人物站位；<b>storyboard_images</b> 每镜头一张分镜图（场内参考帧串行）；<b>none</b> 跳过。由独立 Session 执行，画面比例固定 <b>16:9</b>，nano-banana-2 / 2K。</p>
+
+  <div class="block">
+    <div class="block-title">制作思路 · 步骤</div>
+    <div class="steps">
+      <div class="step"><span class="n">STEP 1</span><h4>收集参考图清单</h4><p>角色（默认妆造优先）→ 场景 → 道具（剧集级优先，否则全局基准）→ 风格（始终最后一张）。</p></div>
+      <div class="step"><span class="n">STEP 2</span><h4>建场在场表</h4><p>读整场全部组全部镜头 → 列出本场出场具名角色 → 与角色参考图文件名匹配。缺参考的具名角色<b>硬终止</b>补图。</p></div>
+      <div class="step"><span class="n">STEP 3</span><h4>组装 cast 与 images</h4><p>cast 只列有参考图的具名角色（含局部入画/被点名者）；无名路人不进 cast/images，只在 FRAME DETAIL 以时代服化 + 视觉权重约束描写。</p></div>
+      <div class="step"><span class="n">STEP 4</span><h4>编写 7 段 prompt</h4><p>English control shell 包裹中文内容；OPENING 第一项必须是 IDENTITY LOCK；每张参考图一个映射块，编号与 images 严格一一对应。</p></div>
+      <div class="step"><span class="n">STEP 5</span><h4>校验并执行</h4><p>validate_task_table.py（cast/单帧/禁字幕/链完整性）→ 加载 art-director：batch（锚点）或 sequential（分镜图）执行。</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">默认提示词模板 · 7 段结构（visual_anchor）</div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>每场一个 prompt</b><span class="path">禁「storyboard」一词，用 cinematic film frame 替代</span></div>
+      <pre>1. OPENING DECLARATION（第一项 IDENTITY LOCK）
+   IDENTITY LOCK — HIGHEST PRIORITY:
+   Reference priority (highest to lowest): Highest priority = referenced character
+   identity and actor continuity; Second = environment; Third = props; Fourth = visual style.
+   Identity wins every conflict...
+
+   Actor continuity lock — 每个有参考图角色逐条：
+   Reference Image {N} character（{角色名}角色） must remain recognizable as the same
+   actor/person after all costume, hairstyle, pose, lighting, and environment changes.
+   ... Do not generate a generic {Tang Dynasty female shopkeeper}; ...
+   If historical appearance conflicts with reference identity, preserve the reference
+   identity and modify only wardrobe, hairstyle, and setting.
+   ... The face identity has absolute priority over role archetype, age description,
+   or historical styling. ...
+   （中文角色名是绑定内容标签，不是选角指令）
+
+   Create a professional cinematic film frame for {film_context}.
+   This is a visual anchor frame for {scene_name_zh} — a single establishing image
+   that locks the scene's spatial layout, atmosphere, and character blocking...
+   Generate exactly one image for this single frame only.
+   One single photographic still that fills the entire canvas.
+   This is {production_type}, not {neg_1}, not {neg_2}, not {neg_3}.
+
+2. SCENE CONTINUITY（连续性与 Source fidelity rule：
+   每个 cast 成员一对一绑参考图；无名背景人物 not a referenced character,
+   background-only, smaller visual weight... 锁时代服化；禁止新增分镜没有的元素；
+   中文事实不翻译、不重写）
+
+3. REFERENCE IMAGE MAPPING（与 images 一一对应，Anchor 类型含优先级）：
+   Image {N}: Character Identity Anchor — Highest priority
+   Image {N}: Environment Anchor — Second priority
+   Image {N}: Prop Detail Anchor — Third priority
+   Image {N}: Visual Style Anchor — Fourth priority
+
+4. FRAME DETAIL（必含 Purpose 与 Feeling；Scene 锁定空间与站位；
+   Action/Performance 按 cast 分角色中文描述，禁止留空；Composition/Camera/Lighting
+   英文；景别与运镜按转换表翻译；禁写焦距数值 35mm/85mm）
+
+5. TEXT POLICY（常驻禁字幕块 + 条件注入：类型A 必须文字/类型B 装饰文字/
+   类型C 道具文字；diegetic 文字保留中文，禁拼音、禁翻译）
+
+6. CINEMATIC QUALITY（{style_anchor}{全局风格/色彩/光线基调}{style_footer}
+   Camera principles / quality；避免堆砌 cinematic/professional 等词）
+
+7. AVOID（{style_avoid} + Compact final bans：禁多宫格/禁穿越服化/
+    禁背景人物成主角/禁空洞姿态 —— 放在末尾，不重复身份锁与字幕禁令）</pre>
+    </div>
+
+    <div class="note"><span class="h">任务表 JSON（batch · 每场一个 task）</span>顶层 mode=batch、model=nano-banana-2；task 含 id（anchor-{场号}）、scene（物理场号）、scene_name、filename（锚点_场{N}_{场景名}.png）、<b>cast</b>、prompt、aspectRatio=16:9、imageSize=2K、images（角色… → 场景 → 道具… → 风格）。</div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">质量四条铁律（visual_anchor 与 storyboard_images 通用）</div>
+    <div class="laws">
+      <div class="law"><b>在场必引参考：</b>本场全部组中出场的具名角色（含局部入画/非焦点/站位被点名）都要进 cast + images。</div>
+      <div class="law"><b>无图龙套时代锚：</b>具名无参考图 → 硬终止补图；无名路人必须锁项目时代服化，追加视觉权重硬约束。</div>
+      <div class="law"><b>单帧画布：</b>禁 multi-panel / 2×2 / collage / storyboard sheet，只输出单帧电影静帧。</div>
+      <div class="law"><b>禁烧字幕：</b>禁 subtitle / caption / lower-third / 台词条，台词只作为最终剪辑的音频存在。</div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">串行分镜图 · 参考帧模式（storyboard_images）</div>
+    <div class="laws">
+      <div class="law"><b>场 = 物理空间连续单元：</b>同一 scene 内全部帧按播放顺序连成一条 depends_on 链（跨组不断链）；异场无依赖可并行。</div>
+      <div class="law"><b>前帧成图 = 后帧主参考：</b>前帧 completed 后取其 COS image_url 字面替换后帧 images 中的 {{PREV_OUTPUT}} 再提交；{{PREV_OUTPUT}} 位于角色参考之后、风格之前。</div>
+      <div class="law"><b>失败即断链：</b>任帧 failed 停止该场后续帧，禁止跳过失败帧；禁止降级为 batch 并行。</div>
+      <div class="law"><b>目检拒收：</b>出现 2×2 宫格、字幕条、具名角色换装换脸 → 标记 failed 回报上游重写，不得当合格产物入库。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 节点 6 视频生成 ═══════════ -->
+<section class="node" id="n6">
+  <div class="node-head">
+    <span class="node-no">06</span>
+    <h2 class="node-title">视频生成</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">video-director-libtv + seedance-prompt-optimizer</span>
+  </div>
+  <p class="node-desc">将<b>分镜组文件</b>（JSON/MD）通过 <b>libtv CLI</b> 转化为画布上的 video 节点：创建/绑定工作区与画布 → 上传参考素材 → 创建 video 节点 → 批量建组 → 运行生成 → 轮询 → 归档。提示词内容默认经 <b>seedance-prompt-optimizer</b> 适配为 Seedance「工程型指令」。</p>
+
+  <div class="block">
+    <div class="block-title">制作思路 · 工作流</div>
+    <div class="flow">
+      <div class="f">读 project_config + 分组文件</div><span class="arr">→</span>
+      <div class="f">workspace use + project use</div><span class="arr">→</span>
+      <div class="f">libtv upload 参考素材</div><span class="arr">→</span>
+      <div class="f">创建 video 节点</div><span class="arr">→</span>
+      <div class="f">group create 建组</div><span class="arr">→</span>
+      <div class="f">group --run 生成</div><span class="arr">→</span>
+      <div class="f">轮询终态</div><span class="arr">→</span>
+      <div class="f">Coordinator 归档</div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">默认提示词模板 · 拼装格式</div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>libtv node prompt</b><span class="path">引用行 + 约束行 + 分隔线 + 组内容</span></div>
+      <pre>{名称}{类型}参考{{Image 1}}、{名称}{类型}参考{{Image 2}}   <span class="c">← 引用行，N 与 --left 传入顺序一致</span>
+
+画面严禁出现任何字幕，无配乐                     <span class="c">← 约束行，必须保留</span>
+---
+{提示词内容}                                     <span class="c">← optimized：Seedance 适配结果 / raw：组文件原样</span></pre>
+    </div>
+    <table>
+      <tr><th>引用类型</th><th>文件名</th><th>引用行写法</th></tr>
+      <tr><td>角色</td><td>角色_掌柜</td><td>掌柜角色参考{{Image N}}</td></tr>
+      <tr><td>场景</td><td>场景_茶馆</td><td>茶馆场景参考{{Image N}}（通常不引，锚点/分镜图已含场景）</td></tr>
+      <tr><td>道具</td><td>道具_平板</td><td>平板道具参考{{Image N}}</td></tr>
+      <tr><td>分镜图</td><td>分镜_组1_镜1</td><td>镜头1参考{{Image N}}（按镜号编号，非辅助参考）</td></tr>
+      <tr><td>视觉锚点</td><td>视觉锚点_场1</td><td>场1视觉锚点参考{{Image N}}（同场各组共享）</td></tr>
+    </table>
+    <p class="tbl-note">参考图排序：分镜图（按镜号）→ 视觉锚点（按场号）→ 角色 → 道具 → 音色。禁止引用 Tier1 选角资产（{角色名}_选角.png 白T恤图），必须用 Tier2 妆造资产。</p>
+  </div>
+
+  <div class="block">
+    <div class="block-title">Seedance 适配模式（video_prompt_mode=optimized 默认）</div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>分镜 → 工程型指令（无损重组，非再创作）</b><span class="path">适配内联完成，不落盘中间文件</span></div>
+      <pre>[场景建立段：场景名 + 光影色调 + 氛围]
+
+镜头1：[运镜指令] + [主体动作与情绪外化] + [场景位置变化] + [台词{}] + [音效<>]
+
+镜头2：...
+
+[全局收尾：画质词，风格词，人物面部稳定不变形，动作自然流畅，无卡顿无闪烁]</pre>
+    </div>
+    <div class="laws">
+      <div class="law"><b>台词逐字保留：</b>组文件台词原样提取转 { } 语法，不得改写/删减/概括。</div>
+      <div class="law"><b>心理活动外化：</b>「人物心理活动」不直接写入，转为身体细节（紧张 → 手指不停敲击桌面、呼吸急促）。</div>
+      <div class="law"><b>运镜单一：</b>每镜头段只含 1 种摄影机运动，取主导运镜；禁同时推拉摇移。</div>
+      <div class="law"><b>禁配乐/字幕：</b>不添加音乐（ ）与字幕【 】生成语法；管线内音效 &lt;&gt; 与台词 { } 仅 enable_sound=true 时保留。</div>
+      <div class="law"><b>关键信息不遗漏 / 不新增：</b>场景、主体、核心动作、台词、运镜方向全保留；不添加分镜没有的创意内容。</div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">Prompt 硬约束</div>
+    <div class="laws">
+      <div class="law"><b>引用格式统一：</b>{{Image N}} 由服务端解析，禁止替换为 {{Node uuid}} 等其他格式。</div>
+      <div class="law"><b>内容保真：</b>raw 模式组文件必须原样粘贴，不得概括、摘要、改写。</div>
+      <div class="law"><b>禁止省略约束行：</b>「画面严禁出现任何字幕，无配乐」与「---」必须保留。</div>
+      <div class="law"><b>临时脚本传递：</b>禁将完整 prompt 内联为 --prompt 参数（引号嵌套/长度限制）；必须写 temp/ 下 Python 脚本经 subprocess 调用。</div>
+      <div class="law"><b>参考选取由 Agent 判断：</b>脚本不做自动匹配；未指定 --refs 的分组将以纯文生视频模式生成。</div>
+      <div class="law"><b>创建到运行间禁开 Web UI：</b>打开画布网页端会触发 imageList 重排，导致 {{Image N}} 引用错位。</div>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">交付校验</div>
+    <div class="note"><span class="h">归档门槛</span>产物注册：每个视频 type=video（{剧集号}/视频/组{N}.mp4）+ 下载清单 type=video_manifest（_manifest.json）。Coordinator 推进到 delivery 前必须读取 _manifest.json 校验 status：<b>success（failed=0）方可推进</b>；partial 须提示用户处理失败组。</div>
+  </div>
+</section>
+
+<!-- ═══════════ 节点 7 辅助节点 ═══════════ -->
+<section class="node" id="n7">
+  <div class="node-head">
+    <span class="node-no">07</span>
+    <h2 class="node-title">辅助节点 · 创作与提示词工具</h2>
+    <span class="node-line"></span>
+    <span class="node-tag">script-writer / gpt-image-2-prompt-studio / art-director</span>
+  </div>
+  <p class="node-desc">三类支撑性节点：<b>剧本创作</b>（叙事源头）、<b>提示词模板库</b>（gpt-image-2 素材生成）、<b>生图执行层</b>（art-director，全管线唯一生图出口）。</p>
+
+  <div class="block">
+    <div class="block-title">7A · 剧本创作（script-writer）</div>
+    <div class="steps">
+      <div class="step"><span class="n">TYPE</span><h4>剧本类型自动识别</h4><p>电影（三幕剧）/ 电视剧（分集分场）/ 短视频（前 3 秒钩子）/ 动画 / 游戏 / 广告 / 舞台剧 / 口播稿。</p></div>
+      <div class="step"><span class="n">FORMAT</span><h4>行业标准格式</h4><p>场号 · [内/外景] · [地点] · [时间]；动作现在时主动语态；角色首现全大写 + 特征；对白另起行。</p></div>
+      <div class="step"><span class="n">SHOW</span><h4>写作质量准则</h4><p>Show don't tell；对白每段 ≤3-4 行；长短场景交替；开场前 10 页（或短视频前 3 秒）抓人。</p></div>
+      <div class="step"><span class="n">VERIFY</span><h4>联网核实</h4><p>历史题材/地域文化/专业领域/IP 改编/热点趋势触发 WebSearch，保证内容真实可信。</p></div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>影视剧本格式模板</b><span class="path">动作描写避免心理描述（不写「他很愤怒」，写「他攥紧拳头，指节泛白」）</span></div>
+      <pre>场号. [内/外景] · [地点] · [时间]
+
+[动作描述 — 现在时、第三人称、视觉化语言]
+
+[角色名]
+（[情绪/动作提示]）
+[对白内容]
+
+[转场提示：切至 / 淡出 / 叠化]</pre>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">7B · GPT Image 2 提示词工作室（gpt-image-2-prompt-studio）</div>
+    <div class="flow">
+      <div class="f">sync_repo 同步仓库</div><span class="arr">→</span>
+      <div class="f">build_index 建索引</div><span class="arr">→</span>
+      <div class="f">CLI 搜索（--stats / --search）</div><span class="arr">→</span>
+      <div class="f">Read 精确读取 case</div><span class="arr">→</span>
+      <div class="f">参数化替换 {argument}</div><span class="arr">→</span>
+      <div class="f">生成任务表</div><span class="arr">→</span>
+      <div class="f">art-director 执行</div>
+    </div>
+    <table>
+      <tr><th>视觉类别</th><th>EN 数量</th><th>含参数模板</th><th>典型用途</th></tr>
+      <tr><td>poster 海报与插画</td><td>220</td><td>20</td><td>海报 / 插画</td></tr>
+      <tr><td>portrait 人像与摄影</td><td>172</td><td>18</td><td>人像 / 摄影</td></tr>
+      <tr><td>character 角色设计</td><td>15</td><td>4</td><td>角色设定图</td></tr>
+      <tr><td>ui 界面</td><td>99</td><td>23</td><td>UI 与界面</td></tr>
+      <tr><td>ecommerce 电商</td><td>28</td><td>12</td><td>商品图</td></tr>
+      <tr><td>ad-creative 广告创意</td><td>31</td><td>15</td><td>广告素材</td></tr>
+      <tr><td>comparison 对比</td><td>72</td><td>4</td><td>对比图</td></tr>
+    </table>
+    <p class="tbl-note">索引只存元数据（case_id/行号/标题），Prompt 文本按需 Read 精确读取；aspectRatio 使用像素格式（如 2160x3840），默认 1024x1024。</p>
+  </div>
+
+  <div class="block">
+    <div class="block-title">7C · 生图执行层（art-director）</div>
+    <div class="laws">
+      <div class="law"><b>禁止修改 prompt：</b>用户/上游任务表提示词原样传递，质量靠上游模板保证。</div>
+      <div class="law"><b>绝对路径：</b>调用 grsai_submit_image 前必须将任务表相对路径解析为绝对路径（MCP 进程 CWD 不同）；{{PREV_OUTPUT}} 与 https:// 不转。</div>
+      <div class="law"><b>batch 模式：</b>无依赖资产批量并行，连续提交多个 task 再逐个轮询，交叉查询最大化利用等待时间。</div>
+      <div class="law"><b>sequential 模式：</b>场内串行（同 scene 按 depends_on 链，跨组不断链）+ 场间并行；失败即断链，不跳帧、不降级。</div>
+      <div class="law"><b>轮询节奏：</b>grsai_poll_result 非阻塞单次查询；submit 后等 5-10s 首次查询，pending 则再等再查（生图 30-120s）。</div>
+      <div class="law"><b>模型参数格式：</b>gpt-image-* 用像素 aspectRatio（2048x1152）；nano-banana-* 用比例格式（16:9）+ imageSize。COS 全局去重（路径+mtime/hash），跨项目复用。</div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-cap"><b>MCP 调用序列</b><span class="path">提交 → 轮询 → 下载</span></div>
+      <pre>grsai_submit_image(prompt, model, aspect_ratio, image_size, reference_images)
+  → { "status": "submitted", "task_id": "abc123" }
+
+grsai_poll_result(task_id)   <span class="c">// 5-10s 间隔，pending → completed / failed</span>
+  → completed 时返回 { "image_url": "https://...", "oss_url": "https://..." }</pre>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="mark"></div>
+  <p>AI 影视生产管线 · 节点制作教学 —— 内容提取自 <b>.opencode/skills</b> 各技能 SKILL.md 与 rules/references 规范文档</p>
+  <p style="margin-top:8px">角色参考 / 道具参考 / 场景参考 / 分镜脚本 / 视觉锚点 / 视频生成 · 共 7 大节点 · 12 个 Skill</p>
+</footer>
+
+</body>
+</html>

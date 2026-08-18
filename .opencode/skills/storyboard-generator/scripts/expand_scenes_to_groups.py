@@ -117,7 +117,7 @@ def expand_scenes_to_groups(input_path, output_dir):
                 all_group_files.append(filename)
 
     scene_count = "—" if is_flat else str(len(data))
-    print(f"✅ {scene_count} 场 → {global_group_no} 组 → {output_dir}")
+    print(f"[OK] {scene_count} 场 → {global_group_no} 组 → {output_dir}")
     for fn in all_group_files:
         print(f"  {fn}")
 

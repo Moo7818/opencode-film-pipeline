@@ -1,8 +1,8 @@
 # meta-server
 
-动画短剧管线的项目元数据 MCP server。以 SQLite 为单一数据源，取代旧版每项目四个 JSON 文件（project.json / stages.json / manifest.json / events.jsonl）；coordinator 今后只调用本 server 的 MCP 工具，不再直接读写 `.meta/projects/{id}/` 下的 JSON。旧 JSON 数据保持原样，不做迁移。
+动画短剧管线的项目元数据 MCP server。以 SQLite 为单一数据源，取代旧版每项目四个 JSON 文件（project.json / stages.json / manifest.json / events.jsonl）；coordinator 今后只调用本 server 的 MCP 工具，不再直接读写 `.meta/projects/{id}/` 下的 JSON。旧 JSON 数据经 `meta_import_legacy` 一次性迁移进新库后保持原样归档。
 
-## 工具（8 个）
+## 工具（9 个）
 
 | 工具 | 作用 |
 |------|------|
@@ -13,6 +13,7 @@
 | `meta_scan_and_register` | 扫描项目目录批量注册；未知文件进 pending_reviews；报告 missing |
 | `meta_query` | 只读查询：projects / stages / artifacts / events / pending |
 | `meta_export_project` | 导出旧版四件套结构 + project_config.json 共 5 文件打包 ZIP |
+| `meta_import_legacy` | 一次性迁移旧版 `.meta/projects/{id}/` 四件套 JSON 到新库（类型/阶段/actor/hash/path 归一化；产物指纹一律重算；重名返回 conflict 可用 name_override 规避）。支持 `scan_dir` 以 `project/{scan_dir}/` 真实产物为源（`_classify` 自动分类，未分类进 pending_reviews），`scan_exclude` 排除子目录 |
 | `meta_delete_project` | 删除项目（confirm_name 防误删；DB 仅置 status='deleted'，保留审计） |
 
 所有工具错误统一返回 `{"error": str, "code": str}`（code ∈ not_found / invalid / conflict / io），不抛异常。

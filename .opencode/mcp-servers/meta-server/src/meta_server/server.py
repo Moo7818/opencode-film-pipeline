@@ -249,6 +249,51 @@ def meta_export_project(
 @mcp.tool(
     annotations={
         "readOnlyHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+        "destructiveHint": False,
+    }
+)
+@_safe
+def meta_import_legacy(
+    legacy_dir: str,
+    name_override: str | None = None,
+    keep_id: bool = True,
+    scan_dir: str | None = None,
+    scan_exclude: list[str] | None = None,
+) -> dict:
+    """将旧版 .meta/projects/{id}/ 四件套 JSON 元数据迁移为新库记录（一次性迁移工具）。
+
+    参数：
+    - legacy_dir：旧项目元数据目录（含 project.json/stages.json/manifest.json/events.jsonl/project_config.json）
+    - name_override：新项目名；缺省取旧 project.json 的 name；与现存项目重名时返回 code='conflict'
+    - keep_id：True 时保留旧 UUID 作为项目 id（若与现存冲突则自动生成新 UUID）
+    - scan_dir：真实产物目录（相对 project/ 的路径，如 '星光耀' 或 '吉泰安防/系列二_侥幸的代价'）。
+      提供时以 project/{scan_dir}/ 下真实文件为产物来源（_classify 自动分类，无法分类的
+      进 pending_reviews），忽略 manifest 产物清单；缺省 None 时按 manifest 导入。
+    - scan_exclude：scan_dir 下需跳过的顶层子目录名列表（如吉泰安防下的系列子项目目录）。
+
+    迁移语义：
+    - 项目：id/name/type/description/created_at/updated_at 尽量保留；type 非法值映射为 other；status 一律 active
+    - 阶段：新库固定 17 阶段链；旧阶段按映射表归一到 idx，completed/skipped → completed，in_progress → 当前阶段，其余 pending
+    - 产物：scan_dir 模式扫描真实目录分类注册；manifest 模式按映射表归一（旧版 50+ 种 → 新库 17 种），
+      path 规范化，状态 active/created → final，hash 一律重算，path 无法归入 project/ 或 temp/、
+      文件缺失、重复的产物跳过并列入 skipped
+    - 事件：逐条导入，actor 映射到新库枚举，type/data/timestamp 原样保留
+    - 配置：合并默认字段 + 旧 config，reference_image_mode 由 use_storyboard_images 推断
+
+    返回 {project_id, name, type, current_stage, stages, artifacts, events, artifacts_source, skipped, warnings}；
+    失败返回 {error, code}，code ∈ not_found/invalid/conflict/io。
+    """
+    return service.import_legacy(
+        legacy_dir=legacy_dir, name_override=name_override, keep_id=keep_id,
+        scan_dir=scan_dir, scan_exclude=scan_exclude,
+    )
+
+
+@mcp.tool(
+    annotations={
+        "readOnlyHint": False,
         "idempotentHint": False,
         "openWorldHint": False,
         "destructiveHint": True,

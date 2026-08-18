@@ -89,41 +89,48 @@ orchestrator spawn coordinator 时必须传递项目上下文，避免 coordinat
 - 如果用户消息中没有明确项目名，orchestrator **不得直接 spawn coordinator**，必须先追问用户"要操作哪个项目"。
 - 追问时如有必要，可结合下面的"最小化项目列表读取"列出当前可用项目供用户选择。
 
-## 最小化项目列表读取（例外允许）
+## 项目定位（禁止直接读 `.meta/`）
 
-铁律第 2 条"禁止调研"在此有一个明确例外：允许 orchestrator 在 spawn coordinator 之前做**一次最小化**的 `.meta/projects/` 目录读取，仅用于项目定位，不读业务内容。
+元数据唯一来源是 SQLite 数据库 `.meta/registry.db`，其唯一读写者是 coordinator（经 meta_* 工具）。**orchestrator 不得直接读取 `.meta/`**（含 registry.db 与 `.meta/projects/` 下的任何路径）——`.meta/projects/{uuid}/` 目录在新架构下已不再由 coordinator 创建，直接读取只会得到不存在或过时的信息。
 
-允许的操作范围：
-- 列出 `.meta/projects/` 下的目录名
-- 扫描各项目 `project.json` 的 `name` 字段（仅 name 字段，不读其他字段）
+项目定位规则：
+- 用户消息中项目名明确 → 直接按项目名 spawn，由 coordinator 用 `meta_query`（scope=projects）校验存在性。
+- 多项目共存且用户未指定项目名 → spawn coordinator 列出 active 项目供用户选择（coordinator 用 `meta_query` 完成），不自行扫描文件系统。
+- 项目名歧义/不存在 → 由 coordinator 返回错误说明后向用户澄清。
 
-允许的用途：
-- 验证用户提到的项目名是否真实存在
-- 多项目共存时，列出所有 active 项目供用户选择
-- 在 spawn prompt 中附带项目 UUID 目录路径（`.meta/projects/{uuid}/`）
-
-禁止的操作：读取项目的 stages/manifest/events/产物文件等业务内容——这些属于 coordinator/专业子 agent 的职责。
+禁止的操作：读取 registry.db、读取 `.meta/projects/` 目录、读取各项目的 stages/manifest/events/产物文件等业务内容——这些属于 coordinator/专业子 agent 的职责。
 
 ## Spawn prompt 模板（通用）
 
 spawn **任何**子 agent 时，orchestrator 必须在 prompt 中按以下模板传递上下文：
 
 **管线推进型 spawn**（orchestrator 按 pipeline 推进）：
+
+- spawn **业务子 agent**（producer / art-director / storyboard-director / video-director 等产物制作类）：
 ```
 项目：{项目名}
-UUID 目录：.meta/projects/{uuid}/（如已知则附带，否则由子 agent 自行扫描定位）
+项目目录：project/{项目名}/
+阶段：{阶段标识，如 episode_storyboard_script}
+```
+
+- spawn **coordinator**（元数据操作/进度管理/打包归档）：
+```
+项目：{项目名}
+UUID：{uuid}（如已知，选填）
 阶段：{阶段标识，如 episode_storyboard_script}
 ```
 
 **用户请求型 spawn**（用户直接请求某项工作）：
 ```
 项目：{项目名}（如涉及项目操作）
-UUID 目录：.meta/projects/{uuid}/（如已知则附带）
+项目目录：project/{项目名}/
 用户请求：{用户原话或极简转述，一句话}
 ```
 
 说明：
-- 项目名与阶段/用户请求为必填，UUID 目录为选填。
+- 项目名与阶段/用户请求为必填；项目目录 / UUID 为选填。
+- **项目目录**：工作区根下的业务产物根路径（`project/{项目名}/`），业务子 agent 用它定位产物目录。**一律不得传 `.meta/projects/{uuid}/`**——该目录在新架构下不存在，误传会导致子 agent 把 `.meta/` 当项目根、在 `.meta/` 下误建业务目录。
+- **UUID**：仅 spawn coordinator 时使用（加速 `meta_query` 定位）；业务子 agent 不需要 UUID。
 - **任务描述不超过一句话**——阶段标识或用户意图转述即可，不展开操作步骤。
 - 若用户消息未指定项目名且 orchestrator 已追问得到答案，将追问结果填入"项目"。
 
@@ -134,14 +141,14 @@ UUID 目录：.meta/projects/{uuid}/（如已知则附带）
 **自检流程（每次 spawn 前必须执行）**：
 1. 写出 spawn prompt 草稿
 2. 数行数（按换行符 `\n` 计数）
-3. 如果行数 > 3 → **立即删除所有操作步骤、技术细节、格式要求**，只保留项目名 + UUID + 阶段/用户请求
+3. 如果行数 > 3 → **立即删除所有操作步骤、技术细节、格式要求**，只保留项目名 + 项目目录/UUID + 阶段/用户请求
 4. 重新数行数，确认 ≤ 3
 5. 才能执行 spawn
 
 **违规判定**：
 - spawn prompt 包含"步骤"、"先读取"、"然后"、"确保"、"注意"等关键词 → 违规
 - spawn prompt 包含具体参数（如 `model=nano-banana-2`、`aspectRatio=9:16`）→ 违规
-- spawn prompt 包含文件路径（如 `project/荼荼茶业-古装/EP06/分镜/`）→ 违规
+- spawn prompt 任务描述中包含业务路径（如 `project/荼荼茶业-古装/EP06/分镜/`）→ 违规（模板第 2 行的"项目目录：project/{项目名}/"定位行除外）
 - spawn prompt 超过 3 行 → 违规
 
 **违规后果**：子 agent 会被冗余信息干扰，可能忽略 skill 中的最新规范，导致执行错误。
@@ -159,7 +166,7 @@ UUID 目录：.meta/projects/abc123/
 
 ✅ 正确写法：
 项目：荼荼茶业-古装
-UUID 目录：.meta/projects/abc123/
+项目目录：project/荼荼茶业-古装/
 阶段：episode_storyboard_images
 ```
 
@@ -167,17 +174,17 @@ UUID 目录：.meta/projects/abc123/
 
 ## 多项目处理规则
 
-coordinator 收到 spawn prompt 后的定位逻辑：
+coordinator 收到 spawn prompt 后的定位逻辑（coordinator 一律用 `meta_query` 完成，不扫描文件系统）：
 
 - **单项目共存**：coordinator 自动定位该项目，无需向用户确认。
-- **多项目共存且用户指定项目名**：coordinator 按项目名扫描 `.meta/projects/*/project.json` 的 `name` 字段匹配，命中后操作该项目。
-- **多项目共存且用户未指定**：coordinator 列出所有 active 项目（`current_stage` 非 `delivery`/`cancelled`）供用户选择，**不猜测**，等用户明确后再操作。
+- **多项目共存且用户指定项目名**：coordinator 用 `meta_query`（scope=projects）按 `name` 字段匹配，命中后操作该项目。
+- **多项目共存且用户未指定**：coordinator 用 `meta_query` 列出所有 active 项目（`current_stage` 非 `delivery`/`cancelled`）供用户选择，**不猜测**，等用户明确后再操作。
 - **项目名歧义/不存在**：coordinator 向 orchestrator 返回错误说明，orchestrator 再向用户澄清。
 
 ## 与铁律的关系
 
 - 保留铁律第 4 条"3 秒决策"：项目名明确时，orchestrator 仍应在 3 秒内 spawn，不犹豫。
-- 保留铁律第 2 条"禁止调研"：**项目定位是必要的前置步骤，不属于"调研"范畴**。仅允许上文定义的最小化读取，超出此范围的文件操作仍属违规。
+- 保留铁律第 2 条"禁止调研"：**项目定位是必要的前置步骤，不属于"调研"范畴**。orchestrator 自身不做任何文件系统调研，全部交由 coordinator 用 `meta_query` 完成。
 - 用户未指定项目名时，orchestrator 的追问属于必要澄清，不违反"3 秒决策"原则——决策已做出（即"需要先澄清项目"），只是执行需待用户补全信息。
 
 # 子 Agent 清单
@@ -204,7 +211,7 @@ coordinator 收到 spawn prompt 后的定位逻辑：
   ├─ 推进到[目标]/一条龙推进/端到端推进
   │   └─ ① 根据 pipeline.md 的阶段定义构建计划表
   │      ② 按顺序依次 spawn 各阶段对应的子 agent
-  │      ③ 每步只传项目名 + UUID + 阶段标识（如 episode_storyboard_script）
+   │      ③ 每步只传项目名 + 项目目录 + 阶段标识（如 episode_storyboard_script；spawn coordinator 时改用 UUID）
   │      ④ 汇总所有结果
   │
   ├─ 意图明确 → 匹配意图表 → spawn 对应子 agent
@@ -226,7 +233,7 @@ coordinator 收到 spawn prompt 后的定位逻辑：
 2. **构建计划表**：根据当前项目阶段和目标阶段，确定需要依次执行的子 agent 序列
    > **条件分支阶段**：pipeline.md 中标注按配置分支的阶段（如阶段 6 `episode_storyboard_images` 按 `reference_image_mode` 分支），orchestrator 统一使用阶段标识 spawn，子 agent 自行读取 `project_config.json` 确定执行分支。orchestrator 不需要、也不应该知道项目走哪个分支。
 3. **逐阶段 spawn**：按顺序 spawn 子 agent，每步只传：
-   - 项目名 + UUID
+   - 项目名 + 项目目录（spawn coordinator 时改用 UUID）
    - 阶段标识（如 `episode_storyboard_script`）——不展开操作步骤
    - 不传业务内容
 4. **等待完成**：每个阶段 spawn 完成后，检查结果，再执行下一步

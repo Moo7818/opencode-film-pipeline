@@ -239,6 +239,27 @@ Prompt 使用**英文**生成，由以下 **7 段**按固定顺序组成。每�
 
 > **编译器铁律**：Prompt 编译器的职责是将分镜内容**翻译**为图像模型可理解的英文描述，**不是编剧**。禁止新增原分镜中不存在的道具、时间、动作、情绪事件、光线条件或场景。仅复述和翻译原分镜已有的视觉信息。违反此规则的 prompt 会导致模型生成与分镜不一致的画面。
 
+### 提示词净化规范（元约束净化 · 硬规则）
+
+> 所有最终写入 `prompt` 字段、提交给生图模型的文本必须为**纯画面描述语言**。
+> 凡是"本应属于智能体编写规范、而非最终发送给生图模型的内容"（元约束/元语言）禁止出现在 prompt 中——它们会稀释画面权重、降低生成质量（EP11 实测：删除后生成质量正常）。
+> 净化在**组装 prompt 时**由编写 Agent 完成；文档中的编写指引/注释/校验说明是给 Agent 阅读的材料，**不属于** prompt 内容。
+> 完整 11 类必删项与保留项清单见 `phase-2-visual-anchors.md`「提示词净化规范」节（两种模式同一套规则）。本模式（英文 prompt）的典型残留与处理：
+
+| # | 类别 | 示例（本模式原文） | 处理 |
+|---|------|-------------------|------|
+| 1 | 段落放置/编排指令 | `write this block after the heading and before any SCENE...`、`in cast/images order` | 删除整句，保留其后的实质约束 |
+| 2 | Decision rule 决策说明 | `Decision rule: facial identity and actor continuity take priority over...` | 删除（已由身份锁覆盖） |
+| 5 | 编译器/流水线说明 | `The prompt compiler translates, does not embellish.`、`Source fidelity rule:` 整块 | 删除 |
+| 6 | 中文事实保留指令 | `Keep Chinese character names... in Chinese. Do not translate or rewrite them.` | 删除（翻译/改写风险在编写环节） |
+| 7 | 占位符机制解释 | `The PREV_OUTPUT placeholder — ...`、`The immediately preceding frame ... (may be prior group)` | 删除机制解释；仅保留 `Image N: Previous Frame Anchor — PRIMARY SPATIAL CONTINUITY REFERENCE` 及其使用语义 |
+| 8 | 锚点职责定位从句 | `This is a visual anchor frame for {场景名} — a single establishing image that locks the scene's spatial layout...` | 保留 `This is a visual anchor frame for {场景名}.`，删职责从句 |
+| 9 | 锚点职责块 | `Anchor frame responsibilities:` 整块 | 删除 |
+| 10 | Mapping 内机制解释 | `The Chinese role name describes duty and source content only.` | 删除 |
+| 11 | 道具配对说明括号 | `same props (every prop must match its reference image)` | 仅保留 `same props` |
+
+**必须保留（禁止因净化误删）**：全部画面描述、`Image N:` 标签与 Anchor 语义、单帧声明（`exactly one image` / `fills the entire canvas`）、TEXT POLICY 禁字幕块、AVOID 负面清单、`{{PREV_OUTPUT}}` 对应的 Previous Frame Anchor 使用语义（锁身份/布景/光影、按 FRAME DETAIL 演化，不得忽略参考帧重抽）。
+
 ```
 ┌─ 1. OPENING DECLARATION
 ├─ 2. SCENE CONTINUITY
@@ -311,15 +332,10 @@ Maintain strict continuity with reference materials:
 - same costume for each character
 - same hairstyle for each character
 - same {environment_description}
-- same props (every prop must match its reference image)
+- same props
 - same lighting atmosphere
 - same {period_description}
 - no anachronistic costumes from other eras or dynasties
-
-Source fidelity rule:
-Do not introduce visual elements, props, lighting conditions, locations, or actions
-that are not explicitly present in the scene description.
-The prompt compiler translates, does not embellish.
 ```
 
 **后续帧**（有 `depends_on`，参考帧模式）：
@@ -346,11 +362,6 @@ Do NOT:
 - redesign faces, costumes, or the room from static refs alone while ignoring the previous frame
 - copy the previous frame's exact composition when FRAME DETAIL requests a different shot
 - teleport characters or reset spatial relationships without a motivated move
-
-Source fidelity rule:
-Do not introduce visual elements, props, lighting conditions, locations, or actions
-that are not explicitly present in the scene description.
-The prompt compiler translates, does not embellish.
 ```
 
 | 占位符 | 来源 | 示例 |
@@ -358,7 +369,7 @@ The prompt compiler translates, does not embellish.
 | `{environment_description}` | 通用设定.场景名称 → 英文 | tea house interior / modern family living room |
 | `{period_description}` | 项目时代背景 → 英文 | historical period / Tang Dynasty period / modern setting |
 
-> **反二次创作约束**：`Source fidelity rule` 段是铁律的 prompt 内体现——编译器仅翻译分镜已有内容，禁止添加原分镜中不存在的视觉元素。
+> **反二次创作约束（编写环节）**：禁止添加分镜中不存在的视觉元素、禁止在翻译时重写角色外貌——这些约束由编写 Agent 在组装 prompt 时执行，属于**编写规范**，不是 prompt 内容（见「提示词净化规范」；原 `Source fidelity rule` 段已从模板移除，不得再写回 prompt）。
 >
 > **禁止序列描述**：不要在 prompt 中包含组叙事概述或序列节拍（如 "establishing → action → reveal"）。这类描述会让模型尝试在单帧中呈现整个序列，导致宫格图生成。每帧的叙事上下文已由 FRAME DETAIL 段的 Purpose 字段充分提供。
 
@@ -432,14 +443,12 @@ Preserve: color palette, lighting mood, visual style.
 **前帧参考**（仅非首帧，对应 `images` 中紧接角色之后的 `{{PREV_OUTPUT}}`）：
 ```
 Image {N}: Previous Frame Anchor — PRIMARY SPATIAL CONTINUITY REFERENCE
-The immediately preceding frame in this continuous physical scene (may be prior group).
 Use as the live-set baseline for this shot:
 - Match environment geometry, set dressing, and lighting direction to this frame
 - Returning characters must look like the same people a moment later, not new castings
 - Advance pose/blocking one beat toward the Action described in FRAME DETAIL
 - Change framing only as FRAME DETAIL Composition/Camera feeling specify
 Preserve: facial identity, costume, hair, room layout, light direction, period grade.
-Do not ignore this image in favor of static character/scene sheets.
 ```
 
 > **硬约束**：每个映射块的 `Image {N}:` 编号必须与 `images` 数组位置严格一一对应（Image 1 = images[0]，Image 2 = images[1]，...）。`{{PREV_OUTPUT}}` 在数组中占一个位置，对应一个 Previous Frame Anchor 映射块。编号不连续或顺序错乱将导致模型无法正确关联参考图。
@@ -901,8 +910,8 @@ python .opencode/skills/storyboard-generator/scripts/validate_task_table.py \
 
 校验项：
 1. JSON 语法正确性
-2. 模型必须为 `nano-banana-2`
-3. 分辨率必须为 `2K`
+2. 模型必须在允许集合内（`nano-banana-2` / `nano-banana-pro`）
+3. 分辨率必须在允许集合内（`2K` / `4K`）
 4. 画面比例必须为 `16:9`
 5. `mode` 必须为 `sequential`（参考帧模式）
 6. 每个任务 `id`、`group`、`scene` 必填
@@ -921,6 +930,7 @@ python .opencode/skills/storyboard-generator/scripts/validate_task_table.py \
 19. prompt 必须含单帧画布声明（`single` + `fills the entire canvas` 或等价 `exactly one image` + 禁 multi-panel）
 20. TEXT POLICY 必须含禁字幕（`subtitle`/`No subtitles` 等）
 21. AVOID 必须含 multi-panel 与 subtitle 类禁令
+22. 元约束净化：prompt 不得含「提示词净化规范」11 类必删元约束残留（段落放置/编排指令、Decision rule、编译器/流水线说明、中文事实保留指令、占位符机制解释、锚点职责从句与职责块、Mapping 内机制解释、道具配对说明括号等）；校验器对此类残留输出告警（不阻塞通过，但须修正后重提）
 
 **提交 art-director 前人工/脚本自检（四条用户缺陷）**：
 

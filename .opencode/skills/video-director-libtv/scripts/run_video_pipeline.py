@@ -52,6 +52,9 @@
 设计原则:
   - 参考图和音色的选取由 Agent 判断，脚本不做自动匹配
   - --refs 由 Agent 根据分组内容显式指定每个分组的参考图（仅上传指定的参考图，非全量上传）
+  - 视觉锚点支持角色阶段拆分（如 视觉锚点_场1A、视觉锚点_场1B）：同场多阶段锚点不做自动匹配，
+    由 Agent 读取视觉锚点_任务表.json 按组的镜头范围匹配对应阶段，通过 --refs 显式指定阶段锚点节点名；
+    仅当该场只有一张锚点图（无阶段后缀）时脚本按场号自动连线（向后兼容）
   - --voice-refs 由 Agent 根据分组台词显式指定需要的音色参考（仅上传指定的音色参考）
   - ⛔ 选角参考图（{角色名}_选角.png）自动过滤，禁止用于视频生成
   - --no-group 跳过建组步骤，仅创建独立节点（适用于需要手动编排节点的场景）
@@ -202,12 +205,13 @@ def scan_project_refs(project_root, episode=None):
                 if not f.lower().endswith(".png"):
                     continue
                 name_without_ext = os.path.splitext(f)[0]
-                # 视觉锚点文件名格式：锚点_场{N}_{场景名}
-                # 节点名格式：视觉锚点_场{N}
-                match = re.match(r"锚点_场(\d+)", name_without_ext)
+                # 视觉锚点文件名格式：锚点_场{N}{阶段?}_{场景名}
+                # 阶段后缀可选：如 锚点_场1A_断供报信.png、锚点_场1B_立规交锋.png
+                # 节点名格式：视觉锚点_场{N}{阶段?}（如 视觉锚点_场1A、视觉锚点_场1B）
+                match = re.match(r"锚点_场(\d+[A-Z]?)", name_without_ext)
                 if match:
-                    scene_num = match.group(1)
-                    node_name = f"视觉锚点_场{scene_num}"
+                    scene_num_with_phase = match.group(1)
+                    node_name = f"视觉锚点_场{scene_num_with_phase}"
                     found[node_name] = os.path.join(va_dir, f)
 
     return found
@@ -433,8 +437,9 @@ def build_ref_description(ref_name, idx):
         prop_name = re.sub(r"_EP\d+集$", "", prop_name)
         return f"{prop_name}道具参考{{{{Image {idx}}}}}"
     elif "视觉锚点" in ref_name:
-        # 视觉锚点节点名格式：视觉锚点_场{N} → 提取场号
-        match = re.search(r"场(\d+)", ref_name)
+        # 视觉锚点节点名格式：视觉锚点_场{N}{阶段?} → 提取场号（含阶段后缀）
+        # 如 视觉锚点_场1 → 场1视觉锚点参考；视觉锚点_场1A → 场1A视觉锚点参考
+        match = re.search(r"场(\d+[A-Z]?)", ref_name)
         scene_num = match.group(1) if match else str(idx)
         return f"场{scene_num}视觉锚点参考{{{{Image {idx}}}}}"
     elif "分镜" in ref_name:
@@ -459,9 +464,11 @@ def sort_ref_names(ref_names):
             shot = int(match.group(1)) if match else 0
             return (0, shot)
         elif "视觉锚点" in name:
-            match = re.search(r"场(\d+)", name)
+            # 按 (场号, 阶段) 排序：场1A 排在场1 之后、场2 之前
+            match = re.search(r"场(\d+)([A-Z]?)", name)
             scene = int(match.group(1)) if match else 0
-            return (1, scene)
+            phase = match.group(2) if match else ""
+            return (1, scene, phase)
         elif "角色" in name:
             return (2, 0)
         elif "道具" in name:
@@ -744,7 +751,9 @@ def build_pipeline(args):
             for g, refs in storyboard_refs_by_group.items():
                 print(f"  📋 {g} 分镜图: {len(refs)} 张（自动扫描）")
 
-    # visual_anchor 模式：扫描视觉锚点图，按场号建立映射
+    # visual_anchor 模式：扫描视觉锚点图，按场号建立映射（同场多阶段锚点保留为列表）
+    # 视觉锚点文件名格式：锚点_场{N}{阶段?}_{场景名}.png，如 锚点_场1A_断供报信.png
+    # 节点名保留阶段后缀（视觉锚点_场1A、视觉锚点_场1B），按纯场号聚合为列表
     visual_anchor_by_scene = {}
     if reference_image_mode == "visual_anchor":
         va_dir = os.path.join(project_root, args.episode, VISUAL_ANCHOR_PATH)
@@ -753,13 +762,15 @@ def build_pipeline(args):
                 if not f.lower().endswith(".png"):
                     continue
                 name = os.path.splitext(f)[0]
-                match = re.match(r"锚点_场(\d+)", name)
+                match = re.match(r"锚点_场(\d+[A-Z]?)", name)
                 if match:
-                    scene_num = match.group(1)
-                    node_name = f"视觉锚点_场{scene_num}"
-                    visual_anchor_by_scene[scene_num] = node_name
+                    scene_phase = match.group(1)  # 如 "1" 或 "1A"
+                    node_name = f"视觉锚点_场{scene_phase}"  # 节点名保留阶段后缀
+                    scene_num = re.match(r"(\d+)", scene_phase).group(1)  # 纯场号作聚合 key
+                    visual_anchor_by_scene.setdefault(scene_num, []).append(node_name)
                     all_needed_refs.add(node_name)
-            print(f"  📋 视觉锚点: {len(visual_anchor_by_scene)} 张（自动扫描，按场号映射）")
+            total_anchors = sum(len(v) for v in visual_anchor_by_scene.values())
+            print(f"  📋 视觉锚点: {total_anchors} 张（自动扫描，按场号聚合，同场多阶段锚点全部保留）")
 
     ref_nodes = upload_references(
         project_root, canvas_cache,
@@ -820,13 +831,25 @@ def build_pipeline(args):
                 print(f"    📋 {group_name} 分镜图连线: {len(sb_refs)} 张")
 
         # visual_anchor 模式：按场号自动将该组的视觉锚点加入参考
+        # 仅当该场只有一张锚点图（无阶段后缀）时自动连线（向后兼容）；
+        # 该场有多张阶段锚点时不做自动匹配，由 Agent 通过 --refs 显式指定阶段锚点
         if reference_image_mode == "visual_anchor":
             scene_num = extract_scene_number(group)
             if scene_num and scene_num in visual_anchor_by_scene:
-                va_node = visual_anchor_by_scene[scene_num]
-                if va_node in ref_nodes and va_node not in available_refs:
-                    available_refs.append(va_node)
-                    print(f"    📋 {group_name} 视觉锚点连线: 场{scene_num}")
+                va_nodes = visual_anchor_by_scene[scene_num]
+                if len(va_nodes) == 1:
+                    va_node = va_nodes[0]
+                    if va_node in ref_nodes and va_node not in available_refs:
+                        available_refs.append(va_node)
+                        print(f"    📋 {group_name} 视觉锚点连线: {va_node}（自动匹配，该场仅一张锚点图）")
+                else:
+                    # 同场多阶段锚点：不做自动匹配，要求 Agent 通过 --refs 显式指定阶段锚点
+                    print(
+                        f"    ⚠ {group_name} 场{scene_num} 有 {len(va_nodes)} 张阶段锚点图"
+                        f"（{', '.join(va_nodes)}），脚本不做自动匹配；"
+                        f"请 Agent 通过 --refs 显式指定该组对应阶段的锚点节点名",
+                        file=sys.stderr,
+                    )
             elif scene_num:
                 print(f"    ⚠ {group_name} 场号{scene_num} 未找到对应视觉锚点图", file=sys.stderr)
 

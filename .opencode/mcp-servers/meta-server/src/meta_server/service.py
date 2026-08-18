@@ -205,21 +205,80 @@ def _classify(parts) -> str | None:
         return "setting"
     if len(parts) >= 2 and parts[0] == "前期采样":
         return "reference"
+    if parts[0] == "产品采样" or parts[0] == "采样":
+        return "reference"
     if parts[0] == "全局依赖":
         if len(parts) == 3 and parts[1] == "音色参考":
             return "audio_reference"
         if len(parts) >= 4 and (parts[1], parts[2]) in _GLOBAL_SUBTYPE_MAP:
             return _GLOBAL_SUBTYPE_MAP[(parts[1], parts[2])]
+        if len(parts) >= 3 and (parts[1],) in ((("角色设定",) if parts[2] == "角色参考图" else ()),):
+            return "character_ref"
+        # 兼容 全局依赖/角色参考图/xxx.png（无 设定 二层目录）的布局
+        if len(parts) >= 3 and parts[1] in ("角色参考图", "角色设定"):
+            return "character_ref" if parts[1] == "角色参考图" else "character_design"
+        if len(parts) >= 3 and parts[1] in ("场景参考图", "场景设定"):
+            return "scene_ref" if parts[1] == "场景参考图" else "scene_design"
+        if len(parts) >= 3 and parts[1] in ("道具参考图", "道具设定"):
+            return "prop_ref" if parts[1] == "道具参考图" else "prop_design"
         return None
-    if len(parts) >= 2 and _EPISODE_RE.match(parts[0]):
-        if len(parts) == 2 and parts[1] == "剧本.md":
-            return "script"
-        if parts[1] == "分镜":
+    # 剧集目录：纯数字（01）或 EP 前缀（EP01 / EP01_标题）
+    if len(parts) >= 2 and (_EPISODE_RE.match(parts[0]) or re.match(r"^EP\d{1,3}(?:_|$)", parts[0])):
+        if parts[1] in ("分镜", "分镜图") or (parts[1] == "分镜" and len(parts) >= 3):
             return "storyboard"
-        if parts[1] == "海报设计":
+        if len(parts) >= 2 and parts[1] == "剧本.md":
+            return "script"
+        if parts[1] == "海报设计" or parts[1] == "海报":
             return "poster"
         if parts[1] == "视频":
             return "video_manifest" if parts[-1] == "_manifest.json" else "video"
+        if parts[1] == "角色参考图":
+            return "character_ref"
+        if parts[1] == "场景参考图":
+            return "scene_ref"
+        if parts[1] == "道具参考图":
+            return "prop_ref"
+        if parts[1] == "角色设定":
+            return "character_design"
+        if parts[1] == "场景设定":
+            return "scene_design"
+        if parts[1] == "道具设定":
+            return "prop_design"
+        if parts[1] == "音色参考":
+            return "audio_reference"
+    # 无剧集前缀但目录直接是类型目录（如 EP03 内容平铺：分镜/、角色参考图/）
+    if len(parts) >= 2:
+        first = parts[0]
+        if first == "分镜":
+            return "storyboard"
+        if first == "角色参考图":
+            return "character_ref"
+        if first == "场景参考图":
+            return "scene_ref"
+        if first == "道具参考图":
+            return "prop_ref"
+        if first == "角色设定":
+            return "character_design"
+        if first == "场景设定":
+            return "scene_design"
+        if first == "道具设定":
+            return "prop_design"
+        if first == "海报" or first == "海报设计":
+            return "poster"
+        if first == "视频":
+            return "video_manifest" if parts[-1] == "_manifest.json" else "video"
+        if first == "音色参考":
+            return "audio_reference"
+    # 顶层文件启发式
+    fn = parts[-1].lower()
+    if fn.endswith("_manifest.json") and "视频" in "/".join(parts[:-1]):
+        return "video_manifest"
+    if fn == "mv分镜脚本.json" or (len(parts) == 1 and ("分镜" in parts[0] or "分镜脚本" in parts[0])):
+        return "storyboard"
+    if len(parts) == 1 and ("设定" in parts[0] or "设定_" in parts[0]):
+        return "setting"
+    if len(parts) == 1 and "剧本" in parts[0]:
+        return "script"
     return None
 
 
@@ -704,6 +763,495 @@ def export_project(project_id, dest=None, dbp=None):
             "files": [f"{name}/{fn}" for fn in files],
             "artifacts": len(arts),
             "events": len(events_lines),
+        }
+
+
+# ---------------------------------------------------------------------------
+# 旧版 JSON 元数据迁移（import_legacy）
+# ---------------------------------------------------------------------------
+
+# 旧版产物 type -> 新库枚举
+_LEGACY_TYPE_MAP = {
+    "raw_script": "raw_script",
+    "project_config": "project_config",
+    "script": "script",
+    "character_design": "character_design",
+    "character_ref": "character_ref",
+    "scene_design": "scene_design",
+    "scene_ref": "scene_ref",
+    "prop_design": "prop_design",
+    "prop_ref": "prop_ref",
+    "storyboard": "storyboard",
+    "storyboard_ref": "storyboard",
+    "storyboard_image": "storyboard",
+    "storyboard_group": "storyboard",
+    "storyboard_script": "storyboard",
+    "storyboard_direction": "storyboard",
+    "storyboard_image_tasks": "other",
+    "poster": "poster",
+    "setting": "setting",
+    "reference": "reference",
+    "reference_image": "reference",
+    "product_sample": "reference",
+    "audio_reference": "audio_reference",
+    "video": "video",
+    "video_segment": "video",
+    "video_group": "video",
+    "video_node": "video",
+    "video_manifest": "video_manifest",
+    "episode_script": "script",
+    "group_script": "storyboard",
+    "asset_sync": "other",
+    "task_table": "other",
+    "task_manifest": "other",
+    "task_json": "other",
+    "project_rule": "other",
+    "character_wardrobe": "character_design",
+    "character_ref_tasks": "other",
+    "character_ref_task": "other",
+    "character_design_index": "other",
+    "scene_ref_tasks": "other",
+    "scene_ref_task": "other",
+    "scene_design_index": "other",
+    "prop_ref_tasks": "other",
+    "prop_ref_task": "other",
+    "prop_design_index": "other",
+    "subproject_reference": "other",
+    "canvas": "other",
+}
+
+# 旧版事件 actor -> 新库 actor 枚举
+_LEGACY_ACTOR_MAP = {
+    "coordinator": "project-coordinator",
+    "project-coordinator": "project-coordinator",
+    "producer": "producer",
+    "user": "user",
+    "art-director": "art-director",
+    "character-director": "roles-ref-generator",
+    "video-director": "video-director-libtv",
+    "orchestrator": "project-coordinator",
+    "storyboard-generator": "storyboard-generator",
+    "scene-ref-generator": "scene-ref-generator",
+    "prop-ref-generator": "prop-ref-generator",
+    "roles-ref-generator": "roles-ref-generator",
+}
+
+# 旧版阶段名 -> 新 17 阶段 idx（尽力映射；未覆盖名称不参与状态重建）
+_LEGACY_STAGE_IDX = {
+    "project_init": 0, "material_sorting": 1, "supervisor_extraction": 2,
+    "global_character_tasks": 3, "global_character_art": 4,
+    "global_prop_tasks": 5, "global_prop_art": 6,
+    "global_scene_tasks": 7, "global_scene_art": 8,
+    "episode_storyboard_script": 9, "episode_storyboard": 9,
+    "episode_character_ref": 10,
+    "episode_prop_ref": 11, "episode_scene_ref": 12,
+    "episode_storyboard_images": 13,
+    "asset_sync": 14, "video_generation": 15, "delivery": 16,
+    "planning": 0, "pre_production": 2, "preproduction": 2,
+    "production": 15, "post_production": 15, "postproduction": 15,
+    "review": 16, "completed": 16, "init": 0,
+    "1_项目初始化": 0, "项目初始化": 0, "stage1_project_init": 0,
+    "2_监制提取设定": 2, "监制提取设定": 2, "监制提取设定（全局）": 2,
+    "supervisor_extract": 2,
+    "setting_extraction": 2, "前期设定": 2, "剧本创作": 2,
+    "角色场景道具设计": 2, "EP06~EP10 监制提取设定": 2,
+    "3_全局视觉资产生成": 3, "全局视觉资产生成": 3, "global_visual_asset": 3,
+    "global_assets": 4, "角色设定与资产制作": 4,
+    "3_角色参考图生成": 4, "角色参考图生成": 4, "角色参考图": 4, "角色设定": 4,
+    "5_道具参考图生成": 6, "道具参考图生成": 6, "道具参考图": 6, "道具设定": 6,
+    "4_场景参考图生成": 8, "场景参考图生成": 8, "场景参考图": 8, "场景设定": 8,
+    "4_拆解分镜（EP01）": 9, "拆解分镜": 9, "分镜剧": 9, "storyboard": 9,
+    "EP01~EP05 拆解分镜": 9, "EP06~EP10 拆解分镜": 9,
+    "stage3_episode_script": 9, "stage4_storyboard": 9,
+    "episode_assets": 11,
+    "5_剧集级参考图（EP01）": 12, "剧集级参考图": 12,
+    "stage5_episode_ref": 12, "ep08_15_storyboard_ref": 12,
+    "6_分镜制作": 13, "分镜制作": 13, "EP01分镜制作": 13,
+    "EP01~EP05 分镜制作": 13, "EP02-EP05分镜制作": 13, "EP06-EP20分镜制作": 13,
+    "storyboard_remake": 13, "ep08_15_storyboard": 13,
+    "EP01~EP05 画布节点": 14, "EP06~EP10 画布节点": 14, "画布节点": 14,
+    "6_视频生成（EP01）": 15, "7_视频生成": 15, "视频生成": 15,
+    "视频生成（EP01）": 15, "video_production": 15, "episode_video": 15,
+    "episode_video_remake": 15, "ep08_15_video": 15, "stage6_video": 15,
+    "后期合成": 15, "按集执行(EP01)": 15, "按集执行(EP02)": 15,
+    "按集执行(EP03)": 15, "按集执行(EP04)": 15,
+    "8_输出交付": 16, "输出交付": 16, "交付归档": 16,
+}
+
+
+def _legacy_stage_idx(name, project_stages=None) -> int | None:
+    """旧阶段名 -> 新 17 阶段 idx。
+
+    project_stages：旧 stages.json 的有序阶段列表（含 name/status），用于解析
+    数字或 stageN 形式的产物 stage 字段（1-based 索引查旧阶段名后递归映射）。
+    """
+    if name is None:
+        return None
+    if isinstance(name, int):
+        name = str(name)
+    name = str(name).strip()
+    if name in _LEGACY_STAGE_IDX:
+        return _LEGACY_STAGE_IDX[name]
+    if project_stages:
+        # 数字/stageN = 旧阶段数组 1-based 索引
+        n = None
+        if re.fullmatch(r"\d{1,3}", name):
+            n = int(name)
+        elif re.fullmatch(r"stage\d{1,3}", name, re.IGNORECASE):
+            n = int(name[5:])
+        if n is not None and 1 <= n <= len(project_stages):
+            real = project_stages[n - 1].get("name")
+            if real and real != name:
+                return _legacy_stage_idx(real)
+    if re.match(r"ep_execution\(EP\d+\)", name) or re.match(r"^EP\d{1,2}$", name):
+        return 15
+    if "分镜" in name and "制作" in name:
+        return 13
+    if "分镜" in name:
+        return 9
+    if "视频" in name or "合成" in name:
+        return 15
+    if "参考图" in name or "设定" in name:
+        return 4
+    return None
+
+
+def _legacy_normalize_path(p, name: str) -> str | None:
+    """规范化旧 manifest 路径：绝对/反斜杠/相对 → 工作区相对 posix 路径。
+    返回 None 表示该路径不可迁移（非 project/ 或 temp/ 下）。
+
+    注意：Windows 绝对路径中项目根可能含 'project' 子串（如
+    'D:\\Opencode project\\New\\project\\...'），因此不能简单地
+    find('project/')，必须锚定工作区根或路径分隔符。
+    """
+    if not p:
+        return None
+    p = str(p).replace("\\", "/").strip()
+    if p.startswith("D:") or p.startswith("C:") or p.startswith("/") or re.match(r"^[A-Za-z]:", p):
+        # 尝试锚定工作区根
+        root = str(_root()).replace("\\", "/")
+        idx = p.find(root)
+        if idx >= 0:
+            p = p[idx + len(root):].lstrip("/")
+        else:
+            # 未含工作区根：找第一个 'project/' 或 'temp/'（须位于段首，避免命中 'Opencode project/'）
+            best = None
+            for m in re.finditer(r"(?:^|/)(project|temp)/", p):
+                seg = m.group(1)
+                if seg == "project" or seg == "temp":
+                    best = m.start() + 1  # +1 跳过前导 '/'
+                    break
+            if best is None:
+                return None
+            p = p[best:]
+    if p.startswith(".meta/") or p.startswith("canvas:"):
+        return None
+    if p.startswith("project/") or p.startswith("temp/"):
+        return p
+    return None
+
+
+@_public
+def import_legacy(legacy_dir, name_override=None, keep_id=True, scan_dir=None, scan_exclude=None, dbp=None):
+    """将旧版 .meta/projects/{id}/ 下的四件套 JSON 元数据迁移为新库记录。
+
+    参数：
+    - legacy_dir：旧项目元数据目录（含 project.json/stages.json/manifest.json/events.jsonl/project_config.json）
+    - name_override：新项目名；缺省取旧 project.json 的 name
+    - keep_id：True 时保留旧 UUID 作为项目 id（唯一约束检查，冲突则自动生成新 UUID）
+    - scan_dir：真实产物目录（相对 project/ 的路径，如 '星光耀' 或 '吉泰安防/系列二_侥幸的代价'）。
+      提供时以 project/{scan_dir}/ 下真实文件为产物来源（_classify 自动分类，
+      无法分类的进 pending_reviews），忽略 manifest 产物清单；缺省 None 时按 manifest 导入。
+    - scan_exclude：scan_dir 下需跳过的顶层子目录名元组（如吉泰安防下的系列子项目目录）。
+
+    迁移语义：
+    - projects：id/name/type/description/created_at/updated_at 尽量保留；type 非法值映射为 other；status 一律 active
+    - stages：新库固定 17 阶段链。将旧阶段按 _LEGACY_STAGE_IDX 映射到 idx，已映射且状态为
+      completed/skipped 的阶段置 completed；in_progress 阶段记录为当前阶段；其余 pending。
+      当前阶段取旧 current_stage 映射 idx，缺省为第一个未 completed 的 idx
+    - artifacts：scan_dir 提供时扫描真实目录分类注册（未分类进 pending_reviews）；否则按 manifest
+      导入（type 经映射表归一、path 规范化、状态归一、hash/size 一律重算、缺失/非法路径跳过）
+    - events：逐条导入，actor 映射到新枚举，type/data/timestamp 原样保留
+    - project_configs：合并 CONFIG_FIELDS 默认值 + 旧 config；reference_image_mode 由
+      use_storyboard_images 推断
+
+    返回 {project_id, name, stages, artifacts, events, skipped, warnings}。
+    """
+    ldir = Path(legacy_dir)
+    if not ldir.is_dir():
+        _fail(f"旧元数据目录不存在: {ldir}", "not_found")
+
+    def _read(name):
+        fp = ldir / name
+        if not fp.is_file():
+            return None
+        try:
+            return json.loads(fp.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            return None
+
+    pj = _read("project.json") or {}
+    st_json = _read("stages.json") or {}
+    mf = _read("manifest.json") or {}
+    cfg = _read("project_config.json") or {}
+    events = []
+    evp = ldir / "events.jsonl"
+    if evp.is_file():
+        for line in evp.read_text(encoding="utf-8-sig").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except ValueError:
+                continue
+
+    name = (name_override or pj.get("name") or "").strip()
+    if not name:
+        _fail(f"无法确定项目名（缺 project.json 且未传 name_override）: {ldir}", "invalid")
+    ptype = pj.get("type") or "other"
+    if ptype not in templates.PROJECT_TYPES:
+        ptype = "other"
+    desc = (pj.get("description") or "")[:500]
+    created_at = pj.get("created_at") or _now()
+    updated_at = pj.get("updated_at") or created_at
+
+    # 阶段状态重建
+    old_stages = st_json.get("stages", [])
+    new_current_idx = None
+    completed_idx = set()
+    for s in old_stages:
+        nm = s.get("name")
+        idx = _legacy_stage_idx(nm, old_stages)
+        if idx is None:
+            continue
+        status = s.get("status")
+        if status in ("completed", "skipped"):
+            completed_idx.add(idx)
+        elif status == "in_progress":
+            new_current_idx = idx
+    old_current = pj.get("current_stage") or st_json.get("current") or st_json.get("current_stage")
+    if old_current:
+        ci = _legacy_stage_idx(str(old_current), old_stages)
+        if ci is not None:
+            new_current_idx = ci
+    # 若 new_current_idx 对应的旧阶段本身已完成（全完成项目 cur=delivery/completed），
+    # 推进到其后第一个未完成阶段；全部完成则停留在 delivery（保持 completed）
+    if new_current_idx is not None and new_current_idx in completed_idx:
+        nxt = next((i for i in range(new_current_idx + 1, len(templates.STAGES)) if i not in completed_idx), None)
+        new_current_idx = nxt
+    if new_current_idx is None:
+        for i in range(len(templates.STAGES)):
+            if i not in completed_idx:
+                new_current_idx = i
+                break
+        else:
+            new_current_idx = len(templates.STAGES) - 1
+    # 当前阶段之前的必须 completed
+    for i in range(new_current_idx):
+        completed_idx.add(i)
+    all_done = all(i in completed_idx for i in range(len(templates.STAGES)))
+
+    with db.connect(dbp) as conn:
+        dup = conn.execute("SELECT id FROM projects WHERE name = ?", (name,)).fetchone()
+        if dup is not None:
+            _fail(f"项目名已存在（含已删除项目）: {name}", "conflict")
+        if keep_id and (pj.get("id") or pj.get("uuid")):
+            pid = str(pj.get("id") or pj.get("uuid"))
+            has = conn.execute("SELECT 1 FROM projects WHERE id = ?", (pid,)).fetchone()
+            if has:
+                pid = str(uuid.uuid4())
+        elif keep_id and st_json.get("project_id"):
+            pid = str(st_json["project_id"])
+            has = conn.execute("SELECT 1 FROM projects WHERE id = ?", (pid,)).fetchone()
+            if has:
+                pid = str(uuid.uuid4())
+        else:
+            pid = str(uuid.uuid4())
+
+        with conn:
+            conn.execute(
+                "INSERT INTO projects (id, name, type, status, current_stage, created_at, updated_at, description)"
+                " VALUES (?,?,?, 'active', ?,?,?,?)",
+                (pid, name, ptype, templates.STAGES[new_current_idx]["name"], created_at, updated_at, desc),
+            )
+            for i, st in enumerate(templates.STAGES):
+                status = "pending"
+                started_at, completed_at = None, None
+                if i == new_current_idx and not all_done:
+                    status = "in_progress"
+                    started_at = updated_at
+                elif i in completed_idx:
+                    status = "completed"
+                    completed_at = updated_at
+                conn.execute(
+                    "INSERT INTO stages (project_id, idx, name, label, status, started_at, completed_at)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (pid, i, st["name"], st["label"], status, started_at, completed_at),
+                )
+            merged = dict(CONFIG_FIELDS)
+            if isinstance(cfg, dict):
+                merged.update(cfg)
+            if "use_storyboard_images" in merged and merged["use_storyboard_images"] is not None:
+                merged["reference_image_mode"] = "storyboard_images" if merged["use_storyboard_images"] else "visual_anchor"
+            conn.execute(
+                "INSERT INTO project_configs (project_id, config) VALUES (?,?)",
+                (pid, json.dumps(merged, ensure_ascii=False)),
+            )
+
+            # artifacts
+            art_count = 0
+            skipped_arts = []
+            seen_final_paths = set()
+            if scan_dir:
+                scan_root = _root() / "project" / scan_dir
+                if not scan_root.is_dir():
+                    _fail(f"真实产物目录不存在: {scan_root}", "not_found")
+                exclude = set(scan_exclude or ())
+                # 类型 → 阶段映射（真实产物按类型归属阶段）
+                TYPE_TO_STAGE = {
+                    "raw_script": 0,
+                    "setting": 2, "character_design": 2, "scene_design": 2, "prop_design": 2,
+                    "script": 9, "storyboard": 9, "poster": 13,
+                    "character_ref": 4, "scene_ref": 8, "prop_ref": 6,
+                    "reference": 1, "audio_reference": 2,
+                    "video": 15, "video_manifest": 15,
+                }
+                internal_dirs = (".pipeline", ".libtv", "temp", "node_modules")
+                pending_now = _now()
+                for dirpath, dirnames, filenames in os.walk(scan_root):
+                    dirnames[:] = [
+                        d for d in dirnames
+                        if not d.startswith(".") and d not in internal_dirs and d not in exclude
+                    ]
+                    for fn in filenames:
+                        if fn.startswith("."):
+                            continue
+                        fpath = Path(dirpath) / fn
+                        rel = fpath.relative_to(scan_root)
+                        if rel.parts in templates.SCAN_SKIP:
+                            continue
+                        ntype = _classify(rel.parts)
+                        if ntype is None:
+                            # 未分类进 pending_reviews（保留真实文件待审查）
+                            skipped_arts.append({"name": fn, "type": None, "reason": "unclassified"})
+                            try:
+                                st = fpath.stat()
+                                conn.execute(
+                                    "INSERT INTO pending_reviews (id, project_id, path, size, mtime, created_at) VALUES (?,?,?,?,?,?)",
+                                    (str(uuid.uuid4()), pid, str(fpath), st.st_size,
+                                     datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(), pending_now),
+                                )
+                            except sqlite3.IntegrityError:
+                                pass
+                            continue
+                        key = (pid, str(fpath))
+                        if key in seen_final_paths:
+                            continue
+                        seen_final_paths.add(key)
+                        s_idx = TYPE_TO_STAGE.get(ntype, new_current_idx)
+                        a_stage = templates.STAGES[s_idx]["name"]
+                        h_recalc = hashing.dir_fingerprint(fpath, hashing.dir_stats(fpath)) if fpath.is_dir() else hashing.fast_fingerprint(fpath)
+                        size_recalc = fpath.stat().st_size if fpath.is_file() else sum(f.stat().st_size for f in fpath.rglob("*") if f.is_file())
+                        aid = str(uuid.uuid4())
+                        try:
+                            conn.execute(
+                                "INSERT INTO artifacts (id, project_id, type, name, path, stage, status, hash, size, tags, created_at, updated_at)"
+                                " VALUES (?,?,?,?,?,?, 'final',?,?,?,?,?)",
+                                (aid, pid, ntype, fpath.name, str(fpath), a_stage, h_recalc, size_recalc,
+                                 "[]", _now(), _now()),
+                            )
+                            art_count += 1
+                        except sqlite3.IntegrityError:
+                            skipped_arts.append({"name": fn, "type": ntype, "reason": "dup"})
+            else:
+                for a in mf.get("artifacts", []):
+                    atype = a.get("type")
+                    ntype = _LEGACY_TYPE_MAP.get(atype)
+                    if ntype is None:
+                        ntype = "other"
+                    if ntype not in ARTIFACT_TYPES:
+                        ntype = "other"
+                    norm = _legacy_normalize_path(a.get("path"), name)
+                    if norm is None:
+                        skipped_arts.append({"name": a.get("name"), "type": atype, "reason": "path"})
+                        continue
+                    fp = _root() / norm
+                    if not fp.exists():
+                        skipped_arts.append({"name": a.get("name"), "type": atype, "reason": "missing"})
+                        continue
+                    if ntype == "project_config":
+                        continue
+                    key = (pid, str(fp))
+                    if key in seen_final_paths:
+                        continue
+                    seen_final_paths.add(key)
+                    status = "final" if a.get("status") in ("final", "active", "created", None) else "deprecated"
+                    # 产物自身的旧 stage 映射到新阶段名；失败则归入当前阶段
+                    a_idx = _legacy_stage_idx(a.get("stage"), old_stages)
+                    a_stage = templates.STAGES[a_idx]["name"] if a_idx is not None else templates.STAGES[new_current_idx]["name"]
+                    # 指纹/大小一律重算，不信任旧 manifest 值
+                    h_recalc = hashing.dir_fingerprint(fp, hashing.dir_stats(fp)) if fp.is_dir() else hashing.fast_fingerprint(fp)
+                    size_recalc = (
+                        sum(f.stat().st_size for f in fp.rglob("*") if f.is_file())
+                        if fp.is_dir()
+                        else fp.stat().st_size
+                    )
+                    aid = a.get("id") or str(uuid.uuid4())
+                    if not isinstance(aid, str) or not aid.strip():
+                        aid = str(uuid.uuid4())
+                    # 旧产物 id 可能跨项目重复（如 art_001），或与现存冲突；冲突时生成新 UUID 重试
+                    inserted = False
+                    for _attempt in range(3):
+                        try:
+                            conn.execute(
+                                "INSERT INTO artifacts (id, project_id, type, name, path, stage, status, hash, size, tags, created_at, updated_at)"
+                                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                (aid, pid, ntype, a.get("name") or fp.name, str(fp),
+                                 a_stage, status, h_recalc, size_recalc,
+                                 json.dumps(a.get("tags") or [], ensure_ascii=False),
+                                 a.get("created_at") or _now(), a.get("updated_at") or _now()),
+                            )
+                            inserted = True
+                            break
+                        except sqlite3.IntegrityError:
+                            aid = str(uuid.uuid4())
+                    if inserted:
+                        art_count += 1
+                    else:
+                        skipped_arts.append({"name": a.get("name"), "type": atype, "reason": "dup"})
+
+            # events（actor 映射，type/data/timestamp 保留）
+            ev_count = 0
+            for e in events:
+                actor = _LEGACY_ACTOR_MAP.get(e.get("actor"), "project-coordinator")
+                conn.execute(
+                    "INSERT INTO events (timestamp, type, actor, project_id, data) VALUES (?,?,?,?,?)",
+                    (e.get("timestamp") or _now(), e.get("type") or "legacy.import", actor, pid,
+                     json.dumps(e.get("data") or {}, ensure_ascii=False, separators=(",", ":"))),
+                )
+                ev_count += 1
+
+            _emit(conn, pid, "legacy.import", {
+                "from_dir": str(ldir),
+                "name": name,
+                "artifacts": art_count,
+                "events": ev_count,
+                "skipped": len(skipped_arts),
+                "artifacts_source": scan_dir or "manifest",
+            })
+
+        return {
+            "project_id": pid,
+            "name": name,
+            "type": ptype,
+            "current_stage": templates.STAGES[new_current_idx]["name"],
+            "stages": len(templates.STAGES),
+            "artifacts": art_count,
+            "events": ev_count,
+            "artifacts_source": scan_dir or "manifest",
+            "skipped": skipped_arts,
+            "warnings": [],
         }
 
 
