@@ -82,6 +82,7 @@ ARTIFACT_TYPES = (
 
 TYPE_TO_DIR = {
     "raw_script": "原始剧本.md",
+    # 仅 export/import 用途（导出 ZIP 内保留该文件），运行时配置存于 project_configs 表，不落盘
     "project_config": ".meta/projects/{uuid}/project_config.json",
     "script": "{episode}/剧本.md",
     "character_design": "全局依赖/角色设定/具体设定/{character}.md",
@@ -146,4 +147,13 @@ CONFIG_FIELDS = {
     "storyboard_mode": "detailed",
     "has_audio_reference": False,
     "suppress_run": False,
+    "video_prompt_mode": "optimized",
+}
+
+# 配置字段写权限白名单（ACL），权威源：doc/配置链路DB化_长期改造方案.md §2.3。
+# 未在此列出的 CONFIG_FIELDS 字段默认仅 ("project-coordinator",) 可写。
+CONFIG_WRITE_ACL = {
+    "workspace_id": ("video-director-libtv", "project-coordinator"),
+    "episodes": ("video-director-libtv", "project-coordinator"),
+    "suppress_run": ("project-coordinator",),
 }

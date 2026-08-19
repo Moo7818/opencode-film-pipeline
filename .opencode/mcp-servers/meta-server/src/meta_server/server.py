@@ -1,8 +1,9 @@
 """Meta MCP Server — 项目元数据管理（FastMCP 标准范式）。
 
-提供 8 个工具：meta_init_project / meta_advance_stage / meta_register_artifact /
-meta_archive_artifact / meta_scan_and_register / meta_query / meta_export_project /
-meta_delete_project。所有工具错误统一返回 {"error": str, "code": str}，不抛异常。
+提供 10 个工具：meta_init_project / meta_advance_stage / meta_register_artifact /
+meta_archive_artifact / meta_scan_and_register / meta_query / meta_update_config /
+meta_export_project / meta_import_legacy / meta_delete_project。所有工具错误统一返回
+{"error": str, "code": str}，不抛异常。
 """
 
 import functools
@@ -201,6 +202,7 @@ def meta_scan_and_register(
 def meta_query(
     scope: str,
     project_id: str | None = None,
+    project_name: str | None = None,
     filters: dict | None = None,
     limit: int = 50,
 ) -> dict:
@@ -212,12 +214,67 @@ def meta_query(
     - artifacts：可选 project_id；按 created_at 倒序；filters 支持 type/stage/status/name 等值过滤
     - events：可选 project_id；按 rowid 倒序（最新在前）；filters 支持 type/actor 等值过滤
     - pending：可选 project_id；待人工归类的文件清单
+    - config：需 project_id 或 project_name（子 agent 常只持项目名，免二次查询；二者皆给以
+      project_id 为准，缺二者返回 code='invalid'）；返回 {project_id, name, updated_at, config}，
+      其中 config 为 CONFIG_FIELDS 默认值与 project_configs 存量合并后的完整配置，消费方无需
+      自行补默认值；项目不存在返回 code='not_found'；不产生事件
 
     filters 为列名到值的等值字典，传入 scope 不支持的键会返回 code='invalid'。limit 默认 50（上限 1000）。
 
-    返回 {scope, count, items}。
+    返回 {scope, count, items}（config scope 返回单对象结构，无 items）。
     """
-    return service.query(scope=scope, project_id=project_id, filters=filters, limit=limit)
+    return service.query(
+        scope=scope, project_id=project_id, project_name=project_name,
+        filters=filters, limit=limit,
+    )
+
+
+@mcp.tool(
+    annotations={
+        "readOnlyHint": False,
+        "idempotentHint": False,
+        "openWorldHint": False,
+        "destructiveHint": False,
+    }
+)
+@_safe
+def meta_update_config(
+    project_id: str,
+    updates: dict,
+    actor: str,
+) -> dict:
+    """更新项目配置：点路径局部更新 + 字段级写权限白名单（ACL）+ 单事务 read-merge-write。
+
+    参数：
+    - project_id：项目 UUID，必填
+    - updates：点路径 KV 字典，如 {"episodes.EP01.canvas_uuid": "uuid-x", "workspace_id": 3}，必填。
+      点路径最多两层（根键 + 最多两段子键，如 episodes.EP01.canvas_uuid；段数 4 及以上返回
+      code='invalid'）；根键必须在 CONFIG_FIELDS（未知字段返回 code='invalid'）
+    - actor：调用者身份，必填，ACTORS 枚举值：user/producer/storyboard-generator/
+      roles-ref-generator/scene-ref-generator/prop-ref-generator/art-director/
+      video-director-libtv/project-coordinator；非法值返回 code='invalid'
+
+    值校验（仅一层路径的标量字段）：
+    - reference_image_mode ∈ visual_anchor | storyboard_images | none
+    - storyboard_mode ∈ detailed | simplified
+    - video_prompt_mode ∈ optimized | raw
+    - enable_sound / suppress_run / has_audio_reference 必须为 bool
+
+    字段级写权限白名单（ACL，权威源 doc/配置链路DB化_长期改造方案.md §2.3）：
+    - workspace_id、episodes.*（含 episodes.{EP}.canvas_uuid）：video-director-libtv、project-coordinator
+    - suppress_run：仅 project-coordinator
+    - 其余全部字段（model、aspect_ratio、resolution、mode、enable_sound、storyboard_mode、
+      reference_image_mode、video_prompt_mode、has_audio_reference 等）：仅 project-coordinator
+    越权写入返回 code='invalid'（错误信息注明 ACL 拒绝与允许的 actor），不做任何部分写入。
+
+    行为：单事务读取 project_configs 现值（行缺失时以 CONFIG_FIELDS 默认值起始）→ 按点路径合并 →
+    写回；两层路径要求首层字段为 dict（非 dict 返回 code='invalid'）；同事务更新 projects.updated_at
+    并写 config.updated 事件（data={actor, changed_keys, updates}）。校验失败不改任何状态。
+
+    返回 {"config": 合并后完整配置, "changed_keys": [排序后的变更键]}；失败返回 {error, code}，
+    code ∈ not_found / invalid。
+    """
+    return service.update_config(project_id=project_id, updates=updates, actor=actor)
 
 
 @mcp.tool(

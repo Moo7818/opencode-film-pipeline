@@ -4,6 +4,7 @@
 SHA-256 只按二进制流计算，不做内容解析。
 """
 
+import copy
 import functools
 import json
 import os
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import db, hashing, templates
-from .templates import ARTIFACT_TYPES, CONFIG_FIELDS, STAGES, TYPE_TO_DIR
+from .templates import ARTIFACT_TYPES, CONFIG_FIELDS, CONFIG_WRITE_ACL, STAGES, TYPE_TO_DIR
 
 ACTOR = "project-coordinator"
 
@@ -28,7 +29,22 @@ _QUERY_ALLOWED = {
     "artifacts": {"type", "stage", "status", "name"},
     "events": {"type", "actor"},
     "pending": set(),
+    "config": set(),
 }
+
+# 配置枚举字段的合法取值（标量字段，仅一层路径写入时校验）
+_CONFIG_ENUMS = {
+    "reference_image_mode": ("visual_anchor", "storyboard_images", "none"),
+    "storyboard_mode": ("detailed", "simplified"),
+    "video_prompt_mode": ("optimized", "raw"),
+}
+
+# 配置布尔字段（标量字段，仅一层路径写入时校验）
+_CONFIG_BOOL_FIELDS = ("enable_sound", "suppress_run", "has_audio_reference")
+
+_PROJECT_CONFIG_REJECT = (
+    "project_config 类型禁止注册：运行时配置存于 project_configs 表，不再落盘该文件"
+)
 
 
 class _Fail(Exception):
@@ -454,6 +470,8 @@ def advance_stage(project_id, reason="", skip=False, skip_reason=None, dbp=None)
 
 @_public
 def register_artifact(project_id, type, path, stage=None, name=None, tags=None, dbp=None):
+    if type == "project_config":
+        _fail(_PROJECT_CONFIG_REJECT, "invalid")
     p = _resolve(path)
     with db.connect(dbp) as conn:
         project = _get_project(conn, project_id)
@@ -463,6 +481,8 @@ def register_artifact(project_id, type, path, stage=None, name=None, tags=None, 
 
 @_public
 def archive_artifact(project_id, src, type, stage=None, name=None, tags=None, dbp=None):
+    if type == "project_config":
+        _fail(_PROJECT_CONFIG_REJECT, "invalid")
     if type not in ARTIFACT_TYPES:
         _fail(f"非法产物类型: {type}，允许值 {list(ARTIFACT_TYPES)}", "invalid")
     s = _resolve(src)
@@ -570,7 +590,7 @@ def scan_and_register(project_id, dry_run=False, dbp=None):
 
 
 @_public
-def query(scope, project_id=None, filters=None, limit=50, dbp=None):
+def query(scope, project_id=None, project_name=None, filters=None, limit=50, dbp=None):
     if scope not in _QUERY_ALLOWED:
         _fail(f"非法 scope: {scope}，允许值 {sorted(_QUERY_ALLOWED)}", "invalid")
     filters = dict(filters or {})
@@ -584,6 +604,35 @@ def query(scope, project_id=None, filters=None, limit=50, dbp=None):
     if limit <= 0 or limit > 1000:
         limit = 50
     with db.connect(dbp) as conn:
+        if scope == "config":
+            if not project_id and not project_name:
+                _fail("需要 project_id 或 project_name", "invalid")
+            # project_id 与 project_name 皆提供时以 project_id 为准
+            if project_id:
+                row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+            else:
+                row = conn.execute("SELECT * FROM projects WHERE name = ?", (project_name,)).fetchone()
+            if row is None:
+                _fail(f"项目不存在: {project_id or project_name}", "not_found")
+            cfg_row = conn.execute(
+                "SELECT config FROM project_configs WHERE project_id = ?", (row["id"],)
+            ).fetchone()
+            merged = dict(CONFIG_FIELDS)
+            if cfg_row is not None:
+                try:
+                    stored = json.loads(cfg_row["config"] or "{}")
+                except (TypeError, ValueError):
+                    stored = {}
+                if isinstance(stored, dict):
+                    merged.update(stored)
+            return {
+                "scope": "config",
+                "count": 1,
+                "project_id": row["id"],
+                "name": row["name"],
+                "updated_at": row["updated_at"],
+                "config": merged,
+            }
         if scope == "projects":
             sql = "SELECT id, name, type, status, current_stage, created_at, updated_at, description FROM projects WHERE status != 'deleted'"
             params = []
@@ -653,6 +702,88 @@ def query(scope, project_id=None, filters=None, limit=50, dbp=None):
             sql += " ORDER BY created_at, path"
             items = [dict(r) for r in conn.execute(sql, params)]
         return {"scope": scope, "count": len(items), "items": items}
+
+
+@_public
+def update_config(project_id, updates, actor, dbp=None):
+    """更新项目配置：点路径局部更新 + 字段级写权限白名单（ACL）+ 单事务 read-merge-write。
+
+    规格来源：doc/配置链路DB化_长期改造方案.md §3.2。校验失败不改任何状态。
+    """
+    if actor not in templates.ACTORS:
+        _fail(f"非法 actor: {actor}，允许值 {list(templates.ACTORS)}", "invalid")
+    if not isinstance(updates, dict) or not updates:
+        _fail("updates 必须为非空 dict（键为点路径，如 episodes.EP01.canvas_uuid）", "invalid")
+    paths = []
+    for key in updates:
+        parts = str(key).split(".")
+        # 两层指：根键 + 最多两段子键路径（如 episodes.EP01.canvas_uuid），段数 4 及以上 invalid
+        if len(parts) > 3:
+            _fail(f"点路径最多两层（如 episodes.EP01.canvas_uuid），收到: {key}", "invalid")
+        root = parts[0]
+        if root not in CONFIG_FIELDS:
+            _fail(f"未知配置字段: {root}，允许值 {sorted(CONFIG_FIELDS)}", "invalid")
+        allowed = CONFIG_WRITE_ACL.get(root, ("project-coordinator",))
+        if actor not in allowed:
+            _fail(f"ACL 拒绝: actor={actor} 无权写配置字段 {root}，允许的 actor: {list(allowed)}", "invalid")
+        if len(parts) == 1:
+            if root in _CONFIG_ENUMS and updates[key] not in _CONFIG_ENUMS[root]:
+                _fail(f"非法枚举值: {root}={updates[key]!r}，允许值 {list(_CONFIG_ENUMS[root])}", "invalid")
+            if root in _CONFIG_BOOL_FIELDS and not isinstance(updates[key], bool):
+                _fail(f"配置字段 {root} 必须为 bool，得到 {type(updates[key]).__name__}", "invalid")
+        paths.append((parts, key))
+    with db.connect(dbp) as conn:
+        project = _get_project(conn, project_id)
+        with conn:
+            row = conn.execute(
+                "SELECT config FROM project_configs WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            merged = dict(CONFIG_FIELDS)
+            if row is not None:
+                try:
+                    stored = json.loads(row["config"] or "{}")
+                except (TypeError, ValueError):
+                    stored = {}
+                if isinstance(stored, dict):
+                    merged.update(stored)
+            for parts, key in paths:
+                if len(parts) == 1:
+                    merged[parts[0]] = updates[key]
+                    continue
+                head = parts[0]
+                if not isinstance(merged.get(head), dict):
+                    _fail(f"两层路径 {key} 要求配置字段 {head} 为 dict", "invalid")
+                # 深拷贝子树，避免原地修改 CONFIG_FIELDS 共享的默认容器
+                subtree = copy.deepcopy(merged[head])
+                node = subtree
+                for sub in parts[1:-1]:
+                    cur = node.get(sub)
+                    if cur is not None and not isinstance(cur, dict):
+                        _fail(f"两层路径 {key} 要求 {head}.{sub} 为 dict", "invalid")
+                    if cur is None:
+                        cur = {}
+                        node[sub] = cur
+                    node = cur
+                node[parts[-1]] = updates[key]
+                merged[head] = subtree
+            if row is not None:
+                conn.execute(
+                    "UPDATE project_configs SET config = ? WHERE project_id = ?",
+                    (json.dumps(merged, ensure_ascii=False), project_id),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO project_configs (project_id, config) VALUES (?,?)",
+                    (project_id, json.dumps(merged, ensure_ascii=False)),
+                )
+            now = _now()
+            conn.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (now, project_id))
+            _emit(conn, project_id, "config.updated", {
+                "actor": actor,
+                "changed_keys": sorted(updates),
+                "updates": updates,
+            })
+            return {"config": merged, "changed_keys": sorted(updates)}
 
 
 @_public
