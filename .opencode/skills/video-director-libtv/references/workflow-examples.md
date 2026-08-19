@@ -5,6 +5,17 @@
 - 所有命令在**画布所在工作目录**下执行
 - 以下命令基于 `libtv` **v1.1.1+**。关键变化：`group --run` 现为**阻塞等待**命令，CLI 内部完成轮询后退出
 - **默认行为**：仅执行建组（`libtv group create`），不自动运行。仅当用户明确要求时才执行 `libtv group --run`
+- 使用管线脚本时，配置值来自 `meta_query(scope=config)`（默认值已合并），由 agent 读出后以 CLI 参数显式传入；`--canvas-uuid` / `--model` / `--storyboard-mode` / `--reference-image-mode` 均必填（缺失时 argparse 直接报错，退出码 2）：
+
+```bash
+python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
+  --project "项目名" --episode EP01 ^
+  --canvas-uuid <画布UUID> --model "Seedance 2.0 VIP" ^
+  --storyboard-mode detailed --reference-image-mode visual_anchor ^
+  --groups 7 8 9 --ratio 16:9 --resolution 480p --sound on ^
+  --refs "组7:场景_现代南京,角色_一岛" ^
+  --run --download
+```
 
 ---
 
@@ -120,7 +131,7 @@ libtv group create "EP01视频" --node 组1
 ```
 
 > **音色参考说明**：音色参考（WAV 格式的角色语音样本文件）在以下场景应上传到画布并连线：
-> - `project_config.json` 的 `enable_sound=true`
+> - 配置 `enable_sound=true`（配置值来自 `meta_query(scope=config)`）
 > - 分镜组中包含该角色的台词或音效
 >
 > 音色参考文件存放路径为 `project/{项目名}/全局依赖/音色参考/{角色名}-音色参考.wav`，上传类型为 `audio`。在 prompt 中使用 `{{Audio N}}` 引用音色参考，`N` 为 `--left` 中 audio 节点的排列序号。

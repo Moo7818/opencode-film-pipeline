@@ -2,16 +2,16 @@
 
 ## 0. 参数来源总览
 
-| 来源文件 | 路径 | 提供什么 |
+| 来源 | 通道 | 提供什么 |
 |----------|------|----------|
-| `project_config.json` | `.meta/projects/{uuid}/project_config.json` | 全局视频参数（比例、模型、模式等） |
+| `meta_query(scope=config)` | 以 project_id 或 project_name 查询，返回全字段 config（默认值已合并） | 全局视频参数（比例、模型、模式等） |
 | 分组文件 | `project/<项目名>/<剧集号>/分镜/分组/组{N}.json` 或 `组{N}.md` | 本组生成参数（时长、分镜内容） |
 
 **分组文件格式由 `storyboard_mode` 决定**：
 - **详细模式**（`storyboard_mode=detailed`，默认）→ `组{N}.json`：结构化数据，包含 `组号`、`组时长`、`镜头列表` 等字段
 - **精简模式**（`storyboard_mode=simplified`）→ `组{N}.md`：讲戏式 Markdown，读取全部内容作为视频生成提示词
 
-`run_video_pipeline.py` 按模式选择性加载：优先级为 `--storyboard-mode` CLI 参数 > `project_config.json` 的 `storyboard_mode` 字段 > 默认 `detailed`。
+`run_video_pipeline.py` 按模式选择性加载：模式仅由 `--storyboard-mode` CLI 参数决定（必填，由 agent 经 `meta_query(scope=config)` 读取 `config.storyboard_mode` 后显式传入）。
 
 字段定义以 `.opencode/schemas/project-config.json` 为唯一来源。
 
@@ -24,7 +24,7 @@
 | `组号` | node displayName | 如 `组1` |
 | `组时长` | `--set duration=<秒>` | 需转为整数 |
 
-| project_config.json 字段 | libtv 参数 | 说明 |
+| config 字段（meta_query(scope=config)） | libtv 参数 | 说明 |
 |--------------------------|-----------|------|
 | `aspect_ratio` | `--set ratio=<值>` | 如 `16:9` |
 | `resolution` | `--set resolution=<值>` | 映射为 `480p` / `720p` |
@@ -162,7 +162,7 @@ group = {"_format": "md", "_raw_content": raw_md, "组时长": duration_match.gr
 
 ## 4. 分辨率映射
 
-`project_config.json` 的 `resolution` 字段映射为 libtv `--set resolution`：
+配置的 `resolution` 字段（agent 经 `meta_query(scope=config)` 读取后以 `--resolution` CLI 参数显式传入脚本）映射为 libtv `--set resolution`：
 
 | 配置值 | `-s resolution` |
 |--------|----------------|
@@ -174,9 +174,9 @@ group = {"_format": "md", "_raw_content": raw_md, "组时长": duration_match.gr
 
 ## 5. 音频映射
 
-`project_config.json` 的 `enable_sound` 字段（boolean）映射为 libtv `--set enableSound`：
+配置的 `enable_sound` 字段（boolean，agent 经 `meta_query(scope=config)` 读取后以 `--sound` CLI 参数显式传入脚本）映射为 libtv `--set enableSound`：
 
-| project_config | libtv |
+| config | libtv |
 |----------------|-------|
 | `true` | `on` |
 | `false` | `off` |
@@ -202,7 +202,7 @@ group = {"_format": "md", "_raw_content": raw_md, "组时长": duration_match.gr
 
 **参考图的选取由视频导演 Agent 根据分组内容自行判断**，脚本不做自动匹配。Agent 需读取每个分组的实际内容，判断该组出场的角色、所在场景、使用的道具，然后通过 `--refs` 参数显式指定。**仅 `--refs` 中指定的参考图会被上传到画布**，未指定的素材不会上传，避免无关素材占用画布。
 
-`project_config.json` 的 `reference_image_mode` 决定脚本自动扫描哪种参考图并按需上传：
+配置的 `reference_image_mode`（agent 经 `meta_query(scope=config)` 读取后以 `--reference-image-mode` CLI 参数显式传入脚本）决定脚本自动扫描哪种参考图并按需上传：
 
 | reference_image_mode | 自动扫描目录 | 匹配方式 | 优先级顺序 |
 |:--------------------:|------------|----------|-----------|
@@ -335,7 +335,7 @@ libtv node create "组1" -t video \
 
 ## 7. 组级音频判定
 
-`project_config.json` 的 `enable_sound` 是全局开关，此函数根据分镜组内容做局部判定：
+配置的 `enable_sound` 是全局开关（agent 经 `meta_query(scope=config)` 读取后显式传入脚本），此函数根据分镜组内容做局部判定：
 
 ```python
 def should_enable_sound(group_json):
@@ -383,21 +383,21 @@ libtv node create "组1" -t video \
 
 ### 8.2 MD 格式分组（精简模式）
 
-使用 `run_video_pipeline.py --storyboard-mode simplified` 直接加载 `组{N}.md` 文件：
+使用 `run_video_pipeline.py --storyboard-mode simplified` 直接加载 `组{N}.md` 文件（`--storyboard-mode` 必填，由 agent 经 `meta_query(scope=config)` 读出后显式传入）：
 
 ```bash
-# 精简模式完整流程（自动读取 project_config.json 的 storyboard_mode，
-# 也可用 --storyboard-mode simplified 显式指定）
+# 精简模式完整流程（--canvas-uuid / --model / --storyboard-mode / --reference-image-mode
+# 均必填，配置值由 agent 经 meta_query(scope=config) 读出后显式传入）
 python ".opencode/skills/video-director-libtv/scripts/run_video_pipeline.py" --build ^
   --project "吉泰安防" --episode EP01 ^
-  --groups 1 2 3 --model "Seedance 2.0 VIP" --ratio 16:9 ^
-  --storyboard-mode simplified ^
+  --canvas-uuid <画布UUID> --model "Seedance 2.0 VIP" --ratio 16:9 ^
+  --storyboard-mode simplified --reference-image-mode visual_anchor ^
   --refs "组1:场景_破茶馆,角色_掌柜" ^
   --run --download
 ```
 
 脚本内部流程：
-1. `load_storyboard_mode()` 读取 `project_config.json` 或 CLI 参数确定模式为 `simplified`
+1. 按 `--storyboard-mode` CLI 参数（必填）确定模式为 `simplified`
 2. `load_group_file()` 加载 `组{N}.md`，从首行提取 `组时长`，全文存入 `_raw_content`
 3. `build_prompt()` 将 MD 全文作为 prompt 内容（附带引用行和约束行）
 4. `calc_duration()` 从 `组时长` 字段提取时长并限制在 4-15 秒

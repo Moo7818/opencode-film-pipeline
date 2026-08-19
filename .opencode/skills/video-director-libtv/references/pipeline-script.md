@@ -9,7 +9,7 @@
 | `--build` | ✅ | 启动完整流程 |
 | `--project <名>` | ✅ | 项目名，对应 `project/<名>/` |
 | `--episode <号>` | ✅ | 剧集号，如 `EP01` |
-| `--canvas-uuid <UUID>` | ❌ | 画布 UUID（不传时自动从 project_config.json 的 episodes 映射查找） |
+| `--canvas-uuid <UUID>` | ✅ | 画布 UUID，必填；由 agent 从 `meta_query(scope=config)` 读出 `config.episodes.{剧集号}.canvas_uuid` 后显式传入（缺失时 argparse 直接报错，退出码 2） |
 | `--groups <N...>` | ✅ | 组号列表，如 `7 8 9` |
 | `--refs "组N:类型_名,类型_名"` | ❌ | 参考图映射，可重复；仅上传指定的参考图（按需上传） |
 | `--voice-refs <角色1,角色2,...>` | ❌ | 音色参考角色列表，如 `吉小泰,妈妈,女儿`；仅上传指定角色的音色参考，未指定时跳过 |
@@ -18,19 +18,24 @@
 | `--output-dir <路径>` | ❌ | 自定义下载目录（默认见 `--download`） |
 | `--poll-interval <秒>` | ❌ | 轮询间隔（默认 30） |
 | `--poll-timeout <秒>` | ❌ | 轮询超时（默认 600） |
-| `--model <modelName>` | ❌ | 视频模型中文名（如 `Seedance 2.0 VIP`）；libtv 1.1.1+ 直接使用该值，禁止传 modelKey |
+| `--model <modelName>` | ✅ | 视频模型中文名（如 `Seedance 2.0 VIP`），必填；由 agent 从 `meta_query(scope=config)` 读出后显式传入；libtv 1.1.1+ 直接使用该值，禁止传 modelKey |
 | `--ratio <值>` | ❌ | 画面比例（默认 `16:9`） |
 | `--resolution <值>` | ❌ | 分辨率（默认 `480p`） |
 | `--sound <on/off>` | ❌ | 音频开关（默认 `on`） |
-| `--storyboard-mode <模式>` | ❌ | 分镜模式：`detailed`（组{N}.json）或 `simplified`（组{N}.md），覆盖 project_config.json |
+| `--storyboard-mode <模式>` | ✅ | 分镜模式：`detailed`（组{N}.json）或 `simplified`（组{N}.md），必填；由 agent 从 `meta_query(scope=config)` 读出后显式传入 |
+| `--reference-image-mode <模式>` | ✅ | 参考图模式：`visual_anchor` / `storyboard_images` / `none`，必填；由 agent 从 `meta_query(scope=config)` 读出后显式传入，控制分镜图/视觉锚点自动扫描逻辑 |
 | `--no-group` | ❌ | 跳过建组步骤，仅创建独立节点不创建编组；与 `--run` 不兼容 |
 
 ## 使用示例
 
+配置值均由 agent 从 `meta_query(scope=config)` 读出后显式传入；`--canvas-uuid` / `--model` / `--storyboard-mode` / `--reference-image-mode` 必填。
+
 ```bash
 python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
   --project "项目名" --episode EP01 ^
-  --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
+  --canvas-uuid <画布UUID> --model "Seedance 2.0 VIP" ^
+  --storyboard-mode detailed --reference-image-mode visual_anchor ^
+  --groups 7 8 9 --ratio 16:9 --resolution 480p --sound on ^
   --refs "组7:场景_现代南京,角色_一岛" ^
   --run --download
 ```
@@ -40,7 +45,9 @@ python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --bui
 ```bash
 python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
   --project "项目名" --episode EP01 ^
-  --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
+  --canvas-uuid <画布UUID> --model "Seedance 2.0 VIP" ^
+  --storyboard-mode detailed --reference-image-mode visual_anchor ^
+  --groups 7 8 9 --ratio 16:9 --resolution 480p --sound on ^
   --refs "组7:场景_现代南京,角色_一岛" ^
   --no-group
 ```

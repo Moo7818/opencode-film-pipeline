@@ -6,15 +6,18 @@
 画布模型:
   - 每个项目对应一个 libtv 工作区（workspace）
   - 每个剧集对应一个 libtv 画布（canvas）
-  - 画布 UUID 存储在 project_config.json 的 episodes.{剧集号}.canvas_uuid
+  - 画布 UUID 来源：调用方（video-director agent）先经 meta_query(scope=config)
+    查 episodes.{剧集号}.canvas_uuid；无则创建画布后经 meta_update_config 写回，
+    再以 --canvas-uuid 显式传入本脚本（必填，脚本不读任何持久化配置）
 
 用法:
   # 完整流程（上传素材 → 创建节点（一次性含引用行） → 建组）
   # 注意: --model 传 modelName（中文名），如 "Seedance 2.0 VIP"；不要传 modelKey
-  # --canvas-uuid 可选：不传时自动从 project_config.json 的 episodes 映射查找
+  # --canvas-uuid / --model / --storyboard-mode / --reference-image-mode 均为必填
   python run_video_pipeline.py --build ^
     --project "项目名" --episode EP01 ^
     --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 --resolution 480p ^
+    --canvas-uuid <画布UUID> --storyboard-mode detailed --reference-image-mode visual_anchor ^
     --refs "组7:场景_现代南京长江边,角色_一岛,角色_郑和,道具_平板" ^
     --refs "组8:场景_现代南京长江边,角色_一岛,角色_郑和"
 
@@ -22,6 +25,7 @@
   python run_video_pipeline.py --build ^
     --project "项目名" --episode EP01 ^
     --groups 7 8 9 --model "Seedance 2.0 VIP" --ratio 16:9 ^
+    --canvas-uuid <画布UUID> --storyboard-mode detailed --reference-image-mode visual_anchor ^
     --refs "组7:场景_现代南京,角色_一岛" ^
     --voice-refs 吉小泰 妈妈 女儿
 
@@ -31,12 +35,11 @@
   # 完整流程 + 运行 + 自动下载视频到 project/<项目>/<剧集>/视频/
   python run_video_pipeline.py --build ... --run --download
 
-  # 精简模式分镜（自动读取 project_config.json 的 storyboard_mode，
-  # 也可用 --storyboard-mode 显式指定）
+  # 精简模式分镜（--storyboard-mode 必填，由 agent 从配置读出后传入）
   python run_video_pipeline.py --build ^
     --project "项目名" --episode EP01 ^
     --groups 1 2 3 --model "Seedance 2.0 VIP" --ratio 16:9 ^
-    --storyboard-mode simplified
+    --canvas-uuid <画布UUID> --storyboard-mode simplified --reference-image-mode none
 
   # 仅创建节点，不建组（--no-group）
   python run_video_pipeline.py --build ^
@@ -45,7 +48,7 @@
     --refs "组7:场景_现代南京长江边,角色_一岛,角色_郑和,道具_平板" ^
     --no-group
 
-分镜模式优先级: --storyboard-mode > project_config.json > 默认 detailed
+分镜模式来源: 仅 --storyboard-mode CLI 参数（由 agent 从配置读出后显式传入）
   detailed   → 加载 组{N}.json（结构化 JSON）
   simplified → 加载 组{N}.md（讲戏式 Markdown，全文作为 prompt）
 
@@ -76,11 +79,8 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 CONSTRAINT = "画面严禁出现任何字幕，无配乐"
 SEPARATOR = "---"
 
+# 本地默认值：仅限 argparse 可选参数回退；model 等关键参数必填，不设默认
 CONFIG_DEFAULTS = {
-    # model 字段必须是 modelName（中文名），不是 modelKey
-    # libtv 1.1.1+ 直接使用该值作为 modelName，不做 modelKey → modelName 转换
-    "model": "Seedance 2.0 VIP",
-    "modeType": "mixed2video",
     "count": 1,
     "ratio": "16:9",
     "resolution": "480p",
@@ -526,81 +526,6 @@ def calc_duration(group_json):
     return max(4, min(15, duration))
 
 
-def _load_project_config(project_root):
-    """从 .meta/projects/{uuid}/project_config.json 读取项目配置。
-
-    通过项目名反查 UUID 来定位配置文件。返回配置 dict，找不到时返回 None。
-    """
-    project_name = os.path.basename(os.path.normpath(project_root))
-    meta_projects_dir = os.path.join(os.getcwd(), ".meta", "projects")
-
-    if not os.path.isdir(meta_projects_dir):
-        return None
-
-    for uuid_dir in os.listdir(meta_projects_dir):
-        project_json_path = os.path.join(meta_projects_dir, uuid_dir, "project.json")
-        if not os.path.isfile(project_json_path):
-            continue
-        try:
-            with open(project_json_path, "r", encoding="utf-8") as f:
-                pj = json.load(f)
-            if pj.get("name") == project_name:
-                config_path = os.path.join(meta_projects_dir, uuid_dir, "project_config.json")
-                if os.path.isfile(config_path):
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        return json.load(f)
-                break
-        except (json.JSONDecodeError, OSError):
-            continue
-    return None
-
-
-def lookup_episode_canvas_uuid(project_root, episode):
-    """从 project_config.json 的 episodes 映射查找指定剧集的画布 UUID。
-
-    画布模型：每个项目对应一个工作区，每个剧集对应一个画布。
-    画布 UUID 存储在 episodes.{剧集号}.canvas_uuid 中。
-
-    返回 (canvas_uuid, config) 元组。canvas_uuid 为 None 表示该集尚无画布。
-    同时兼容旧的顶层 canvas_uuid 字段（向后兼容）。
-    """
-    config = _load_project_config(project_root)
-    if config is None:
-        return None, None
-
-    # 优先从 episodes 映射查找
-    episodes = config.get("episodes", {})
-    if episode in episodes:
-        canvas_uuid = episodes[episode].get("canvas_uuid", "")
-        if canvas_uuid:
-            return canvas_uuid, config
-
-    # 向后兼容：旧的顶层 canvas_uuid 字段
-    legacy_uuid = config.get("canvas_uuid", "")
-    if legacy_uuid:
-        return legacy_uuid, config
-
-    return None, config
-
-
-def load_storyboard_mode(project_root, cli_override=None):
-    """从 project_config.json 读取 storyboard_mode 字段。
-
-    优先级：CLI 参数 > project_config.json > 默认值 "detailed"
-    返回 ("detailed" | "simplified")
-    """
-    if cli_override:
-        return cli_override
-
-    cfg = _load_project_config(project_root)
-    if cfg:
-        mode = cfg.get("storyboard_mode", "detailed")
-        if mode in ("detailed", "simplified"):
-            return mode
-
-    return "detailed"
-
-
 def load_group_file(groups_dir, group_name, storyboard_mode):
     """按 storyboard_mode 加载对应格式的组文件。
     
@@ -666,24 +591,6 @@ def extract_scene_number(group_dict):
     return None
 
 
-def load_reference_image_mode(project_root):
-    """从 project_config.json 读取 reference_image_mode。
-    
-    优先级：reference_image_mode 字段 > use_storyboard_images（向后兼容）> 默认 "visual_anchor"
-    
-    返回 ("visual_anchor" | "storyboard_images" | "none")
-    """
-    config = _load_project_config(project_root)
-    if config:
-        mode = config.get("reference_image_mode")
-        if mode in ("visual_anchor", "storyboard_images", "none"):
-            return mode
-        # 向后兼容：use_storyboard_images=true → storyboard_images
-        if config.get("use_storyboard_images", False):
-            return "storyboard_images"
-    return "visual_anchor"
-
-
 def build_pipeline(args):
     project_root = os.path.join(os.getcwd(), "project", args.project)
     groups_dir = os.path.join(project_root, args.episode, "分镜", "分组")
@@ -693,21 +600,19 @@ def build_pipeline(args):
         print(f"❌ 分组目录不存在: {groups_dir}")
         sys.exit(1)
 
-    # 画布 UUID 查找：优先 CLI 参数，其次从 episodes 映射自动查找
+    # 画布 UUID：直接取 CLI 参数（--canvas-uuid 必填），此处仅防御性校验
     canvas_uuid = args.canvas_uuid
     if not canvas_uuid:
-        canvas_uuid, _ = lookup_episode_canvas_uuid(project_root, args.episode)
-        if canvas_uuid:
-            print(f"  自动查找画布 UUID: {canvas_uuid}（来自 episodes.{args.episode}.canvas_uuid）")
-        else:
-            print("❌ 未提供 --canvas-uuid，且 project_config.json 中未找到该集的画布映射")
-            print(f"   请先创建画布，或在 project_config.json 的 episodes.{args.episode} 中配置 canvas_uuid")
-            sys.exit(1)
+        print("❌ 缺少 --canvas-uuid")
+        print(f"   请先经 meta_query(scope=config) 查 episodes.{args.episode}.canvas_uuid，"
+              f"无则创建画布后经 meta_update_config 写回，再显式传入")
+        sys.exit(1)
 
     custom_refs = parse_refs(args.refs) if args.refs else {}
 
     # ========== 步骤0: 确定分镜模式 ==========
-    storyboard_mode = load_storyboard_mode(project_root, args.storyboard_mode)
+    # 分镜模式仅来自 --storyboard-mode CLI 参数（由 agent 从配置读出后传入）
+    storyboard_mode = args.storyboard_mode
     print(f"分镜模式: {storyboard_mode}（{'组{N}.json' if storyboard_mode == 'detailed' else '组{N}.md'}）")
 
     # ========== 步骤1: 绑定画布 ==========
@@ -723,8 +628,8 @@ def build_pipeline(args):
     # ========== 步骤2: 建立画布缓存 + 上传参考图（按需）==========
     canvas_cache = build_canvas_cache(canvas_uuid)
 
-    # 读取 reference_image_mode 配置
-    reference_image_mode = load_reference_image_mode(project_root)
+    # 参考图模式：直接取 CLI 参数（由 agent 从配置读出后传入）
+    reference_image_mode = args.reference_image_mode
     print(f"参考图模式: {reference_image_mode}")
 
     # 收集所有分组实际需要的参考图名，实现按需上传（避免全量上传无关素材）
@@ -793,9 +698,9 @@ def build_pipeline(args):
     print("=" * 60)
 
     created_nodes = []
-    # model 字段已经是 modelName（中文名），libtv 1.1.1+ 直接使用，无需任何转换
-    # project_config.json 的 model 字段或 --model 命令行参数都应传 modelName
-    model = args.model or CONFIG_DEFAULTS["model"]
+    # model 字段必须是 modelName（中文名，如 "Seedance 2.0 VIP"），禁止传 modelKey
+    # --model 为必填参数，libtv 1.1.1+ 直接使用该值
+    model = args.model
     ratio = args.ratio or CONFIG_DEFAULTS["ratio"]
     resolution = args.resolution or CONFIG_DEFAULTS["resolution"]
     sound = args.sound or CONFIG_DEFAULTS["enableSound"]
@@ -944,21 +849,11 @@ def build_pipeline(args):
             print(f"  如需运行，请去掉 --no-group 参数重新执行，或手动在画布中运行节点。")
             print("=" * 60)
         else:
-            # 检查项目配置是否禁止运行
-            project_config = _load_project_config(project_root)
-            if project_config and project_config.get("suppress_run", False):
-                print("\n" + "=" * 60)
-                print("⛔ 步骤5: 运行被禁止")
-                print("=" * 60)
-                print(f"  项目配置 suppress_run=true，跳过视频生成运行。")
-                print(f"  如需运行，请先修改 project_config.json 中 suppress_run 为 false。")
-                print("=" * 60)
-            else:
-                print("\n" + "=" * 60)
-                print("步骤5: 运行分组（libtv >= 1.1.1 阻塞等待完成）")
-                print("=" * 60)
-                # v1.1.1+: group --run 阻塞等待，stderr 每 ~3min 输出进度，stdout 输终态 JSON
-                run_libtv(["group", group_name, "--run"])
+            print("\n" + "=" * 60)
+            print("步骤5: 运行分组（libtv >= 1.1.1 阻塞等待完成）")
+            print("=" * 60)
+            # v1.1.1+: group --run 阻塞等待，stderr 每 ~3min 输出进度，stdout 输终态 JSON
+            run_libtv(["group", group_name, "--run"])
 
         # ========== 步骤6: [可选] 下载视频 ==========
         if args.download and not args.no_group:
@@ -1033,7 +928,9 @@ def main():
     parser.add_argument("--process", action="store_true", help="仅处理已有节点")
     parser.add_argument("--project", default=None, help="项目名")
     parser.add_argument("--episode", default="EP01", help="剧集号")
-    parser.add_argument("--canvas-uuid", default=None, help="画布 UUID（可选，不传时自动从 project_config.json 的 episodes 映射查找）")
+    parser.add_argument("--canvas-uuid", required=True,
+                        help="画布 UUID（必填）。调用方先经 meta_query(scope=config) 查 episodes.{剧集}.canvas_uuid，"
+                             "无则创建画布后经 meta_update_config 写回，再显式传入")
     parser.add_argument("--groups", nargs="+", type=int, default=None, help="组号列表")
     parser.add_argument("--refs", action="append", default=None,
                         help='参考图映射（必填，由 agent 根据分组内容判断）格式: "组N:类型_名,类型_名"（如 "组1:角色_掌柜,场景_茶馆"）；选角参考图自动过滤')
@@ -1044,12 +941,16 @@ def main():
     parser.add_argument("--output-dir", default=None, help="视频下载目录（默认: project/<项目>/<剧集>/视频/）")
     parser.add_argument("--poll-interval", type=int, default=POLL_INTERVAL, help="轮询间隔秒数（默认: 30）")
     parser.add_argument("--poll-timeout", type=int, default=POLL_TIMEOUT, help="轮询超时秒数（默认: 600）")
-    parser.add_argument("--model", default=None, help='视频模型 modelName（中文名，如 "Seedance 2.0 VIP"）；libtv 1.1.1+ 直接使用该值，禁止传 modelKey')
+    parser.add_argument("--model", required=True,
+                        help='视频模型 modelName（中文名，必填，如 "Seedance 2.0 VIP"）；libtv 1.1.1+ 直接使用该值，禁止传 modelKey')
     parser.add_argument("--ratio", default=None, help="画面比例")
     parser.add_argument("--resolution", default=None, help="分辨率")
     parser.add_argument("--sound", default=None, help="音频开关")
-    parser.add_argument("--storyboard-mode", choices=["detailed", "simplified"], default=None,
-                        help="分镜脚本模式，覆盖 project_config.json 中的 storyboard_mode。detailed=组{N}.json，simplified=组{N}.md")
+    parser.add_argument("--storyboard-mode", choices=["detailed", "simplified"], required=True,
+                        help="分镜脚本模式（必填，由 agent 从配置读出后传入）。detailed=组{N}.json，simplified=组{N}.md")
+    parser.add_argument("--reference-image-mode", choices=["visual_anchor", "storyboard_images", "none"], required=True,
+                        help="参考图模式（必填，由 agent 从配置读出后传入）。visual_anchor=视觉锚点自动扫描，"
+                             "storyboard_images=分镜图自动扫描，none=不做参考图自动扫描")
     parser.add_argument("--no-group", action="store_true",
                         help="跳过建组步骤，仅创建独立节点不创建编组")
 

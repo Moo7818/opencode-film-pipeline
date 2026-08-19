@@ -14,7 +14,7 @@ description: 基于 libtv CLI 的视频导演 Skill。覆盖：分镜视频化�
 - 已创建项目工作区（workspace）和对应剧集的画布（canvas），详见 `references/workflow.md` 步骤 2a/2b
 - `libtv` CLI 版本 ≥ **1.1.1**（使用 `libtv --version` 确认；关键变化见文末）
 - 分镜组文件已就绪（`分组/组{N}.json` 或 `分组/组{N}.md` 格式均可）
-- `project_config.json` 已配置（字段定义见 `.opencode/schemas/project-config.json`）
+- 项目已初始化，配置可经 `meta_query(scope="config")` 读取（字段定义见 `.opencode/schemas/project-config.json`）
 
 ## 凭证路径配置
 
@@ -31,33 +31,33 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 
 ## 参数查找与引用
 
-视频导演在执行时，所有全局参数来源于 `.meta/projects/{uuid}/project_config.json`，字段映射规则见 `references/storyboard-to-libtv.md` 第 1 节「字段对应表」。分镜组本地参数来源于 `分组/组{N}.json`。
+视频导演在执行时，所有全局参数来源于 `meta_query(scope="config", project_name=项目名)`（也可用 project_id）返回的 `config`（CONFIG_FIELDS 默认值已合并，含全部字段），字段映射规则见 `references/storyboard-to-libtv.md` 第 1 节「字段对应表」。分镜组本地参数来源于 `分组/组{N}.json`。
 
-`workspace_id` 和 `episodes` 为特殊字段：项目创建时不初始化，视频导演首次运行时创建/绑定后写入。`workspace_id` 对应项目工作区（一个项目一个），`episodes.{剧集号}.canvas_uuid` 对应每集的画布（每个剧集一个）。
+`workspace_id` 和 `episodes` 为特殊字段：项目创建时不初始化，视频导演首次运行时创建/绑定后经 `meta_update_config` 写回。`workspace_id` 对应项目工作区（一个项目一个），`episodes.{剧集号}.canvas_uuid` 对应每集的画布（每个剧集一个）。ACL：video-director-libtv 仅可写 `workspace_id` 与 `episodes.*`，其余字段越权返回 invalid；每次写入产生 config.updated 事件。
 
-| 参数 | 来源文件 | 对应 libtv 参数 | 读写 |
-|------|----------|----------------|:----:|
-| 画面比例 | `project_config.json → aspect_ratio` | `--set ratio` | 读 |
-| 分辨率 | `project_config.json → resolution` | `--set resolution` | 读 |
-| 模型 | `project_config.json → model` | `--set model` | 读 |
+| 参数 | 来源 | 对应 libtv 参数 | 读写 |
+|------|------|----------------|:----:|
+| 画面比例 | `meta_query(scope=config) → config.aspect_ratio` | `--set ratio` | 读 |
+| 分辨率 | `meta_query(scope=config) → config.resolution` | `--set resolution` | 读 |
+| 模型 | `meta_query(scope=config) → config.model` | `--set model` | 读 |
 | ↳ 注意 | 1.1.1+ 要求填 **modelName**（中文名），如 `Seedance 2.0 VIP`，非 modelKey |
-| ↳ 硬约束 | `project_config.json` 中 `model` 字段**必须填 modelName**（中文名），**禁止填 modelKey**（如 `kling-v3-omni`、`star-video2`）。libtv 1.1.1+ 直接使用该字段值作为 modelName，**不做 modelKey → modelName 转换**。读取后直接用作 `--set model` 的值，无需任何映射 |
-| 生成模式 | `project_config.json → mode` | `--set modeType` | 读 |
-| 音频开关 | `project_config.json → enable_sound` | `--set enableSound` | 读 |
-| 参考图模式 | `project_config.json → reference_image_mode` | 决定参考素材选取策略 | 读 |
-| 工作区 ID | `project_config.json → workspace_id` | `libtv workspace use <值>` | **写**入 `project_config.json` |
-| 画布 UUID | `project_config.json → episodes.{剧集号}.canvas_uuid` | `libtv project use <值>` | **写**入 `project_config.json` 的 `episodes` 映射 |
+| ↳ 硬约束 | config 中 `model` 字段**必须填 modelName**（中文名），**禁止填 modelKey**（如 `kling-v3-omni`、`star-video2`）。libtv 1.1.1+ 直接使用该字段值作为 modelName，**不做 modelKey → modelName 转换**。读取后直接用作 `--set model` 的值，无需任何映射 |
+| 生成模式 | `meta_query(scope=config) → config.mode` | `--set modeType` | 读 |
+| 音频开关 | `meta_query(scope=config) → config.enable_sound` | `--set enableSound` | 读 |
+| 参考图模式 | `meta_query(scope=config) → config.reference_image_mode` | 决定参考素材选取策略 | 读 |
+| 工作区 ID | `meta_query(scope=config) → config.workspace_id` | `libtv workspace use <值>` | **写**：`meta_update_config`（actor=video-director-libtv，点路径 `workspace_id`） |
+| 画布 UUID | `meta_query(scope=config) → config.episodes.{剧集号}.canvas_uuid` | `libtv project use <值>` | **写**：`meta_update_config`（actor=video-director-libtv，点路径 `episodes.{EP}.canvas_uuid`） |
 | ↳ `project use` 副作用 | v1.1.1+ 同时将画布所属项目 `workspaceId` 与团队 `teamId` 同步写入 `.libtv/project.json` | — |
 | 组时长 | `组{N}.json → 组时长` | `--set duration` | 读 |
-| 音色参考目录 | `project_config.json → has_audio_reference` | 仅作参考；音色参考由 Agent 通过 `--voice-refs` 显式指定上传 | 读 |
-| 禁止运行 | `project_config.json → suppress_run` | `true` 时**无条件拒绝** `--run`，只做准备工作 | 读 |
+| 音色参考目录 | `meta_query(scope=config) → config.has_audio_reference` | 仅作参考；音色参考由 Agent 通过 `--voice-refs` 显式指定上传 | 读 |
+| 禁止运行 | `meta_query(scope=config) → config.suppress_run` | `true` 时**无条件拒绝** `--run`，只做准备工作；该检查已从脚本移除，由 agent 在决定是否加 `--run` 前自查 | 读 |
 
 `reference_image_mode` 影响参考素材的连线策略（详见 `references/storyboard-to-libtv.md` 第 6 节）：`visual_anchor`（默认）时自动按场号匹配视觉锚点图作为场景连续性参考；`storyboard_images` 时自动扫描分镜图按组号匹配；`none` 时不自动添加参考图，Agent 仅使用角色/场景/道具参考图。
 
 ## 工作流总览
 
 ```
-  1. 读取上下文                  ← project_config.json + 分组文件（JSON 或 MD）
+  1. 读取上下文                  ← meta_query(scope=config) + 分组文件（JSON 或 MD）
   2. 创建/绑定工作区 + 画布      ← workspace use（项目级） + project use（剧集级）
   3. 上传参考素材为资源节点       ← libtv upload（按需上传，仅上传 --refs/--voice-refs 指定的素材）
   4. 创建 video 节点             ← 一次性创建 或 两阶段（占位 → 查顺序 → 写引用）
@@ -66,6 +66,14 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
   7. 轮询等待生成完成
   8. 报告 Coordinator 归档       ← 含产物注册要求（见下方）
 ```
+
+### 执行流程调用模板（配置经 meta_* 工具）
+
+1. `meta_query(scope="config", project_name=项目名)` 读配置（也可用 project_id；返回含 config 全字段，默认值已合并）
+2. 检查 `suppress_run`：为 `true` 则无条件拒绝 `--run`（无论用户是否要求；该检查已从脚本移除，由 agent 在决定是否加 `--run` 前自查）
+3. 检查 `episodes.{EP}.canvas_uuid`：无则创建画布，并经 `meta_update_config(project_id, updates={"episodes.EP01.canvas_uuid": "<UUID>"}, actor="video-director-libtv")` 写回
+4. 按 `video_prompt_mode` 决定提示词流程（`optimized` 走 seedance-prompt-optimizer 内联适配，`raw` 原样填入组文件内容）
+5. 全参显式调用 `run_video_pipeline.py`：`--canvas-uuid` / `--model` / `--storyboard-mode` / `--reference-image-mode` 均必填（缺失时 argparse 直接报错，退出码 2）；`--ratio` / `--resolution` / `--sound` 有本地默认
 
 ### 步骤 8 产物注册要求
 
@@ -119,7 +127,7 @@ video-director 完成视频生成后，须向 Coordinator 报告并确保以下�
 {提示词内容}
 ```
 
-> **提示词内容来源（由 `project_config.json` 的 `video_prompt_mode` 控制）**：
+> **提示词内容来源（由配置 `video_prompt_mode` 控制，经 `meta_query(scope=config)` 读取）**：
 > - `optimized`（默认）：加载 seedance-prompt-optimizer 技能，按其「分镜脚本适配模式」将组文件适配为 Seedance 工程型指令提示词后填入。适配规则：台词逐字保留转 `{}`、心理活动外化为身体细节、运镜单一、补画质风格约束词。
 > - `raw`：组文件内容原样填入（JSON 完整读取原样粘贴 / MD 读取全部内容）。
 

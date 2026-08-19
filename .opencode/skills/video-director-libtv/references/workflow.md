@@ -7,7 +7,7 @@
 | 项目根路径 | 由 Coordinator 传入 | `project/<项目名>/` |
 | 剧集号 | 由 Coordinator 传入 | 如 `EP01`、`01` |
 | 分镜分组路径 | `{项目根}/{剧集号}/分镜/分组/` | 包含 `组1.json` ~ `组{N}.json` 或 `组1.md` ~ `组{N}.md` |
-| project_config.json | `.meta/projects/{uuid}/project_config.json` | 全局视频参数（字段定义见 `.opencode/schemas/project-config.json`） |
+| 项目配置 | `meta_query(scope=config, project_name=...)` 返回的 `config` | 全局视频参数（字段定义见 `.opencode/schemas/project-config.json`） |
 
 **分组文件格式**：支持两种格式：
 - **JSON 格式**（`组{N}.json`）：结构化数据，原样拷贝完整 JSON 内容到 prompt
@@ -20,7 +20,7 @@
 每个项目对应一个独立的 libtv workspace（工作区）。首次运行时需创建工作区，后续运行时切换到已有工作区：
 
 ```bash
-# 检查 project_config.json 的 workspace_id 是否已有值
+# 经 meta_query(scope=config, project_name=...) 检查 config.workspace_id 是否已有值
 # 如果没有，创建一个新的工作区
 libtv workspace create "{项目名}"
 
@@ -30,21 +30,21 @@ libtv workspace use <workspaceId>
 
 > **说明**：`libtv workspace create` 会创建新工作区并返回 workspaceId。创建后需执行 `libtv workspace use` 完成绑定，此时 workspaceId 会写入 `.libtv/project.json`。
 
-工作区创建/确认后，将 `workspace_id` 写入 `project_config.json`：
+工作区创建/确认后，经 `meta_update_config` 将 `workspace_id` 写回配置：
 
-```bash
-# 将 workspaceId 写入 project_config.json
-$configPath = ".meta/projects/{uuid}/project_config.json"
-$config = Get-Content -Encoding UTF8 -Raw $configPath | ConvertFrom-Json
-$config.workspace_id = <workspaceId>
-$config | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $configPath
+```
+meta_update_config(
+  project_id=<项目UUID>,
+  updates={"workspace_id": <workspaceId>},
+  actor="video-director-libtv"
+)
 ```
 
 > **注意**：如果 `workspace_id` 已存在，直接使用 `libtv workspace use <workspace_id>` 切换到已有工作区即可，无需重复创建。
 
 ## 步骤 2b：创建/绑定当前剧集的画布（canvas）
 
-每个剧集对应一个独立的 libtv 画布。检查 `project_config.json` 的 `episodes.{剧集号}.canvas_uuid` 是否存在：
+每个剧集对应一个独立的 libtv 画布。经 `meta_query(scope=config, project_name=...)` 检查 `config.episodes.{剧集号}.canvas_uuid` 是否存在：
 
 ### 情况一：该集尚无画布（首次处理该集）
 
@@ -57,7 +57,7 @@ $config | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $configPath
 libtv project create "{项目名}_{剧集号}" --ratio 9:16
 ```
 
-创建画布后，`.libtv/project.json` 中会自动写入 `workspaceId`。接下来绑定画布并写入配置：
+创建画布后，`.libtv/project.json` 中会自动写入 `workspaceId`。接下来绑定画布并经 `meta_update_config` 写回配置：
 
 ```bash
 # 读取新创建的画布 UUID
@@ -65,14 +65,16 @@ $canvasUuid = (Get-Content -Encoding UTF8 -Raw ".libtv/project.json" | ConvertFr
 
 # 绑定画布（v1.1.1+ 还会同步写入画布所属的 workspaceId + teamId）
 libtv project use $canvasUuid
+```
 
-# 将 UUID 写入 project_config.json 的 episodes 映射
-$configPath = ".meta/projects/{uuid}/project_config.json"
-$config = Get-Content -Encoding UTF8 -Raw $configPath | ConvertFrom-Json
-if (-not $config.episodes) { $config | Add-Member -NotePropertyName "episodes" -NotePropertyValue @{} }
-$episodeConfig = @{ canvas_uuid = $canvasUuid }
-$config.episodes | Add-Member -NotePropertyName "{剧集号}" -NotePropertyValue $episodeConfig -Force
-$config | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 $configPath
+将画布 UUID 经 `meta_update_config` 写回 `episodes` 映射（点路径，最多两段子键）：
+
+```
+meta_update_config(
+  project_id=<项目UUID>,
+  updates={"episodes.EP01.canvas_uuid": "<canvasUuid>"},
+  actor="video-director-libtv"
+)
 ```
 
 ### 情况二：该集已有画布（`episodes.{剧集号}.canvas_uuid` 已存在）
