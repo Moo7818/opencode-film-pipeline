@@ -388,7 +388,7 @@
   <div class="block">
     <div class="block-title">阶段链与执行者</div>
     <div class="pipe">
-      <div class="row"><div class="st">1 · 项目初始化 <small>project_init</small></div><div class="who"><b>coordinator</b> —— 建骨架、17 阶段状态机、<span class="role">project_config.json</span> 配置</div></div>
+      <div class="row"><div class="st">1 · 项目初始化 <small>project_init</small></div><div class="who"><b>coordinator</b> —— 建骨架、17 阶段状态机、<span class="role">project_configs 配置表</span></div></div>
       <div class="row"><div class="st">2 · 前期素材归类 <small>material_sorting</small></div><div class="who"><b>coordinator</b> —— 采样图/素材归类到 <span class="role">前期采样/</span></div></div>
       <div class="row"><div class="st">3 · 监制提取设定 <small>supervisor_extraction</small></div><div class="who"><b>producer</b> —— 多模态分析 + 联网检索 → 全局/角色/场景/道具设定 + 分集剧本</div></div>
       <div class="row"><div class="st">4 · 全局角色资产 <small>global_character_tasks/art</small></div><div class="who"><b>roles-ref-generator</b> → <b>art-director</b> —— Tier1 选角 + Tier2 定妆 + 群像</div></div>
@@ -422,24 +422,24 @@
     <span class="node-line"></span>
     <span class="node-tag">coordinator</span>
   </div>
-  <p class="node-desc">每个项目的起点。Coordinator 负责创建<b>元数据状态机（17 阶段）</b>与<b>目录骨架</b>，并逐项询问用户确认视频生成参数，写入 <b>project_config.json</b> —— 该文件是后续所有节点的运行时配置来源。</p>
+  <p class="node-desc">每个项目的起点。Coordinator 负责创建<b>元数据状态机（17 阶段）</b>与<b>目录骨架</b>，并逐项询问用户确认视频生成参数，写入 <b>project_configs 配置表</b>（SQLite，磁盘不落盘）—— 下游所有节点经 <b>meta_query(scope=config)</b> 读取，是运行时配置的唯一来源。</p>
 
   <div class="block">
     <div class="block-title">制作思路 · 操作流程</div>
     <div class="steps">
-      <div class="step"><span class="n">STEP 1</span><h4>生成 UUID v4</h4><p>为项目分配唯一标识，元数据存放于 <span style="font-family:var(--mono)">.meta/projects/{uuid}/</span>。</p></div>
-      <div class="step"><span class="n">STEP 2</span><h4>初始化 4 元数据文件</h4><p>project.json、stages.json（17 阶段状态机）、manifest.json（产物注册表）、events.jsonl（事件日志）。</p></div>
+      <div class="step"><span class="n">STEP 1</span><h4>生成 UUID v4</h4><p>为项目分配唯一标识，元数据存放于 <span style="font-family:var(--mono)">.meta/registry.db</span>（SQLite）。</p></div>
+      <div class="step"><span class="n">STEP 2</span><h4>初始化元数据库</h4><p>projects、stages（17 阶段状态机）、artifacts（产物注册表）、events（事件日志）、project_configs（配置）各表就位。</p></div>
       <div class="step"><span class="n">STEP 3</span><h4>创建目录骨架</h4><p>全局依赖（角色/场景/道具设定及参考图目录）+ 前期采样（人物/场景/道具/风格）+ 全局设定占位文件。</p></div>
       <div class="step"><span class="n">STEP 4</span><h4>整理原始剧本</h4><p>用户剧本 → project/{项目名}/原始剧本.md，计算 SHA-256 注册 manifest，追加 artifact.created 事件。</p></div>
-      <div class="step"><span class="n">STEP 5</span><h4>配置 project_config.json</h4><p>逐项询问用户：画幅、分辨率、视频模型、参考图模式、生成模式、音效开关；未指定则用默认值。</p></div>
-      <div class="step"><span class="n">STEP 6</span><h4>登记归档</h4><p>注册 project_config 到 manifest，写入 project.created 事件，进入 material_sorting 阶段。</p></div>
+      <div class="step"><span class="n">STEP 5</span><h4>确认项目配置</h4><p>逐项询问用户：画幅、分辨率、视频模型、参考图模式、生成模式、音效开关；未指定则用默认值，合并写入 project_configs 表。</p></div>
+      <div class="step"><span class="n">STEP 6</span><h4>登记归档</h4><p>写入 project.created 事件，进入 material_sorting 阶段。</p></div>
     </div>
   </div>
 
   <div class="block">
-    <div class="block-title">默认配置模板 · project_config.json</div>
+    <div class="block-title">默认配置模板 · project_configs（配置表）</div>
     <div class="code-wrap">
-      <div class="code-cap"><b>运行配置</b><span class="path">.meta/projects/{uuid}/project_config.json</span></div>
+      <div class="code-cap"><b>运行配置</b><span class="path">.meta/registry.db → project_configs.config（JSON 文本，meta_update_config 写入）</span></div>
       <pre>{
   "aspect_ratio": "16:9",        <span class="c">// 画幅比例（默认 16:9）</span>
   "resolution": "720p",          <span class="c">// 分辨率（默认 720p）</span>
@@ -459,13 +459,13 @@
       <tr><td>可灵 3.0 Omni</td><td>视频编辑模型，参考一致性，音画同出，多镜头</td><td>kling-v3-omni</td></tr>
       <tr><td>可灵 3.0</td><td>视频生成模型，高质感，支持多镜头</td><td>kling-video-o3</td></tr>
     </table>
-    <p class="tbl-note">workspace_id 与 episodes 映射不在初始化时写入，由 video-director 首次运行时创建/绑定后回写。</p>
+    <p class="tbl-note">workspace_id 与 episodes 映射不在初始化时写入，由 video-director 首次运行时创建/绑定后经 meta_update_config 回写（仅此二字段对 video-director 开放写权限）。</p>
   </div>
 
   <div class="block">
-    <div class="block-title">默认状态模板 · stages.json（17 阶段节选）</div>
+    <div class="block-title">默认状态模板 · stages 表（17 阶段节选）</div>
     <div class="code-wrap">
-      <div class="code-cap"><b>阶段状态机</b><span class="path">.meta/projects/{uuid}/stages.json</span></div>
+      <div class="code-cap"><b>阶段状态机</b><span class="path">.meta/registry.db → stages 表</span></div>
       <pre>{
   "_version": 1,
   "current": "project_init",

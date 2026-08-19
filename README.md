@@ -28,7 +28,7 @@
 
 | 阶段 | 负责 Agent | 产出 |
 |------|-----------|------|
-| **① 项目初始化** | Coordinator | 项目结构、全局配置 (`project_config.json`) |
+| **① 项目初始化** | Coordinator | 项目结构、全局配置（`project_configs` 表，经 `meta_query(scope=config)` 读取） |
 | **② 监制提取设定** | Producer | 角色/场景/道具设定、分集剧本、原始剧本结构化 |
 | **③ 全局视觉资产生成** | Character/Set/Prop Director | 角色七视图、场景参考图、道具六视图任务 JSON |
 | **④ 拆解分镜** | Storyboard Director | 场→组→镜三级结构化 JSON 分镜脚本 |
