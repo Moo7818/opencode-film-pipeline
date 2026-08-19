@@ -231,7 +231,7 @@ coordinator 收到 spawn prompt 后的定位逻辑（coordinator 一律用 `meta
 
 1. **读取管线定义**：从 `.opencode/rules/pipeline.md` 获取阶段管线及对应子 Agent
 2. **构建计划表**：根据当前项目阶段和目标阶段，确定需要依次执行的子 agent 序列
-   > **条件分支阶段**：pipeline.md 中标注按配置分支的阶段（如阶段 6 `episode_storyboard_images` 按 `reference_image_mode` 分支），orchestrator 统一使用阶段标识 spawn，子 agent 自行读取 `project_config.json` 确定执行分支。orchestrator 不需要、也不应该知道项目走哪个分支。
+   > **条件分支阶段**：pipeline.md 中标注按配置分支的阶段（如阶段 6 `episode_storyboard_images` 按 `reference_image_mode` 分支），orchestrator 统一使用阶段标识 spawn，子 agent 自行调用 `meta_query(scope=config)` 确定执行分支。orchestrator 不需要、也不应该知道项目走哪个分支；spawn 指令必须携带 project_id（或项目名），否则子 agent 无法定位项目与配置。
 3. **逐阶段 spawn**：按顺序 spawn 子 agent，每步只传：
    - 项目名 + 项目目录（spawn coordinator 时改用 UUID）
    - 阶段标识（如 `episode_storyboard_script`）——不展开操作步骤

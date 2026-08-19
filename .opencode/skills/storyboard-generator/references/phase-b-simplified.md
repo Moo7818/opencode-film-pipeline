@@ -1,6 +1,6 @@
 # Phase B（精简模式）：讲戏式分镜脚本
 
-> 当 `project_config.json` 的 `storyboard_mode` 为 `"simplified"` 时执行此分支，替代详细模式的 Phase B。Phase A 不变，产出 `分镜稿_临时.md` 供本阶段消费。
+> 当 `meta_query(scope=config)` 返回的 `config.storyboard_mode` 为 `"simplified"` 时执行此分支，替代详细模式的 Phase B。Phase A 不变，产出 `分镜稿_临时.md` 供本阶段消费。
 
 ---
 

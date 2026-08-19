@@ -1,6 +1,6 @@
 # Phase B（详细模式）：分镜脚本 JSON 生成
 
-> 当 `project_config.json` 的 `storyboard_mode` 为 `"detailed"` 或未设置时执行此分支。Phase A 不变，产出 `分镜稿_临时.md` 供本阶段消费。
+> 当 `meta_query(scope=config)` 返回的 `config.storyboard_mode` 为 `"detailed"` 或未设置时执行此分支。Phase A 不变，产出 `分镜稿_临时.md` 供本阶段消费。
 
 ---
 

@@ -1,8 +1,8 @@
 # 阶段二：episode_storyboard_images — 视觉锚点图绘制（visual_anchor 模式）
 
-**默认阶段（当 `project_config.json` 中 `reference_image_mode=visual_anchor` 或未设置时执行）**：此阶段在 `episode_storyboard_script`、`episode_character_ref`、`episode_prop_ref`、`episode_scene_ref` 之后执行，按角色阶段为每场生成视觉锚点图。`reference_image_mode=none` 时跳过此阶段，video-director 仅以角色/场景/道具参考图为参考素材。
+**默认阶段（当 `meta_query(scope=config)` 返回的 `config.reference_image_mode=visual_anchor` 或未设置时执行）**：此阶段在 `episode_storyboard_script`、`episode_character_ref`、`episode_prop_ref`、`episode_scene_ref` 之后执行，按角色阶段为每场生成视觉锚点图。`reference_image_mode=none` 时跳过此阶段，video-director 仅以角色/场景/道具参考图为参考素材。
 
-> **独立 Agent session 执行**：本文档的所有工作必须在 fresh context 中完成。不得继承阶段一（分镜脚本创作）的对话上下文——阶段一的多轮创作思考会稀释对 prompt 模板格式的注意力。Agent 仅从磁盘读取：组{N}.json/md、project_config.json、参考图目录。
+> **独立 Agent session 执行**：本文档的所有工作必须在 fresh context 中完成。不得继承阶段一（分镜脚本创作）的对话上下文——阶段一的多轮创作思考会稀释对 prompt 模板格式的注意力。Agent 仅从磁盘读取：组{N}.json/md、参考图目录；配置（`reference_image_mode` 等）经 `meta_query(scope=config)` 读取。
 >
 > **两种模式均支持视觉锚点绘制**。详细模式从 `组{N}.json` 读取，精简模式从 `组{N}.md` 读取。
 >

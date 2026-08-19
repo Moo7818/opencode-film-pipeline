@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://solo.trae.cn/schemas/project-config.json",
   "title": "项目全局视频/图像生成配置",
-  "description": "项目级别的全局参数配置。由 Coordinator 在项目初始化时创建，主 Agent 维护，下游 Skill（video-director、storyboard-director 等）读取。",
+  "description": "项目级别的全局参数配置。存储于 registry.db 的 project_configs 表：读经 meta_query(scope=config)，写经 meta_update_config（字段级 ACL，权威源为 meta-server templates.py 的 CONFIG_WRITE_ACL）；磁盘不落盘，仅 meta_export_project 导出 ZIP 内保留该文件。由 Coordinator 在项目初始化时创建，下游 Skill（video-director、storyboard-director 等）经 meta_query 读取。",
   "type": "object",
   "required": [
     "aspect_ratio",
@@ -12,7 +12,7 @@
   "properties": {
     "workspace_id": {
       "type": ["string", "integer"],
-      "description": "libtv 工作空间 ID。项目创建时为空，由 video-director 首次创建工作区时写入。一个项目对应一个工作空间。"
+      "description": "libtv 工作空间 ID。项目创建时为空，由 video-director 首次创建工作区时经 meta_update_config 写入。一个项目对应一个工作空间。"
     },
     "episodes": {
       "type": "object",
@@ -22,7 +22,7 @@
         "properties": {
           "canvas_uuid": {
             "type": "string",
-            "description": "该剧集对应的画布 UUID。由 video-director 在该集首次创建/绑定画布时写入。"
+            "description": "该剧集对应的画布 UUID。由 video-director 在该集首次创建/绑定画布时经 meta_update_config 写入。"
           }
         }
       },

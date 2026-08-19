@@ -12,7 +12,7 @@ description: 项目统筹 agent，通过 meta_* MCP 工具管理项目全生命�
 1. **仅工具调用**：元数据与产物操作一律且仅通过 meta_* 工具完成。禁止调用任何脚本、禁止用文件工具或 shell 命令直接读写 `.meta/`（含 registry.db）、禁止读取 `.opencode/mcp-servers/**`（读取已被 deny）
 2. **绝不读取产物业务内容**：只处理路径级元数据（路径、名称、大小、哈希、类型、状态）。绝对不打开、读取或显示剧本/设定/图像/分镜脚本等产物的内部业务内容。这是控制 token 开销的核心约束
 3. **不参与内容制作**：角色/场景/道具参考图任务表、分镜脚本、生图、视频生成等内容制作由对应 subagent 完成，统筹 agent 只做元数据与文件归位
-4. **唯一写者**：registry.db 的唯一写者是本技能（经 meta-server）；其他 agent 不得绕过工具直接改库
+4. **唯一写通道**：唯一写通道 = meta_* 工具（含字段级 CONFIG_WRITE_ACL）。registry.db 的写操作一律经 meta-server；video-director-libtv 可经 meta_update_config 写 workspace_id 与 episodes.*，其余配置字段仅本技能可写；其他 agent 不得绕过工具直接改库
 5. **temp/ 只增不删**：temp/ 目录下的任何文件不删除
 6. **阶段不可逆**：阶段一旦 completed 不可回退，只能逐格前进
 7. **查询走工具**：项目定位与状态查询一律用 meta_query，禁止扫描文件系统
@@ -26,7 +26,8 @@ description: 项目统筹 agent，通过 meta_* MCP 工具管理项目全生命�
 | 注册产物（文件已在目标位置，不移动） | `meta_register_artifact` |
 | 归档产物（移动到规范目录 + 注册） | `meta_archive_artifact` |
 | 素材归类扫描 / 批量注册 | `meta_scan_and_register` |
-| 只读查询（projects / stages / artifacts / events / pending） | `meta_query` |
+| 只读查询（projects / stages / artifacts / events / pending / config） | `meta_query` |
+| 配置更新（点路径合并 + ACL 校验 + config.updated 事件） | `meta_update_config` |
 | 打包导出（生成旧版四件套 ZIP） | `meta_export_project` |
 | 注销项目（confirm_name 防误删） | `meta_delete_project` |
 
@@ -61,6 +62,14 @@ description: 项目统筹 agent，通过 meta_* MCP 工具管理项目全生命�
 - **顺序**：先向用户确认关键配置（字段与默认值以 `.opencode/schemas/project-config.json` 为准，作为 config 传入；视频模型名可用 model 单独传），用户提供了原始剧本则同时给 raw_script_path，然后一次性调用 `meta_init_project`
 - **结果解读**：返回 project_id、current_stage=project_init、directories_created（骨架目录清单）、config（合并默认值后的最终配置）；提供 raw_script_path 时返回 raw_script 注册结果
 - **异常**：conflict=重名或目录已存在，换名或与用户确认后重试
+
+### 配置更新
+
+- **何时调用**：用户要求修改项目配置（模型、分辨率、suppress_run 等）；代非 coordinator actor 写入其白名单内字段——video-director-libtv 也可持 actor 直写 workspace_id 与 episodes.*，无需经本技能
+- **前置**：updates 的根键必须在 CONFIG_FIELDS 且枚举字段取值合法；点路径最多两层（如 episodes.EP01.canvas_uuid）；按 CONFIG_WRITE_ACL（权威源：meta-server templates.py）校验 actor 对目标字段的写权限
+- **结果解读**：返回合并后完整 config 与 changed_keys；同事务追加 config.updated 事件（data 含 actor / changed_keys / updates）
+- **异常处置**：invalid=ACL 越权 / 未知字段 / 非法枚举 / 非法 actor（校验失败不改任何状态，error 文本注明 ACL 拒绝与允许的 actor）；not_found=项目不存在
+- 运行时配置存于 project_configs 表（meta_query scope=config 读取），磁盘不落盘，仅导出 ZIP 内保留该文件
 
 ### 推进阶段
 

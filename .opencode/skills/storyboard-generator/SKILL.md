@@ -23,7 +23,7 @@ description: 将分集剧本先经 storytelling pipeline 精简版创作分镜�
 | 维度 | 阶段一：分镜脚本 | 阶段二：参考图任务表 |
 |------|----------------|-------------------|
 | 执行者 | storyboard-director（session 1） | storyboard-director（session 2，fresh context） |
-| 输入 | 剧本.md + 全局设定 + 分镜稿_临时.md | 组{N}.json/md（含场号） + project_config.json + 参考图目录 |
+| 输入 | 剧本.md + 全局设定 + 分镜稿_临时.md | 组{N}.json/md（含场号） + meta_query(scope=config) 配置 + 参考图目录 |
 | 产出 | 分镜脚本.json/md + 分组/组{N}.json/md | 视觉锚点_任务表.json（visual_anchor）或 分镜图_任务表.json（storyboard_images） |
 | 上下文 | 含多轮创作思考（戏剧结构、镜头逻辑、台词校验） | **干净上下文**，仅读取结构化组文件和参考图清单 |
 
@@ -79,13 +79,13 @@ description: 将分集剧本先经 storytelling pipeline 精简版创作分镜�
 
 > **数据流原则**：Step 0 负责信息采集（剧本 + 设定）与物理分场，产出分镜稿_临时.md 的场级结构。Step 1~N 逐场循环：每场分析时须同时消费分镜稿_临时.md（场级结构 + 已写入场的分析笔记）和原始分集剧本（逐字台词），**严禁只读其一**。
 >
-> **阶段间数据交接**：阶段一与阶段二通过磁盘文件交接，不依赖对话上下文。阶段二 Agent 仅需读取：组{N}.json/md（分镜内容，含场号/场名称）、project_config.json（模型配置）、参考图目录（角色/场景/道具/风格）。画面比例固定 `16:9`，无需从配置读取。
+> **阶段间数据交接**：阶段一与阶段二通过磁盘文件交接，不依赖对话上下文。阶段二 Agent 仅需读取：组{N}.json/md（分镜内容，含场号/场名称）、参考图目录（角色/场景/道具/风格）；配置（模型配置等）经 `meta_query(scope=config)` 读取，磁盘仅读组文件与参考图目录。画面比例固定 `16:9`，无需从配置读取。
 
 ---
 
 ## 模式选择
 
-通过 `project_config.json` 的 `storyboard_mode` 字段选择分镜输出模式：
+通过 `meta_query(scope=config)` 返回的 `config.storyboard_mode` 选择分镜输出模式：
 
 | 模式 | 值 | 分镜脚本输出 | 组文件格式 | 适用场景 | 详细文档 |
 |------|-----|-------------|-----------|---------|---------|
@@ -94,7 +94,7 @@ description: 将分集剧本先经 storytelling pipeline 精简版创作分镜�
 
 **Step 0（总体规划）在两种模式下完全一致**，差异仅在 Step 1~N 的输出格式。
 
-**模式判断**：读取 `project_config.json` 的 `storyboard_mode` 字段，值为 `"simplified"` 时进入精简模式，否则按详细模式处理。
+**模式判断**：调用 `meta_query(scope=config)`，读取返回的 `config.storyboard_mode`，值为 `"simplified"` 时进入精简模式，否则按详细模式处理。
 
 ---
 
@@ -243,7 +243,7 @@ Phase A 完成后，根据 `storyboard_mode` 进入对应分支。**两个分支
 
 > **独立 Agent session 执行**：本阶段必须在 fresh context 中执行，不得继承阶段一的对话上下文。详见上方「Agent 执行隔离」节。
 
-通过 `project_config.json` 的 `reference_image_mode` 字段选择参考图模式（未设置时根据 `use_storyboard_images` 推断：`true`→`storyboard_images`，`false`/未设置→`visual_anchor`）。两种分镜模式（detailed/simplified）均支持以下参考图模式。
+通过 `meta_query(scope=config)` 返回的 `config.reference_image_mode` 选择参考图模式（返回值为 CONFIG_FIELDS 默认值合并后的完整配置，未显式配置时 `reference_image_mode` 默认 `visual_anchor`，无需自行推断）。两种分镜模式（detailed/simplified）均支持以下参考图模式。
 
 > **提示词净化规范（元约束净化 · 硬规则）**：所有提交给生图模型的 `prompt` 必须为**纯画面描述语言**，禁止混入"本应属于智能体编写规范、而非发送给模型"的元约束/元语言（段落放置/编排指令、Decision rule、括号标签机制解释、编写者脑补禁令、编译器/流水线说明、中文事实保留指令、占位符机制解释、锚点职责定位从句与职责块、Mapping 内机制解释、道具配对说明括号等 11 类必删项）；同时必须保留身份锁短语与逐角色身份锁句、`Image N:` 标签与优先级语义、单帧声明、TEXT POLICY 禁字幕块、AVOID 负面清单与背景人物降权句。完整规则见 `phase-2-visual-anchors.md` 与 `phase-2-storyboard-images.md` 的「提示词净化规范」节；`validate_task_table.py` 会对残留输出告警。
 

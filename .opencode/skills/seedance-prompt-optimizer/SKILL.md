@@ -94,12 +94,12 @@ description: Seedance 2.0 视频生成提示词优化器。将用户的粗略创
 2. **素材指代语法转换**：本 skill 使用 Seedance 原生语法 `<图片N>/<视频N>/<音频N>`；进入 libtv 管线时须转换为 `{{Image N}}` / `{{Audio N}}`（N 与上传节点的排列序号一致）。
 3. **约束词对齐**：本 skill 默认约束词（无字幕/无 Logo/无水印）与 libtv 固定约束行方向一致，两者并存不冲突；libtv 约束行不可省略。
 4. **⛔ 管线内禁用配乐与字幕生成语法**：libtv 固定约束行为"画面严禁出现任何字幕，无配乐"。凡经本管线投递的内容，禁止使用音乐符号 `（）` 添加配乐描述，禁止使用字幕 `【】` 生成语法。音效 `<>` 与台词 `{}` 仅在 `enable_sound=true` 时保留。
-5. **双模式切换**：由 `project_config.json` 的 `video_prompt_mode` 字段控制。`optimized`（默认）= 本 skill 将组文件适配为 Seedance 工程型指令提示词（见下方「分镜脚本适配模式」）；`raw` = 原样拷贝组文件内容，不经过适配（旧行为）。
+5. **双模式切换**：由 `meta_query(scope=config)` 返回的 `config.video_prompt_mode` 控制。`optimized`（默认）= 本 skill 将组文件适配为 Seedance 工程型指令提示词（见下方「分镜脚本适配模式」）；`raw` = 原样拷贝组文件内容，不经过适配（旧行为）。
 6. **prompt 传递方式**：经 libtv 投递时必须写临时 Python 脚本（放 `temp/`）经 subprocess 调用，禁止内联 CLI 参数。
 
 ## 分镜脚本适配模式（管线默认流程）
 
-当 `project_config.json` 的 `video_prompt_mode` 为 `optimized`（默认）时，video-director 读取分镜组文件后，按本节流程将其适配为 Seedance 工程型指令提示词，再交由 video-director-libtv 拼装投递。适配**内联完成**，不落盘中间文件。
+当 `meta_query(scope=config)` 返回的 `config.video_prompt_mode` 为 `optimized`（默认）时，video-director 读取分镜组文件后，按本节流程将其适配为 Seedance 工程型指令提示词，再交由 video-director-libtv 拼装投递。适配**内联完成**，不落盘中间文件。
 
 ### 适配目标
 

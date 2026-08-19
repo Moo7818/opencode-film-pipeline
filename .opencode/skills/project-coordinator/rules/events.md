@@ -7,7 +7,7 @@ events 表只增不改：每个 meta_* 写操作与业务变更在**同一事务
 ## actor 约束
 
 - actor 由数据库 schema 强制：`CHECK (actor IN (...))`，枚举唯一来源为 templates.py 的 `ACTORS`（user / producer / storyboard-generator / roles-ref-generator / scene-ref-generator / prop-ref-generator / art-director / video-director-libtv / project-coordinator）
-- meta-server 写入的全部事件 actor 固定为 `project-coordinator`（统筹是唯一写者）
+- 事件 actor 标识实际调用者：统筹类操作的事件 actor 固定为 `project-coordinator`；配置更新（meta_update_config）按调用者身份记录，如 video-director-libtv 写 workspace_id / episodes.*
 
 ## 事件类型清单（meta-server 实际写入）
 
@@ -19,6 +19,7 @@ events 表只增不改：每个 meta_* 写操作与业务变更在**同一事务
 | `artifact.created` | meta_register_artifact / meta_archive_artifact / meta_scan_and_register | artifact_id / type / path / name / hash / size / stage |
 | `artifact.archived` | meta_archive_artifact | artifact_id / src / dst / moved_from / type / hash / size |
 | `artifact.scan` | meta_scan_and_register（实跑） | registered / pending / missing 计数 |
+| `config.updated` | meta_update_config | actor / changed_keys / updates |
 | `project.archived` | meta_export_project | name / id / zip_path / files |
 | `project.deleted` | meta_delete_project | name / id / removed_files / errors |
 

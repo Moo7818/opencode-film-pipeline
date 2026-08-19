@@ -34,7 +34,7 @@ pending_review ──→ final ──→ deprecated
 | type | 目标路径模板（相对 `project/{name}/`） |
 |------|----------------------------------------|
 | `raw_script` | `原始剧本.md` |
-| `project_config` | `.meta/projects/{uuid}/project_config.json` |
+| `project_config` | 仅存在于导出 ZIP 内（导出格式）；register / archive 对该 type 一律返回 invalid，运行时不落盘 |
 | `script` | `{episode}/剧本.md` |
 | `character_design` | `全局依赖/角色设定/具体设定/{character}.md` |
 | `character_ref` | `全局依赖/角色设定/角色参考图/{character}.png` |

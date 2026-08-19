@@ -1,8 +1,8 @@
 # 阶段二：episode_storyboard_images — 分镜图绘制
 
-**独立阶段（仅当 project_config.json 中 reference_image_mode=storyboard_images 时执行）**：此阶段在 `episode_storyboard_script`、`episode_character_ref`、`episode_prop_ref`、`episode_scene_ref` 之后执行，分镜图可参考剧集级场景/道具变化。`reference_image_mode=visual_anchor`（默认）时跳过此阶段，改为执行视觉锚点图绘制（见 `phase-2-visual-anchors.md`）；`reference_image_mode=none` 时跳过所有参考图生成，video-director 将以角色/场景参考图为主要参考素材。
+**独立阶段（仅当 `meta_query(scope=config)` 返回的 `config.reference_image_mode=storyboard_images` 时执行）**：此阶段在 `episode_storyboard_script`、`episode_character_ref`、`episode_prop_ref`、`episode_scene_ref` 之后执行，分镜图可参考剧集级场景/道具变化。`reference_image_mode=visual_anchor`（默认）时跳过此阶段，改为执行视觉锚点图绘制（见 `phase-2-visual-anchors.md`）；`reference_image_mode=none` 时跳过所有参考图生成，video-director 将以角色/场景参考图为主要参考素材。
 
-> **独立 Agent session 执行**：本文档的所有工作必须在 fresh context 中完成。不得继承阶段一（分镜脚本创作）的对话上下文——阶段一的多轮创作思考会稀释对 prompt 模板格式的注意力。Agent 仅从磁盘读取：组{N}.json/md、project_config.json、参考图目录。
+> **独立 Agent session 执行**：本文档的所有工作必须在 fresh context 中完成。不得继承阶段一（分镜脚本创作）的对话上下文——阶段一的多轮创作思考会稀释对 prompt 模板格式的注意力。Agent 仅从磁盘读取：组{N}.json/md、参考图目录；配置（`reference_image_mode` 等）经 `meta_query(scope=config)` 读取。
 >
 > **两种模式均支持分镜图绘制**。详细模式从 `组{N}.json` 读取，精简模式从 `组{N}.md` 读取。
 >

@@ -7,8 +7,8 @@
 ## 1. 体系结构
 
 - **唯一元数据源**：`.meta/registry.db`（SQLite，WAL 模式 + foreign_keys）。连接工厂与建表 DDL 的权威源是 `.opencode/mcp-servers/meta-server/src/meta_server/db.py`
-- **唯一写者**：coordinator（经 meta-server 写入）。禁止任何 agent 直接打开或修改该数据库
-- **旧版 JSON 已废弃**：每项目四件套（project.json / stages.json / manifest.json / events.jsonl）不再是运行时数据源，仅作为 `meta_export_project` 的导出格式保留。旧 JSON 数据保持原样，不做迁移
+- **唯一写通道**：一律经 meta-server 的 meta_* 工具写入（配置字段级 ACL 见 templates.py 的 CONFIG_WRITE_ACL）。禁止任何 agent 直接打开或修改该数据库
+- **旧版 JSON 已废弃**：每项目四件套（project.json / stages.json / manifest.json / events.jsonl）不再是运行时数据源，仅作为 `meta_export_project` 的导出格式保留；project_config.json 同属旧版文件契约，运行时不再落盘，仅存在于 meta_export_project 导出 ZIP。旧 JSON 数据保持原样，不做迁移
 - **产物目录**：`project/{项目名}/` 为实际产物区，骨架由 `meta_init_project` 自动创建
 
 ## 2. 表结构
@@ -19,7 +19,7 @@
 | `stages` | 17 阶段状态机 | project_id、idx（顺序，唯一约束）、name、label、status、started_at、completed_at；UNIQUE(project_id, name) 与 UNIQUE(project_id, idx) |
 | `artifacts` | 产物清单 | id（UUID）、project_id、type（枚举 CHECK）、name、path、stage、status、hash（前缀 CHECK）、size、tags（JSON 文本）、created_at、updated_at |
 | `events` | 事件溯源 | rowid 自增主键、timestamp、type、actor（ACTORS 枚举 CHECK）、project_id、data（紧凑 JSON 文本） |
-| `project_configs` | 项目运行时配置 | project_id（主键）、config（JSON 文本，字段与默认值权威源为 `.opencode/schemas/project-config.json` 与 templates.py 的 CONFIG_FIELDS） |
+| `project_configs` | 项目运行时配置（读经 meta_query scope=config；写经 meta_update_config，字段级 ACL 见 templates.py 的 CONFIG_WRITE_ACL） | project_id（主键）、config（JSON 文本，字段与默认值权威源为 `.opencode/schemas/project-config.json` 与 templates.py 的 CONFIG_FIELDS） |
 | `pending_reviews` | 待人工归类文件 | id、project_id、path、size、mtime、created_at |
 
 **部分唯一索引** `idx_artifacts_final ON artifacts (project_id, path) WHERE status = 'final'`：同项目同路径同时只允许一条 final 记录，DB 层强制版本唯一。
