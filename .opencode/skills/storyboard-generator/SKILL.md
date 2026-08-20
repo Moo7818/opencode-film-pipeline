@@ -45,11 +45,14 @@ description: 将分集剧本拆解为场→组→镜分镜脚本（detailed JSON
 │      a. 按行区间重读该场剧本 → 分析 shot flow/分组/      │
 │         台词时长（A4~A6 细则见 workflow.md）             │
 │      b. 生成该场 JSON / MD（仅本场镜头）                 │
-│      c. Write（场1）或 Edit（场2+）追加到分镜脚本文件     │
-│      d. 该场分析笔记追加写入 分镜稿_临时.md              │
+│      c. 详细模式：Write 场{N}.json 到 场文件/            │
+│         （每场独立完整 JSON，不用 Edit 追加大文件）       │
+│      d. 该场分析笔记追加写入 分镜稿_临时.md，            │
+│         并同步更新场次戏剧地图行（组数/镜数/时长）       │
 │                                                         │
 │  全部场完成后：                                          │
-│    ├─ 详细模式 → expand_scenes_to_groups.py 拆分         │
+│    ├─ 详细模式 → expand_scenes_to_groups.py              │
+│    │   一条命令：合并场文件+校验+时间归零+拆分组文件     │
 │    └─ 精简模式 → 逐个 Write 组{N}.md                    │
 └─────────────────────────────────────────────────────────┘
           ↓（文件交接：组{N}.json/md 就绪）
@@ -93,9 +96,9 @@ description: 将分集剧本拆解为场→组→镜分镜脚本（detailed JSON
 
 ## Phase B：分镜脚本生成（按模式分支）
 
-**两分支共享同一套硬约束**（时长、组限制、台词格式、场级连贯性、妆造名标注等，清单见 `references/phase-b-detailed.md`「硬约束」），差异仅在输出格式。**均采用 Write + Edit 逐场追加**：上下文只持有当前场；会话中断后 Read 已有文件确定已完成场数，从缺失场继续（断点恢复详见各分支文档）。
+**两分支共享同一套硬约束**（时长、组限制、台词格式、场级连贯性、妆造名标注等，清单见 `references/phase-b-detailed.md`「硬约束」），差异仅在输出格式。**上下文只持有当前场**；会话中断后检查已有产出确定续写点（断点恢复详见各分支文档）。
 
-- **详细模式（默认）**：逐场生成场→组→镜 JSON（17字段），Write 建初始 `分镜脚本.json`，后续每场 Edit 追加；完成后调 `expand_scenes_to_groups.py` 拆分 → `references/phase-b-detailed.md`
+- **详细模式（默认）**：逐场生成场→组→镜 JSON（17字段），每场 Write 一个独立 `场文件/场{N}.json`（**不用 Edit 追加大 JSON**——超长追加载荷易损坏整个文件）；完成后 `expand_scenes_to_groups.py --input 场文件/ --output-dir 分组/` 一条命令完成合并+逐文件校验+组时间归零+拆分 → `references/phase-b-detailed.md`
 - **精简模式**：逐场生成讲戏式 Markdown（一段一镜），Write 建初始 `分镜脚本.md`（含 `<!-- END -->` 标记），后续每场 Edit 替换标记追加；完成后逐个 Write `组{N}.md` → `references/phase-b-simplified.md`
 
 ---
@@ -126,7 +129,7 @@ Agent 编写任务表 → `validate_task_table.py --check 任务表.json --mode 
 {剧集号}/
 └── 分镜/
     ├── 分镜稿_临时.md              ← Phase A 产出（过程产物，不供下游消费）
-    ├── 〔详细模式〕分镜脚本.json + 分组/组{N}.json（expand_scenes_to_groups.py 拆出）
+    ├── 〔详细模式〕场文件/场{N}.json（逐场直写）→ 分镜脚本.json + 分组/组{N}.json（expand_scenes_to_groups.py 合并+拆出）
     ├── 〔精简模式〕分镜脚本.md + 分组/组{N}.md（Agent 直接写入）
     ├── 〔visual_anchor〕视觉锚点_任务表.json + 视觉锚点/锚点_场{N}{阶段?}_{场景名}.png
     ├── 〔storyboard_images〕分镜图_任务表.json + 分镜图/组{N}_镜{M}.png
