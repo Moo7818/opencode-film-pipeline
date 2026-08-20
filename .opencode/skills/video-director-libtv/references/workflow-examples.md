@@ -5,16 +5,26 @@
 - 所有命令在**画布所在工作目录**下执行
 - 以下命令基于 `libtv` **v1.1.1+**。关键变化：`group --run` 现为**阻塞等待**命令，CLI 内部完成轮询后退出
 - **默认行为**：仅执行建组（`libtv group create`），不自动运行。仅当用户明确要求时才执行 `libtv group --run`
-- 使用管线脚本时，配置值来自 `meta_query(scope=config)`（默认值已合并），由 agent 读出后以 CLI 参数显式传入；`--canvas-uuid` / `--model` / `--storyboard-mode` / `--reference-image-mode` 均必填（缺失时 argparse 直接报错，退出码 2）：
+- 使用管线脚本时，配置值来自 `meta_query(scope=config)`（默认值已合并），由 agent 读出后以 CLI 参数显式传入；`--plan` / `--build` / `--run` 三阶段互斥，构建与运行分开调用（`--build` 必填 `--canvas-uuid` / `--model` / `--storyboard-mode` / `--reference-image-mode`）：
 
 ```bash
+# 1) 计划（可选：审核参考图自动匹配结果）
+python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --plan ^
+  --project "项目名" --episode EP01 --groups 7 8 9 ^
+  --storyboard-mode detailed --reference-image-mode visual_anchor
+
+# 2) 构建（并发上传 → 并发建节点 upsert → 幂等建组，不运行）
 python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --build ^
   --project "项目名" --episode EP01 ^
   --canvas-uuid <画布UUID> --model "Seedance 2.0 VIP" ^
   --storyboard-mode detailed --reference-image-mode visual_anchor ^
   --groups 7 8 9 --ratio 16:9 --resolution 480p --sound on ^
-  --refs "组7:场景_现代南京,角色_一岛" ^
-  --run --download
+  --refs "组7:场景_现代南京,角色_一岛"
+
+# 3) 运行 + 下载（单独调用，阻塞等待终态后解析 URL 并发下载）
+python .opencode/skills/video-director-libtv/scripts/run_video_pipeline.py --run ^
+  --project "项目名" --episode EP01 --canvas-uuid <画布UUID> ^
+  --groups 7 8 9 --download
 ```
 
 ---

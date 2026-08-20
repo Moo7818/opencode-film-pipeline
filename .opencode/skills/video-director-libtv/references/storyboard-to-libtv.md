@@ -170,6 +170,8 @@ group = {"_format": "md", "_raw_content": raw_md, "组时长": duration_match.gr
 | `720p` | `720p` |
 | `1080p` / `2K` / `4K` | `720p` |
 
+> **Minimax H3 系例外**：仅支持 `768P` / `2K`，配置 `480p` / `720p` 时脚本 `map_resolution` 自动映射为 `768P`（其他模型不受影响）。
+
 ---
 
 ## 5. 音频映射
@@ -198,9 +200,11 @@ group = {"_format": "md", "_raw_content": raw_md, "组时长": duration_match.gr
 
 脚本 `scan_project_refs` 已自动过滤 `_选角.png` 文件，不会上传到画布。Agent 在手动指定 `--refs` 时也必须确保不引用选角资产。
 
-### 6.1 选取策略（由 Agent 判断）
+### 6.1 选取策略（自动匹配 + Agent 监督）
 
-**参考图的选取由视频导演 Agent 根据分组内容自行判断**，脚本不做自动匹配。Agent 需读取每个分组的实际内容，判断该组出场的角色、所在场景、使用的道具，然后通过 `--refs` 参数显式指定。**仅 `--refs` 中指定的参考图会被上传到画布**，未指定的素材不会上传，避免无关素材占用画布。
+**参考图的选取以脚本自动匹配为默认**：未显式指定 `--refs` 的分组，脚本按「素材名（节点名 `类型_名称` 的名称部分）出现在组内容中」自动匹配角色/道具（场景仅 `none` 模式参与），并做最长名去重（「掌柜」⊂「大掌柜」时只保留后者）。`--plan` 可纯本地预演匹配结果。
+
+Agent 的职责转为**监督与覆盖**：审核 `--plan` 计划，对误报（仅被提及但未出场的角色）、漏报（别名/代称）通过 `--refs` 显式指定修正；显式 `--refs` 的组完全按指定执行（不做自动补全）；`--no-auto-refs` 可整体关闭自动匹配（回到纯手动模式）。**仅最终连线集合中的参考图会被上传到画布**（按需上传 + 画布节点缓存复用）。
 
 配置的 `reference_image_mode`（agent 经 `meta_query(scope=config)` 读取后以 `--reference-image-mode` CLI 参数显式传入脚本）决定脚本自动扫描哪种参考图并按需上传：
 
@@ -214,9 +218,9 @@ group = {"_format": "md", "_raw_content": raw_md, "组时长": duration_match.gr
 
 > **音色参考**：当 `enable_sound=true` 且分镜组包含台词时，额外选取对应角色的音色参考作为素材源，不参与上述优先级排序。
 
-### 6.1.1 Agent 判断规则
+### 6.1.1 选取正确性标准（自动匹配的近似目标 / Agent 审核依据）
 
-Agent 在为每个分组选取参考素材时，必须基于**分组实际内容**：
+无论自动匹配还是显式指定，每组参考素材的选取都应基于**分组实际内容**满足以下标准（自动匹配按「名称出现在组文本中」近似，Agent 在 `--plan` 审核时按此标准纠偏）：
 
 **角色判断**：读取分组的镜头列表/叙事文本，检查实际出场的角色名，只选取该分组出场的角色参考图（Tier 2 妆造资产，如 `{角色名}_默认.png` 或 `{角色名}_{妆造名}.png`）。
 
@@ -320,9 +324,9 @@ libtv node create "组1" -t video \
   --left 音色_掌柜   # 可选：音色参考连线，prompt 中用 {{Audio 1}} 引用
 ```
 
-### 6.4 音色参考选取逻辑（由 Agent 判断）
+### 6.4 音色参考选取逻辑（--plan 建议 + Agent 确认）
 
-**音色参考的选取由视频导演 Agent 根据分组内容自行判断**，脚本不做自动匹配，也不做自动全量扫描。
+**音色参考的选取默认由视频导演 Agent 通过 `--voice-refs` 显式指定**；`--plan` 会按「角色名出现在台词语料中且本地存在音色文件」给出建议列表供 agent 确认/删减。`--build` 仅上传显式指定的音色参考，不做自动全量扫描。
 
 1. **Agent 判断**：Agent 读取每个分组的实际内容，判断哪些角色在本组有台词，通过 `--voice-refs` 参数显式指定需要的音色参考
 2. **查找音色文件**：在 `全局依赖/音色参考/` 目录下查找音频文件（支持两种命名模式：`{角色名}-音色参考.{ext}` 和 `{角色名}音色.{ext}`，格式 `.wav` `.mp3` `.m4a` `.ogg` `.flac`）
@@ -386,14 +390,18 @@ libtv node create "组1" -t video \
 使用 `run_video_pipeline.py --storyboard-mode simplified` 直接加载 `组{N}.md` 文件（`--storyboard-mode` 必填，由 agent 经 `meta_query(scope=config)` 读出后显式传入）：
 
 ```bash
-# 精简模式完整流程（--canvas-uuid / --model / --storyboard-mode / --reference-image-mode
+# 精简模式：先构建（--canvas-uuid / --model / --storyboard-mode / --reference-image-mode
 # 均必填，配置值由 agent 经 meta_query(scope=config) 读出后显式传入）
 python ".opencode/skills/video-director-libtv/scripts/run_video_pipeline.py" --build ^
   --project "吉泰安防" --episode EP01 ^
   --canvas-uuid <画布UUID> --model "Seedance 2.0 VIP" --ratio 16:9 ^
   --storyboard-mode simplified --reference-image-mode visual_anchor ^
-  --refs "组1:场景_破茶馆,角色_掌柜" ^
-  --run --download
+  --refs "组1:场景_破茶馆,角色_掌柜"
+
+# 再单独运行 + 下载（阻塞等待终态后解析 URL 并发下载）
+python ".opencode/skills/video-director-libtv/scripts/run_video_pipeline.py" --run ^
+  --project "吉泰安防" --episode EP01 --canvas-uuid <画布UUID> ^
+  --groups 1 --download
 ```
 
 脚本内部流程：

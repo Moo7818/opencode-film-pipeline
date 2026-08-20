@@ -162,9 +162,23 @@ async def _get_client(timeout=120):
 async def _api_request(url, headers, data=None, timeout=120):
     """异步 HTTP 请求（使用全局连接池）"""
     client = await _get_client(timeout)
-    headers = {**headers, "Content-Type": "application/json"}
+    # 将 headers 值编码为 latin-1（httpx 要求 header 值为 latin-1 兼容）
+    # 中文字符先 URL 编码为 percent-encoded 形式
+    import urllib.parse
+    encoded_headers = {}
+    for k, v in headers.items():
+        if isinstance(v, str):
+            # 对非 ASCII 字符进行 percent-encoding
+            try:
+                v.encode('latin-1')
+                encoded_headers[k] = v
+            except UnicodeEncodeError:
+                encoded_headers[k] = urllib.parse.quote(v, safe='')
+        else:
+            encoded_headers[k] = v
+    encoded_headers["Content-Type"] = "application/json"
     body = json.dumps(data).encode("utf-8") if data else None
-    response = await client.post(url, content=body, headers=headers)
+    response = await client.post(url, content=body, headers=encoded_headers)
     if response.status_code >= 400:
         raise Exception(f"API error {response.status_code}: {response.text}")
     return response.text

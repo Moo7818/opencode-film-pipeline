@@ -50,30 +50,37 @@ $env:LIBTV_CONFIG_DIR = (Resolve-Path ".opencode/credentials").Path
 | ↳ `project use` 副作用 | v1.1.1+ 同时将画布所属项目 `workspaceId` 与团队 `teamId` 同步写入 `.libtv/project.json` | — |
 | 组时长 | `组{N}.json → 组时长` | `--set duration` | 读 |
 | 音色参考目录 | `meta_query(scope=config) → config.has_audio_reference` | 仅作参考；音色参考由 Agent 通过 `--voice-refs` 显式指定上传 | 读 |
-| 禁止运行 | `meta_query(scope=config) → config.suppress_run` | `true` 时**无条件拒绝** `--run`，只做准备工作；该检查已从脚本移除，由 agent 在决定是否加 `--run` 前自查 | 读 |
+| 禁止运行 | `meta_query(scope=config) → config.suppress_run` | `true` 时**无条件拒绝**运行，只做准备工作；该检查已从脚本移除，由 agent 在决定是否执行 `--run` 阶段前自查 | 读 |
 
 `reference_image_mode` 影响参考素材的连线策略（详见 `references/storyboard-to-libtv.md` 第 6 节）：`visual_anchor`（默认）时自动按场号匹配视觉锚点图作为场景连续性参考；`storyboard_images` 时自动扫描分镜图按组号匹配；`none` 时不自动添加参考图，Agent 仅使用角色/场景/道具参考图。
 
 ## 工作流总览
 
 ```
+  0. [可选] 生成执行计划          ← run_video_pipeline.py --plan（参考图/音色自动匹配，纯本地无副作用）
   1. 读取上下文                  ← meta_query(scope=config) + 分组文件（JSON 或 MD）
   2. 创建/绑定工作区 + 画布      ← workspace use（项目级） + project use（剧集级）
   3. 上传参考素材为资源节点       ← libtv upload（按需上传，仅上传 --refs/--voice-refs 指定的素材）
   4. 创建 video 节点             ← 一次性创建 或 两阶段（占位 → 查顺序 → 写引用）
-  5. [可选] 批量建组             ← libtv group create（--no-group 可跳过；默认只建组，不运行）
+  5. [可选] 批量建组             ← libtv group（--no-group 可跳过；默认只建组，不运行）
   6. [可选] 运行视频生成         ← libtv group --run（仅当用户明确要求时）
-  7. 轮询等待生成完成
+  7. 等待生成完成                ← group --run 阻塞等待终态 JSON（无需外部轮询）
   8. 报告 Coordinator 归档       ← 含产物注册要求（见下方）
 ```
+
+> 步骤 3-7 可经管线脚本一体化完成（`--plan` → `--build` → `--run` 三阶段，见 `references/pipeline-script.md`）：
+> 并发上传/建节点、节点 upsert、幂等建组、终态解析与并发下载均由脚本处理；
+> **构建（`--build`）与运行（`--run`）必须分开调用**，避免单次工具调用被长时间生成阻塞。
 
 ### 执行流程调用模板（配置经 meta_* 工具）
 
 1. `meta_query(scope="config", project_name=项目名)` 读配置（也可用 project_id；返回含 config 全字段，默认值已合并）
-2. 检查 `suppress_run`：为 `true` 则无条件拒绝 `--run`（无论用户是否要求；该检查已从脚本移除，由 agent 在决定是否加 `--run` 前自查）
+2. 检查 `suppress_run`：为 `true` 则无条件拒绝运行（无论用户是否要求；该检查已从脚本移除，由 agent 在决定是否执行 `--run` 阶段前自查）
 3. 检查 `episodes.{EP}.canvas_uuid`：无则创建画布，并经 `meta_update_config(project_id, updates={"episodes.EP01.canvas_uuid": "<UUID>"}, actor="video-director-libtv")` 写回
 4. 按 `video_prompt_mode` 决定提示词流程（`optimized` 走 seedance-prompt-optimizer 内联适配，`raw` 原样填入组文件内容）
-5. 全参显式调用 `run_video_pipeline.py`：`--canvas-uuid` / `--model` / `--storyboard-mode` / `--reference-image-mode` 均必填（缺失时 argparse 直接报错，退出码 2）；`--ratio` / `--resolution` / `--sound` 有本地默认
+5. （推荐）`--plan` 生成执行计划：脚本本地解析各组参考图/音色自动匹配，输出建议 `--refs`/`--voice-refs` 参数（含可直接复制的命令行），agent 审核补漏，无需通读组文件
+6. `--build` 构建画布：并发上传参考素材 → 并发创建节点（upsert，重跑改参安全）→ 幂等建组。`--canvas-uuid` / `--model` / `--storyboard-mode` / `--reference-image-mode` 必填（缺失报错，退出码 2）；`--ratio` / `--resolution` / `--sound` 有本地默认；未显式 `--refs` 的组按计划自动匹配（`--no-auto-refs` 关闭）；画布节点缓存落盘 `.opencode/cache/video-director/<canvas_uuid>.json`（`--refresh-cache` 强制重建）
+7. `--run` 单独调用运行分组（阻塞等待终态）并按需 `--download` 并发下载——必须在 `--build` 完成后执行
 
 ### 步骤 8 产物注册要求
 
@@ -260,7 +267,7 @@ python3 temp/update_prompt_group1.py
 4. **禁止修改引用格式**：引用行必须使用 `{{Image N}}` 格式（如 `{{Image 1}}`），不得替换为 `{{Node uuid}}` 等其他格式。`{{Image N}}` 由 libtv 服务端自动解析为节点引用
 5. **禁止擅自截断**：不得以任何理由（字符限制、长度限制等）截断或省略 JSON 内容
 6. **⛔ 禁止使用选角参考图**：`{角色名}_选角.png` 是 Tier 1 选角资产（白T恤+灰背景），**绝对不能**用于视频生成。脚本已自动过滤，Agent 在手动指定 `--refs` 时也必须确保不引用选角资产。应使用 Tier 2 妆造资产（`{角色名}_默认.png` 或 `{角色名}_{妆造名}.png`）
-7. **参考选取由 Agent 判断**：脚本不做自动匹配，Agent 必须读取每个分组的实际内容，判断出场的角色/场景/道具，通过 `--refs` 显式指定。未指定 `--refs` 的分组将以纯文生视频模式生成（无参考图）
+7. **参考选取：自动匹配 + Agent 监督**：未显式 `--refs` 的分组由脚本按组内容自动匹配（素材名出现在组文本中即命中，`--plan` 可预演结果）；Agent 应先审核 `--plan` 计划，对误报/漏报（如仅被提及但未出场的角色、同场多阶段锚点）通过 `--refs` 显式覆盖，或 `--no-auto-refs` 关闭自动匹配。显式 `--refs` 的组完全按指定执行
 8. **违规后果**：违反上述任一条款将导致视频生成质量下降，视为 agent 执行错误
 
 ## 文档地图
