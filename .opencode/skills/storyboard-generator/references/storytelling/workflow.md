@@ -1,342 +1,125 @@
-# Workflow
+# Storytelling 管线 — Phase A 实操手册（A2~A6 五步）
 
-This is the full 15-step pipeline that the skill should follow by default.
+> 源自 15 步电影级分镜管线，日常执行精简为 **A2~A6 五步**（对应 SKILL.md 的 Step 0/Step 1~N 逐场循环）。方法论九原则见 `floobynooby-core.md`；完整案例见 `night-nuo-case-study.md`。
+>
+> 工作原则：`plan -> rough -> review -> revise -> clean`。先规划后落笔、先粗后精；清晰度高于装饰性；镜头推进服务故事点；特写是高价值货币；调度承载人物；每个 cut 都要有动机；保护轴线连续性；以序列（而非单帧）为评判单位；分镜是翻译不是炫技。
 
-For each step:
+## A2：时空故事节点 + 物理分场
 
-- identify the goal
-- produce the right deliverable
-- avoid the common failure
+A2 产出两层结构，**不得混用**：
 
-## Step 1: Full Script Read
+| 层 | 名称 | 划分依据 | 用途 |
+|----|------|---------|------|
+| 故事节点 | 时间流逝地图 | 银幕时间 vs 故事时间的变化 | 控制节奏、时长、蒙太奇手法 |
+| **场** | 物理空间连续单元 | **同一连续物理空间 + 连续故事时间** | 分镜脚本场级边界；分镜图串行链边界 |
 
-Goal:
+### 故事节点（时间流逝，不直接等于场）
 
-- understand dramatic structure before thinking about shots
+**核心认知**：戏剧不是物理时空的 1:1 复现。银幕几秒可对应故事世界数小时/数天；仅在剧情点上银幕时间≈故事时间。用**故事节点**标注时间流逝类型，**不要**用时间流逝变化点直接当分场边界。
 
-Output:
+| 节点类型 | 银幕时间 vs 故事时间 | 用途 | 典型手法 |
+|---------|---------------------|------|---------|
+| 时间压缩 | 银幕秒 ≪ 故事时 | 快速交代、跨越时段 | 蒙太奇、跳切、旁白带过 |
+| 实时 | 银幕 ≈ 故事 | 剧情点：转折、对峙、揭晓 | 连续叙事、同步台词 |
+| 时间膨胀 | 银幕 ＞ 故事 | 放大关键瞬间 | 慢动作、微表情特写 |
 
-- short notes on protagonist, desire, opposition, turning points, climax, hooks, and audience-information order
+操作：通读剧本 → 标时间跳跃与流逝类型 → 每个节点记录：节点名、时间流逝类型、故事世界时长、银幕预估、关键信息、**所在物理空间**。
 
-Do not:
+### 物理分场规则（场 = 连续物理空间）
 
-- start writing detailed lens coverage
+**场的定义（硬约束）**：一场 = 在**同一个独立物理空间**内、故事时间**连续不跳切到他处**的全部镜头。与 producer 场景设定一致：一个物理空间 = 一个房间/建筑/户外地点（非子区域机位）。
 
-## Step 2: Sequence Drama Map
+**必须新开一场**（满足任一即切）：
 
-Goal:
+1. **物理空间切换** — 角色离开 A 地进入 B 地（茶肆内 → 街口 → 包子铺 = 至少 3 场）
+2. **显著时间断裂** — 同地但日/夜切换、或显式时间跳跃（"三日后"），视觉光影与调度链已断
+3. **平行切出** — 插叙/平行蒙太奇切到另一空间，返回原空间时若中间已切走，返回后开新场或并入原场需按连续性判断；默认**切走即断链**，返回开新场
 
-- split the script into playable dramatic sections
+**禁止**因下列原因拆场（应留在同一场，用**组**区分戏剧节拍）：
 
-Output:
+- 同一物理空间内的多个戏剧节拍/故事节点（发布→问答→排队 同在茶肆日/内 → **一场多组**）
+- 同一空间内景别/机位变化（柜台特写 vs 全景仍是同一场）
+- 纯情绪/节奏变化而无空间或时间断裂
 
-- a sequence list with each section's dramatic core and what changes by the end
-
-Spatiotemporal rationalization + physical scene division (two layers, do not conflate):
-
-- **Story nodes (time-flow)**: drama is not a 1:1 reproduction of physical spacetime — screen seconds may cover hours/days/years; only plot points return to real-time. Tag compressed / real-time / expanded nodes for pacing. Each node also records its **physical location**.
-- **Scenes/场 (physical space)**: a scene = continuous action in **one independent physical space** with continuous story time. Location change or major time break (day→night, "three days later") starts a new scene. Multiple dramatic beats in the same space stay in **one scene** as multiple groups.
-- Never use time-flow type changes alone as scene boundaries — that splits one tea-house interior into several scenes and breaks the sequential previous-frame chain for image generation.
-
-Do not:
-
-- split into shots yet
-- treat every story node as its own scene
-- treat every scene boundary as real-time — most transitions compress time
-- split one physical room into multiple scenes because of beat/emotion changes
-
-## Step 3: Per-Sequence Camera Strategy
-
-Goal:
-
-- assign each sequence a visual breathing pattern
-
-Output:
-
-- for each sequence: opening size, pressure direction, information pattern, reaction ownership bias, climax placement
-
-Do not:
-
-- design isolated cool shots without sequence logic
-
-## Step 4: Scene Dramatic Core + Shot Flow
-
-Goal:
-
-- decide how each scene will progress before writing exact shots
-
-Output:
-
-- scene core
-- audience position
-- reaction owner
-- continuity anchor
-- first close-up timing
-- scene climax duty
-- shot-flow sentence
-
-Do not:
-
-- confuse scene analysis with a playable visual plan
-
-## Step 5: Rough-Thumbnails Pass 1
-
-Goal:
-
-- run the whole piece in the roughest usable form
-
-Output:
-
-- scene-by-scene thumbnail task sheet with approximate panel counts and core visual problems to solve
-
-Do not:
-
-- polish too early
-
-## Step 5.5: Dialogue Timing Gate
-
-Goal:
-
-- verify that every line of scripted dialogue physically fits within its assigned panel hold time
-
-Output:
-
-- per-panel timing calculation embedded in the rough thumbnail sheet
-- per-scene timing validation summary table
-- resolution record (compressed dialogue, adjusted emotion, extended panel, or split panel)
-
-Procedure:
-
-Agent computes timing for each panel **autonomously** — no script needed. The LLM judges the emotion from context and calculates the speech time using the model below.
-
-1. For each panel with dialogue, judge the delivery emotion from scene context.
-2. Look up the rate:
-
-   | Emotion | Multiplier | Rate | Typical context |
-   |---------|-----------|------|-----------------|
-   | 悲恸 | 0.50x | 2.0 chars/s | sobbing, choking, crying |
-   | 犹豫 | 0.60x | 2.4 chars/s | stuttering, hesitating |
-   | 沉重 | 0.75x | 3.0 chars/s | trembling, suppressed grief |
-   | 低语 | 0.85x | 3.4 chars/s | whispering, intimate |
-   | 正常 | 1.00x | 4.0 chars/s | dialogue, narrative voiceover |
-   | 急促 | 1.15x | 4.6 chars/s | urgent, panicked, rushed |
-   | 激昂 | 1.25x | 5.0 chars/s | rallying, projected, firm |
-   | 爆发 | 1.30x | 5.2 chars/s | shouting, roaring, explosive |
-
-3. Compute `speech_time = chinese_char_count ÷ rate + punctuation_pauses + emotion_pauses`.
-   - Punctuation pauses: comma 0.3s, period/exclamation/question 0.5s, ellipsis 0.8s, em-dash 0.5s.
-   - Emotion pauses: per-clause additional pause based on emotion (e.g. 悲恸 +0.5s/clause, 犹豫 +0.4s/clause, 沉重 +0.3s, 低语 +0.2s, 爆发 +0.1s).
-4. Write the calculation directly into the panel's `台词时长` field.
-5. Compare against the panel's `hold` time.
-6. For cross-panel continuous speech (e.g. voiceover playing over a montage), sum the hold time across all those panels and compare against the total speech time.
-
-Pass criteria:
-
-- Single panel: speech_time ≤ hold (dialogue must fit within the panel — no overflow tolerance)
-- Cross-panel continuous: total_speech_time ≤ total_panel_hold
-
-When a panel fails:
-
-1. **First try**: compress the dialogue — keep the core information, drop modifiers and repetitions. (Most fixes live here.)
-2. **Second try**: adjust the emotion — check if the emotion annotation is too heavy (e.g. 悲恸 0.50x drastically slows speech). A lighter emotion may be more accurate.
-3. **Third try**: extend the panel's hold time — but verify that the new hold does not break the scene's rhythm.
-4. **Last resort**: split the panel into two — only when neither compression, emotion adjustment, nor extension can resolve the conflict.
-
-Record the result for each scene:
+**一场多节点示例**（正确）：
 
 ```
-## Scene X Timing Validation
-
-| Panel | 台词字数 | 情绪 | 语速 | 朗读 | 停顿 | 需时 | hold | 填充率 | 状态 |
-|-------|---------|------|------|------|------|------|------|--------|------|
-| 6-1   | 31      | 悲恸 | 2.0  | 15.5s| 2.6s | 18.1s| 1.5s | 1207%  | ⚠️   |
-| 6-2   | 24      | 沉重 | 3.0  | 8.0s | 1.1s | 9.1s | 2.0s | 455%   | ⚠️   |
-| ...   | ...     | ...  | ...  | ...  | ...  | ...  | ...  | ...    | ...  |
-
-跨面板连续：台词 27.2s / 面板 3.5s → ⚠️ 超时 23.7s
-→ 解决方案：压缩台词至 12 字，调整情绪为沉重，匹配面板 3.5s
+场1 春生茶肆·日/内
+  组1 ← 节点N1 会员制发布（实时）
+  组2 ← 节点N3 排队办卡（微压缩）
+  组3 ← 节点N4 小二翻簿（实时）
+场2 春生茶肆门口·日/外   ← 物理空间变
+场3 赵胖包子铺·日/内     ← 物理空间变
+场4 春生茶肆·夜/内       ← 同地但日→夜，时间断裂
 ```
 
-Do not:
+**错误示例**（EP04 旧病）：把「茶肆日/内」的发布、排队、翻簿拆成场1/3/4 → 同空间被切断，分镜图串行参考帧链断裂，角色/布景在组间漂移。
 
-- skip this step because the scene "feels right" — speech time and visual time are different clocks
-- leave unresolved overflow panels for Phase B — fix them in Phase A before writing the JSON
-- delegate timing calculation to a script — the LLM is better at judging emotion from context than keyword matching
+> 产出模板见 `templates.md` **T5（时空故事节点表 + 物理场归并表）**。节点表标注物理空间；**A3 按物理场归并表建场**，不是一对一把每个节点当成一场。
 
-## Step 6: Animatic-Thinking Review
+## A3：场次戏剧地图（sequence map）
 
-Goal:
+基于 A2 的**物理场**列表建场次地图。同一物理场内可含多个故事节点/戏剧节拍，在场内用段落或后续「组」表达。每场标注：物理空间名、含哪些故事节点、戏核、观众站位、压力来源、镜头总策略。
 
-- test the piece as a timed sequence
+> 产出模板见 `templates.md` **T1（场次戏剧地图）**。
 
-Output:
+## A4：逐场戏核 + shot flow
 
-- rhythm notes
-- information-order risks
-- false-climax risks
-- missing hold points
+为每场戏确定：戏核、观众站位、shot flow（镜头推进逻辑）、开场景别、第一刀 close-up 时机、高潮镜头职责、reaction owner、连续性锚点。
 
-Do not:
+> 产出模板见 `templates.md` **T2（逐场戏核 + shot flow）**。
 
-- judge by single stills alone
+## A5：粗略缩略图任务（rough thumbnails）
 
-## Step 7: Big Structure Revision
+逐场生成面板级缩略图任务表，每个面板包含画面、景别、任务、cut 动机、hold、声音/台词（含情绪标注）、台词时长。整个作品先以最粗可用形态跑通全片，解决清晰度与推进问题后再精修，不过早打磨。
 
-Goal:
+> 产出模板见 `templates.md` **T3（粗略缩略图任务）**。
 
-- fix the whole before fixing the details
+## A6：台词时长校验（Agent 自主计算）
 
-Output:
+**Agent 自主判断情绪并计算台词时长，无需脚本。** 对 A5 中每个含台词面板执行：
 
-- what to cut
-- what to protect
-- what to delay
-- what to strengthen
+**情绪语速模型**（基础语速 4.0 chars/s × 情绪系数）：
 
-Do not:
+| 情绪 | 系数 | 实际语速 | 典型场景 |
+|------|------|---------|---------|
+| 悲恸 | 0.50x | 2.0 chars/s | 哽咽/啜泣/泣不成声 |
+| 犹豫 | 0.60x | 2.4 chars/s | 结巴/迟疑/支吾 |
+| 沉重 | 0.75x | 3.0 chars/s | 颤抖/压抑/悲愤 |
+| 低语 | 0.85x | 3.4 chars/s | 轻声/耳语/呢喃 |
+| 正常 | 1.00x | 4.0 chars/s | 对白/旁白叙述 |
+| 急促 | 1.15x | 4.6 chars/s | 紧张/慌张/匆忙 |
+| 激昂 | 1.25x | 5.0 chars/s | 高声/洪亮/坚定 |
+| 爆发 | 1.30x | 5.2 chars/s | 呐喊/咆哮/怒吼 |
 
-- keep polishing scenes that sit on a broken structure
+**计算公式**：
 
-## Step 8: Single-Scene Shot-Language Refinement
+- 总需时 = 朗读时间 + 标点停顿 + 情绪停顿
+- 朗读时间 = 中文字数 ÷ 情绪语速
+- 标点停顿：逗号 0.3s / 句号·感叹号·问号 0.5s / 省略号 0.8s / 破折号 0.5s
+- 情绪停顿：悲恸每分句 +0.5s / 犹豫 +0.4s / 沉重 +0.3s / 低语 +0.2s / 爆发 +0.1s
 
-Goal:
+**校验原则**：台词需时 ≤ 面板 hold（严格容纳，无溢出容忍）。跨面板连续台词（如蒙太奇上的旁白）按总需时 ≤ 面板总 hold 校验。不要因为"感觉对"跳过此步——语音时钟与画面时钟是两回事；未解决的溢出面板不得留给 Phase B。
 
-- lock the lens grammar of each scene
+**超时修复优先级**：1. 压缩台词（删修饰与重复，多数问题在此解决）→ 2. 调整情绪（检查标注是否过重）→ 3. 延长 hold（不破坏本场节奏前提下）→ 4. 拆分面板（最后手段）。
 
-Output:
+> 计算结果直接写入面板的 `台词时长` 字段；校验汇总表嵌入分镜稿末尾，模板见 `templates.md` **T4（台词时长校验汇总）**。
 
-- how the scene opens
-- when it goes close
-- where it holds
-- where it cuts hard
-- what motivates transitions
+## Phase A 产出
 
-Do not:
+将 A2~A6 的产出整合写入 `{剧集号}/分镜/分镜稿_临时.md`（过程产物，不供下游消费）：
 
-- rely on explanatory prose instead of shot logic
+1. 时空故事节点表 + 物理场归并表（T5）
+2. 场次戏剧地图（T1）
+3. 逐场戏核 + shot flow（T2）
+4. 粗略缩略图任务表（T3，含逐面板台词时长）
+5. 台词时长校验汇总（T4）
 
-## Step 9: Rough-Thumbnails Pass 2
+## 断点与压缩规则
 
-Goal:
+- **断点恢复**：若分镜稿_临时.md 已存在，识别最高稳定完成步骤，保留仍有效内容，从下一个缺失/破损步骤继续
+- **压缩执行**：用户只要求小切片时，不强制展开全部五步产出；早期步骤在内部想清楚即可，只暴露必要交付物
 
-- rerun the boards after the language fix
+## 模板使用原则
 
-Output:
-
-- revised panel list with clearer focal points, hold notes, and cut motivations
-
-Do not:
-
-- assume the first rough pass already solved progression
-
-## Step 10: Key Panels
-
-Goal:
-
-- lock the few images that carry the real dramatic weight
-
-Output:
-
-- key-panel sheet for the most valuable beats
-
-Do not:
-
-- spread equal detail everywhere
-
-## Step 11: Coarse Animatic Plan
-
-Goal:
-
-- test where the sequence must breathe and where it must cut fast
-
-Output:
-
-- hold list
-- fast-cut list
-- sound-first list
-- danger list for false busyness
-
-Do not:
-
-- treat timing as an afterthought
-
-## Step 12: Shot-By-Shot Boards For Key Scenes
-
-Goal:
-
-- get the most important scenes to an executable board state
-
-Output:
-
-- numbered shots with image, action, sound, and cut duty
-
-Do not:
-
-- turn them into essays
-
-## Step 13: Full Rough Board Package
-
-Goal:
-
-- assemble a full-project board skeleton
-
-Output:
-
-- shot count
-- board order
-- phase rhythm
-- review criteria
-
-Do not:
-
-- call it done if the story still reads weakly
-
-## Step 14: Clean-Pass Rules
-
-Goal:
-
-- protect the solved storytelling from being ruined during polish
-
-Output:
-
-- what clean is allowed to improve
-- what clean must not change
-- priority shots
-- final checklist
-
-Do not:
-
-- use clean pass to redesign the sequence
-
-## Step 15: Final Delivery
-
-Goal:
-
-- collapse the validated workflow into one primary deliverable
-
-Output:
-
-- clean-integrated final storyboard master document
-- short delivery note explaining what is final and what remains reference-only
-
-Do not:
-
-- leave the user with only process files and no single source of truth
-- treat rough-board summaries as the final outward-facing deliverable
-- ship a final master that is still missing per-shot production fields
-
-## Resume Rule
-
-If the user already has materials from a later stage:
-
-1. identify the highest stable completed step
-2. preserve it if it still works
-3. resume from the next broken or missing step
-
-## Compression Rule
-
-If the user only asks for a smaller slice:
-
-- do not force all 15 steps into the response
-- still think through the earlier steps internally
-- expose only the necessary deliverables
+模板用于让工作可执行，不是死板的官僚流程。某小节无助于分镜产出时，收紧或删除它。

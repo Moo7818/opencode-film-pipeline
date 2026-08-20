@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """分镜脚本校验器 — JSON 提取、修复、校验一体化
 
-支持 场(Scene)→组(Group)→镜(Shot) 三级结构校验。
+支持 场(Scene)→组(Group)→镜(Shot) 三级结构校验（旧版扁平组→镜结构已废弃）。
 
 CLI 模式:
-  # 从 LLM 响应中提取 JSON 并修复（取代 fix_json.py）
-  python validators.py --repair response.json --output clean.json
+  # 校验分镜 JSON
+  python validators.py --check 分镜脚本.json
 
-  # 校验清洗后的分镜 JSON（取代 validate_storyboard.py）
-  python validators.py --check storyboard_clean.json
-
-  # 两步合一：提取 + 校验（取代多个脚本顺序调用）
+  # 从 LLM 响应文本中提取 JSON 并修复后校验
   python validators.py --repair response.json --check
 
 导入模式:
@@ -44,9 +41,8 @@ REQUIRED_GROUP_FIELDS = ["组号", "组时长", "组叙事概述", "组转场", 
 
 # 组级禁止字段
 # 注：通用设定 不在禁止列表——expand_scenes_to_groups.py 会将场级通用设定注入到
-# 扁平组级文件（分组/组N.json），供 video-director 读取 通用设定.场景名称 做场景过滤、
-# 供 generate_task_table.py 读取通用设定构建分镜图 prompt。场级结构（分镜脚本.json）
-# 中通用设定应场级统一定义（由 SKILL.md 硬约束 11 约束），此处不再重复禁止。
+# 组级文件（分组/组N.json），供下游 video-director 读取 通用设定.场景名称 做场景过滤。
+# 场级结构（分镜脚本.json）中通用设定应场级统一定义，此处不再重复禁止。
 FORBIDDEN_GROUP_FIELDS = ["images"]
 
 # 镜头必需字段
@@ -101,7 +97,7 @@ def safe_parse(text: str):
 # ─── 校验层 ──────────────────────────────────────────────────
 
 def validate_storyboard(data, verbose=True):
-    """校验分镜 JSON 数据（支持场→组→镜三级或旧扁平组→镜两级），返回错误列表"""
+    """校验分镜 JSON 数据（场→组→镜三级结构），返回错误列表"""
     errors = []
 
     if not isinstance(data, list):
@@ -109,15 +105,14 @@ def validate_storyboard(data, verbose=True):
     if len(data) == 0:
         return ["空数组"]
 
-    # 检测结构类型：第一个元素有 "组列表" 则是场级结构
+    # 检测结构类型：第一个元素有 "组列表" 才是合法的场级结构
     first = data[0]
     is_scene_structure = isinstance(first, dict) and "组列表" in first
 
-    if is_scene_structure:
-        errors.extend(_validate_scene_structure(data))
-    else:
-        errors.extend(_validate_flat_groups(data))
+    if not is_scene_structure:
+        return ["旧版扁平组→镜结构已废弃：顶层必须为场→组→镜三级结构（场对象含 组列表 字段）"]
 
+    errors.extend(_validate_scene_structure(data))
     return _dedupe(errors)
 
 
@@ -197,49 +192,6 @@ def _validate_scene_structure(scenes):
                 first_start = shots[0].get("开始/结束时间", "")
                 if not first_start.startswith("0"):
                     errors.append(f"场{scene_no}·组{grp_no}: 首镜开始时间不是 0s [{first_start}]")
-
-    return errors
-
-
-def _validate_flat_groups(groups):
-    """校验旧版扁平组→镜结构（向后兼容）"""
-    errors = []
-
-    for i, group in enumerate(groups):
-        grp_no = group.get("组号", i + 1)
-
-        for field in REQUIRED_GROUP_FIELDS:
-            if field not in group:
-                errors.append(f"组{grp_no}: 缺少必需字段 [{field}]")
-
-        shots = group.get("镜头列表", [])
-
-        if len(shots) > MAX_SHOTS_PER_GROUP:
-            errors.append(f"组{grp_no}: 镜头数 {len(shots)} > {MAX_SHOTS_PER_GROUP}")
-
-        dur_raw = group.get("组时长", "0")
-        try:
-            dur_val = float(dur_raw)
-            if dur_val > MAX_GROUP_DURATION:
-                errors.append(f"组{grp_no}: 时长 {dur_val}s > {MAX_GROUP_DURATION}s")
-        except (ValueError, TypeError):
-            errors.append(f"组{grp_no}: 组时长格式异常 [{dur_raw}]")
-
-        for j, shot in enumerate(shots):
-            shot_no = shot.get("镜号", j + 1)
-            for field in REQUIRED_SHOT_FIELDS:
-                if field not in shot:
-                    errors.append(f"组{grp_no}·镜{shot_no}: 缺少字段 [{field}]")
-
-            for field, min_len in MIN_WORD_COUNT_FIELDS.items():
-                val = shot.get(field, "")
-                if len(val) < min_len:
-                    errors.append(f"组{grp_no}·镜{shot_no}: {field} 字数 {len(val)} < {min_len}")
-
-        if shots:
-            first_start = shots[0].get("开始/结束时间", "")
-            if not first_start.startswith("0"):
-                errors.append(f"组{grp_no}: 首镜开始时间不是 0s [{first_start}]")
 
     return errors
 

@@ -35,8 +35,10 @@
 30. （告警，不阻塞）元约束残留检测：prompt 不得含「提示词净化规范」11 类必删元约束（段落放置/编排指令、Decision rule、括号标签机制解释、编写者脑补禁令、编译器/流水线说明、中文事实保留指令、占位符机制解释、锚点职责定位从句与职责块、Mapping 内机制解释、道具配对说明括号）
 
 CLI:
-  python validate_task_table.py --check "project/{项目名}/{剧集号}/分镜/分镜图_任务表.json"
-  python validate_task_table.py --check "分镜图_任务表.json" --verbose
+  python validate_task_table.py --check 视觉锚点_任务表.json --mode anchor
+  python validate_task_table.py --check 分镜图_任务表.json --mode storyboard
+  python validate_task_table.py --check 分镜图_任务表.json --verbose
+  # --mode auto（默认）按任务特征自动识别：含 shot_range/scene_name → anchor
 """
 
 import json
@@ -245,6 +247,19 @@ def check_meta_residuals(data: dict) -> list[str]:
 
 
 # ─── 校验逻辑 ─────────────────────────────────────────────
+
+def detect_table_type(data: dict) -> str:
+    """按任务特征识别任务表类型：视觉锚点（任务含 shot_range/scene_name）或分镜图"""
+    if not isinstance(data, dict):
+        return "unknown"
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        return "unknown"
+    for t in tasks:
+        if isinstance(t, dict) and ("shot_range" in t or "scene_name" in t):
+            return "anchor"
+    return "storyboard"
+
 
 def _classify_ref(path: str) -> str:
     """根据路径判断参考图类型"""
@@ -651,8 +666,13 @@ def _validate_cast(task: dict, images: list, prompt: str, label: str, filename: 
     return errors
 
 
-def validate_task_table(data: dict, verbose=True) -> list[str]:
-    """校验分镜图任务表，返回错误列表"""
+def validate_task_table(data: dict, verbose=True, table_type: str = "auto") -> list[str]:
+    """校验分镜图任务表，返回错误列表。
+
+    table_type: anchor（视觉锚点_任务表）/ storyboard（分镜图_任务表）/ auto（自动识别）。
+    显式指定类型与实际不符时报错；anchor 表内所有任务按视觉锚点规则校验，
+    storyboard 表内任务禁止携带 shot_range/scene_name 字段。
+    """
     errors = []
 
     if not isinstance(data, dict):
@@ -661,6 +681,18 @@ def validate_task_table(data: dict, verbose=True) -> list[str]:
     tasks = data.get("tasks")
     if not isinstance(tasks, list) or len(tasks) == 0:
         return ["缺少 tasks 数组或为空"]
+
+    # 解析任务表类型（显式指定优先；不符即为错误，避免两套模式的规则互相产生噪音）
+    detected = detect_table_type(data)
+    if table_type == "auto":
+        table_type = detected
+    elif table_type != detected:
+        errors.append(
+            f"--mode {table_type} 与任务表实际类型不符（检测为 {detected}）。"
+            "anchor=视觉锚点_任务表（任务含 shot_range/scene_name），"
+            "storyboard=分镜图_任务表"
+        )
+    is_anchor_table = table_type == "anchor"
 
     mode = data.get("mode", "")
     if mode not in {"sequential", "batch"}:
@@ -694,8 +726,21 @@ def validate_task_table(data: dict, verbose=True) -> list[str]:
         group = task.get("group", "")
         scene = task.get("scene", "")
 
-        # visual_anchor 任务特征：含 shot_range / scene_name 字段（分镜图任务无）
-        is_visual_anchor = "shot_range" in task or "scene_name" in task
+        # visual_anchor 任务特征：含 shot_range / scene_name 字段（分镜图任务无）。
+        # anchor 表：缺这些字段的任务报错，且整表按视觉锚点规则校验；
+        # storyboard 表：携带这些字段即报错（两套 schema 不得混用）。
+        has_anchor_fields = "shot_range" in task or "scene_name" in task
+        is_visual_anchor = is_anchor_table or has_anchor_fields
+        if is_anchor_table and not has_anchor_fields:
+            errors.append(
+                f"{label} ({filename}): anchor 表中该任务缺少 shot_range/scene_name 字段"
+                "（视觉锚点任务必填）"
+            )
+        if not is_anchor_table and has_anchor_fields:
+            errors.append(
+                f"{label} ({filename}): 分镜图任务表不得含 shot_range/scene_name 字段"
+                "（这些属于视觉锚点_任务表）"
+            )
 
         # 1. 模型校验
         effective_model = model or data.get("model", "")
@@ -1045,6 +1090,9 @@ def main():
     parser = argparse.ArgumentParser(description="分镜图任务表校验器")
     parser.add_argument("--check", metavar="task_table.json", required=True,
                         help="校验分镜图任务表 JSON")
+    parser.add_argument("--mode", choices=["anchor", "storyboard", "auto"], default="auto",
+                        help="任务表类型：anchor=视觉锚点_任务表，storyboard=分镜图_任务表，"
+                             "auto=按任务特征自动识别（默认）。显式指定可防止两套模式规则互窜")
     parser.add_argument("--verbose", "-v", action="store_true", help="详细输出")
     args = parser.parse_args()
 
@@ -1056,8 +1104,11 @@ def main():
     with open(check_path, "r", encoding="utf-8-sig") as f:
         data = json.load(f)
 
-    errors = validate_task_table(data, verbose=args.verbose)
+    errors = validate_task_table(data, verbose=args.verbose, table_type=args.mode)
     warnings = check_meta_residuals(data)
+
+    # 解析最终类型（供摘要展示；类型不符时以检测值为准）
+    resolved_type = detect_table_type(data)
 
     if args.verbose:
         tasks = data.get("tasks", [])
@@ -1104,6 +1155,18 @@ def main():
         print(f"\n[WARN] 元约束残留告警 {len(warnings)} 条（提示词净化规范，不阻塞通过）：")
         for w in warnings:
             print(f"  - {w}")
+
+    # 一行式摘要：会话无需回读全量报告即可获知结果
+    tasks_list = data.get("tasks", []) if isinstance(data, dict) else []
+    scene_count = len({
+        str(t.get("scene")) for t in tasks_list
+        if isinstance(t, dict) and t.get("scene")
+    })
+    print(
+        f"[SUMMARY] type={resolved_type} | tasks={len(tasks_list)} | "
+        f"scenes={scene_count} | errors={len(errors)} | warnings={len(warnings)} | "
+        f"result={'PASS' if not errors else 'FAIL'}"
+    )
     if errors:
         sys.exit(1)
 

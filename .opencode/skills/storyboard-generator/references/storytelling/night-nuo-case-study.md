@@ -1,291 +1,81 @@
-# Night Nuo Case Study
+# Night Nuo 案例研究（自包含精华版）
 
-Use this case study when you need a full worked example of the pipeline on a short trailer-like script.
+一个短预告片式剧本跑通 storytelling 管线的完整实战教训。用于校准新项目时参考——**复用工作流与判断，不复用表面影像**。
 
-Bundled case-pack entry:
+> 完整的逐步产出档案（17 个过程文件 + 原剧本）已移出技能目录，存于 `doc/storytelling-night-nuo-case/`（含 index.md 索引）。按需查阅，不随技能加载。
 
-- [night-nuo-case/index.md](./night-nuo-case/index.md#L1)
+## 为什么这个案例重要
 
-Bundled script used:
+它集中了击溃弱分镜系统的全部典型问题：
 
-- [yenuo_script_utf8.txt](./night-nuo-case/yenuo_script_utf8.txt#L1)
+- 强氛围开场
+- 中段动作升级极易形成假高潮
+- 物件驱动的赌注线
+- 后段私人化诱惑转折
+- 以静默完成的终局升格
+- 一句必须压过花哨插件的判词
 
-## Why This Case Matters
+## 核心结构判断
 
-This project is useful because it contains exactly the problems that break weak storyboard systems:
+**真正的高潮不是中段打斗**，而是这条链：
 
-- a strong atmospheric opening
-- a mid-piece action escalation that can easily become a false climax
-- an object-driven stakes line
-- a late private temptation turn
-- a stillness-based final elevation
-- a verdict line that must outrank flashy inserts
+`面具匣失落 -> 禁面落地 -> 女主挡击 -> 男主戴上面具 -> 全世界意识到落下来的不是神`
 
-## The Key Structural Judgment
+因此整个中段必须服务后段。
 
-The real climax is not the middle fight.
+## 阶段门（Stage Gates）
 
-The real climax chain is:
+### Gate A：结构未定时不得往下走
 
-`mask case lost -> forbidden mask lands -> heroine takes the hit -> hero puts on the mask -> the whole world realizes the thing that came down is not a god`
+- 规则先于怪物落地
+- 中段打斗明确不是真正高潮
+- 禁面线作为后半引擎清晰可见
 
-That means the whole middle must serve the back half.
+### Gate B：镜头语言精修未定时不得往下走
 
-## Full Case Index
+- 纸脸一场的峰值在外力介入，不在揭脸
+- 中段打斗持续回到撤退与物件赌注
+- 私语段落像一道门，不只是又一个节拍
 
-This project now includes a step-by-step production trail inside the workspace.
+### Gate C：key panel / animatic 未定时不得往下走
 
-Use these files as the concrete example of what each stage should look like:
+- 禁面在男主脚边翻面的一帧被 hold 住
+- 女主/男主/面具的选择三角可读
+- 戴面后的世界静止一拍，排序高于此前所有请神节拍
+- 长老判词压过花哨插剪
 
-1. Step 1 `full script read`
-   - Base script: [yenuo_script_utf8.txt](./night-nuo-case/yenuo_script_utf8.txt#L1)
-   - Key judgment:
-     - the opening hook is a rule, not a monster
-     - the middle fight is not the real climax
-     - the forbidden mask line is the true back-half engine
+### Gate D：rough board 未完成不得交付
 
-2. Step 2 `sequence drama map`
-   - Output: [夜傩_sequence戏剧地图_镜头总策略_v1.md](./night-nuo-case/夜傩_sequence戏剧地图_镜头总策略_v1.md#L1)
-   - Key judgment:
-     - split the trailer into dramatic sections before thinking in shots
-     - protect the late climax chain
+- 观众能解释男主为什么戴面具
+- 观众记得落下来的不是神
+- 结尾判词是预告片留下的最后印象
 
-3. Step 3 `per-sequence camera strategy`
-   - Output: [夜傩_sequence戏剧地图_镜头总策略_v1.md](./night-nuo-case/夜傩_sequence戏剧地图_镜头总策略_v1.md#L1)
-   - Key judgment:
-     - opening sequences stay wider and rule-driven
-     - middle sequences sell scale but must not peak
-     - back-half sequences compress into private temptation and then open into stillness
+## 七个关键场面处理
 
-4. Step 4 `scene dramatic core + shot flow`
-   - Output: [夜傩_scene戏核与shot_flow_v1.md](./night-nuo-case/夜傩_scene戏核与shot_flow_v1.md#L1)
-   - Key judgment:
-     - every scene gets a reaction owner, climax duty, and continuity anchor before exact shots
+1. **开场规则先于怪物**：先日常城市生活 → 鼓声污染世界 → 落地规则"闻鼓勿回头" → 才走向超自然事件。第一钩子是规则不是怪物，世界才显得被诅咒而非随机。
+2. **纸脸女场面**：正确节拍链 `男主以为在救人 -> 揭脸 -> 她看向他身后 -> 外力介入`。以人的逻辑开场，特写留给揭脸，真正的升级拍是外力夺控。若变成"恐怖脸蒙太奇"即失败。
+3. **中段打斗**：展示戏班很强的同时持续展示他们仍在撤退护匣。只有强没有撤退 = 假高潮；撤退让物件赌注保持可视存活。
+4. **禁面揭示**：先讲清动作链 → 匣落 → 面具在男主脚边翻面 → hold 住那帧 → 才落禁语。面具必须像角色登场，不像掉落道具的补充镜头。
+5. **诱惑与抉择**：女主替男主挡击 → 三人（女主/男主/面具）同框 → 风声与环境音抽空 → 私语把公共危机转为私人诱惑 → 男主以短促、不容后悔的动作戴上面具。这场必须绝望而非胜利。
+6. **戴面后的静默**：世界先停 → 镜头推向男主 → 眼睛发光 → 怪物退散。直接切特写会失去位格与降格感。
+7. **判词压过蒙太奇**：人间一方后退 → 长老露出惧色 → 长老说出"那不是神" → 才用快切插件盖章。台词是判决，蒙太奇只是证据。
 
-5. Step 5 `rough thumbnails pass 1`
-   - Output: [夜傩_rough_thumbnails任务表_v1.md](./night-nuo-case/夜傩_rough_thumbnails任务表_v1.md#L1)
-   - Key judgment:
-     - run the whole trailer rough first
-     - solve clarity and progression before polish
+## 迁移到新项目
 
-6. Step 6 `animatic-thinking review`
-   - Output: [夜傩_animatic回看与结构修正_v1.md](./night-nuo-case/夜傩_animatic回看与结构修正_v1.md#L1)
-   - Key judgment:
-     - the back-half triple hit must be protected:
-       `forbidden mask lands -> heroine takes the hit -> world stops after the mask`
+为新项目校准时，找这五个等价物：
 
-7. Step 7 `big structure revision`
-   - Output: [夜傩_大结构修正建议_v1.md](./night-nuo-case/夜傩_大结构修正建议_v1.md#L1)
-   - Key judgment:
-     - if anything must be compressed, compress the middle action before touching the late turn
+1. 「规则先于怪物」的等价节拍
+2. 物件赌注线的等价物
+3. 「公共危险 → 私人诱惑」的门的等价物
+4. 「世界静止」升格拍的等价物
+5. 必须压过花哨影像的终局判词
 
-8. Step 8 `single-scene shot-language refinement`
-   - Output: [夜傩_单场镜头语言精修_v1.md](./night-nuo-case/夜傩_单场镜头语言精修_v1.md#L1)
-   - Key judgment:
-     - define how each scene opens, when it earns a close-up, where it holds, and why it cuts
+新项目没有全部五样时，不要强行套用相同节奏。
 
-9. Step 9 `rough thumbnails pass 2`
-   - Output: [夜傩_rough_thumbnails_pass2_执行稿.md](./night-nuo-case/夜傩_rough_thumbnails_pass2_执行稿.md#L1)
-   - Key judgment:
-     - rerun the whole board after fixing the language, not before
+## 可迁移教训
 
-10. Step 10 `key panels`
-    - Output: [夜傩_关键场次key_panel设计_v1.md](./night-nuo-case/夜傩_关键场次key_panel设计_v1.md#L1)
-    - Key judgment:
-      - lock the few images that actually carry the story:
-        forbidden mask reveal, choice triangle, frozen world, final verdict
-
-11. Step 11 `coarse animatic plan`
-    - Output: [夜傩_粗animatic串联提纲_v1.md](./night-nuo-case/夜傩_粗animatic串联提纲_v1.md#L1)
-    - Key judgment:
-      - identify what must hold, what must cut fast, and what must be sound-led
-
-12. Step 12 `shot-by-shot scene boards`
-    - Front half: [夜傩_前段场次逐镜分镜稿_v1.md](./night-nuo-case/夜傩_前段场次逐镜分镜稿_v1.md#L1)
-    - Back half: [夜傩_后段关键场次逐镜分镜稿_v1.md](./night-nuo-case/夜傩_后段关键场次逐镜分镜稿_v1.md#L1)
-    - Key judgment:
-      - scene boards must stop being essays and become drawable boards
-
-13. Step 13 `full rough-board package`
-    - Output: [夜傩_全片rough_board总稿_v1.md](./night-nuo-case/夜傩_全片rough_board总稿_v1.md#L1)
-    - Key judgment:
-      - the whole piece is now reviewable as one board system
-
-14. Step 14 `clean-pass rules`
-    - Output: [夜傩_clean_pass执行规范_v1.md](./night-nuo-case/夜傩_clean_pass执行规范_v1.md#L1)
-    - Key judgment:
-      - clean pass protects solved storytelling; it must not redesign the sequence
-
-15. Step 15 `final delivery`
-    - Master file: [夜傩_最终分镜总稿_v1.md](./night-nuo-case/夜傩_最终分镜总稿_v1.md#L1)
-    - Handoff note: [夜傩_最终交付说明_v1.md](./night-nuo-case/夜傩_最终交付说明_v1.md#L1)
-    - Key judgment:
-      - the workflow must end in a single source of truth, not only a stack of process files
-      - the final master must already absorb clean-pass constraints instead of collapsing back into a rough summary
-
-## Stage Gates In This Case
-
-These are the concrete gates that allowed the project to move from one stage to the next.
-
-### Gate A: Do not leave structure until these are true
-
-- the rule lands before the monster
-- the middle fight is clearly not the true climax
-- the mask line is visible as the real dramatic engine
-
-### Gate B: Do not leave shot-language refinement until these are true
-
-- the paper-face scene peaks on outside intervention, not face reveal
-- the mid-fight keeps returning to retreat and object stakes
-- the private whisper section feels like a gate, not just another beat
-
-### Gate C: Do not leave key panels / animatic until these are true
-
-- the forbidden mask turning over at the hero's feet is held
-- the choice triangle of heroine / hero / mask is readable
-- the frozen-world beat after the mask is still and ranked above prior god-summoning beats
-- the elder's verdict outranks the flashy insert montage
-
-### Gate D: Do not leave rough board until these are true
-
-- a viewer can explain why the hero wears the mask
-- a viewer remembers that the thing that came down is not a god
-- the ending verdict is what the trailer leaves behind
-
-## Example 1: Opening Rule Before Monster
-
-Correct approach:
-
-- start on normal city life
-- let drum sound contaminate the world
-- land the rule "hear the drum, do not look back"
-- only then move toward the supernatural event
-
-Why:
-
-- the first hook is the rule, not the creature
-- this makes the world feel cursed, not random
-
-## Example 2: Paper-Face Girl Scene
-
-Correct beat chain:
-
-`hero thinks he is saving a girl -> face reveal -> she is looking past him -> outside force intervenes`
-
-Why it works:
-
-- the scene begins in human logic
-- the close-up is saved for the reveal
-- the real upgrade beat is the outside force taking control
-
-If this scene becomes only "scary face montage," it fails.
-
-## Example 3: Mid-Fight Sequence
-
-Correct strategy:
-
-- show that the troupe is strong
-- keep showing that they are still retreating to protect the case
-
-Why:
-
-- strength without retreat becomes a false climax
-- retreat keeps the object stakes alive
-
-## Example 4: Forbidden Mask Reveal
-
-Correct strategy:
-
-- explain the action chain clearly first
-- let the case fall
-- let the mask turn over at the hero's feet
-- hold that image
-- only then drop the forbidden line
-
-Why:
-
-- the mask must enter like a character, not like dropped prop coverage
-
-## Example 5: Temptation And Decision
-
-Correct strategy:
-
-- heroine takes the hit for the hero
-- hero, heroine, and mask share the frame
-- wind and ambient noise drop out
-- whisper turns public crisis into private temptation
-- hero grabs and wears the mask in a short, regret-proof motion
-
-Why:
-
-- this scene must feel desperate, not triumphant
-
-## Example 6: The Stillness After The Mask
-
-Correct strategy:
-
-- world stops first
-- then the camera moves toward the hero
-- then the eyes glow
-- then the monsters retreat
-
-Why:
-
-- if you rush straight into a close-up, you lose the sense of rank and descent
-
-## Example 7: The Verdict Must Beat The Montage
-
-Correct strategy:
-
-- show the human side stepping back
-- show fear in the elder
-- let the elder say "that is not a god"
-- only then use the fast inserts as a stamp
-
-Why:
-
-- the line is the judgment
-- the montage is only proof
-
-## Deliverables Produced In This Case
-
-The full pipeline created:
-
-1. `sequence` drama map
-2. scene dramatic core + shot flow
-3. rough-thumbnail pass 1
-4. animatic review memo
-5. structure-revision memo
-6. shot-language refinement memo
-7. rough-thumbnail pass 2
-8. key-panel sheet
-9. coarse animatic checklist
-10. front-half shot-by-shot boards
-11. back-half shot-by-shot boards
-12. full rough-board package
-13. clean-pass rules
-14. final storyboard master
-15. final delivery note
-
-## How To Reuse This Case
-
-When using this case to calibrate a new project:
-
-1. Find the equivalent of the `rule before monster` beat.
-2. Find the equivalent of the `object stakes` line.
-3. Find the equivalent of the `public danger -> private temptation` gate.
-4. Find the equivalent of the `world stops` escalation beat.
-5. Find the equivalent of the final verdict line that must outrank flashy inserts.
-
-If a new project does not have all five, do not force the exact same pacing.
-Reuse the workflow, not the surface imagery.
-
-## Portable Lessons
-
-Take these lessons to other projects:
-
-1. protect the real climax from the middle
-2. let the object stakes stay visually alive
-3. convert public danger into private choice with a clear visual gate
-4. save stillness for when the rank changes
-5. make the final verdict line outrank the flashy imagery
+1. 保护真正的高潮不被中段侵占
+2. 让物件赌注保持视觉存活
+3. 用清晰的视觉门把公共危险转化为私人选择
+4. 静默留给位格改变的时刻
+5. 终局判词必须压过花哨影像
