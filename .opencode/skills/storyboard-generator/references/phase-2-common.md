@@ -314,7 +314,7 @@ Leave all editorial text for post-production.
 **类型 A — 必须准确出现的文字**（默认策略后追加）：
 
 ```
-Required readable text: "{Chinese text content}"
+Required readable text: 「{Chinese text content}」
 Prioritize accurate Chinese typography.
 ```
 
@@ -329,7 +329,7 @@ Do not specify exact text content.
 
 ```
 Prop text — {prop_name}:
-Exact text: "{Chinese text content}"
+Exact text: 「{Chinese text content}」
 Do not replace Chinese characters with English letters or pinyin.
 ```
 
@@ -339,6 +339,8 @@ Generate material texture only. Do not render readable characters.
 ```
 
 > 多种类型同时存在时，在同一个 TEXT POLICY 段内分列，共享默认策略头部。`{prop_name}` 在锚点模式用中文名、分镜图模式用英文名。
+>
+> **引号铁律（JSON 转义陷阱）**：prompt 内包裹精确文字一律使用全角引号 `「」`，**禁止 ASCII 双引号**——任务表是 JSON 文件，prompt 字符串内的 ASCII `"` 必须写成 `\"`，漏转义一处即损坏整个任务表（EP14 实测事故）。`「」` 无需转义，从源头消灭该风险。
 
 ### CINEMATIC QUALITY 骨架（两模式共用）
 
@@ -409,6 +411,12 @@ Camera principles:
 4. **下载**：每帧下载到 `output_path`，文件名与 `filename` 一致，供人工验收链连续性
 
 > 详细策略见 art-director「执行模式 > 模式二：sequential」；模式专属执行要点与校验项清单见各自文档末尾。
+
+**脚本执行守则（本阶段 session 必读）**
+
+- **解释器调用（每会话首次运行前确认一次）**：优先项目 venv 完整路径——Windows `.venv/Scripts/python.exe`（bash/PowerShell 均可直接带路径调用），或 `uv run --directory {项目根} python`；Unix 用 `.venv/bin/python`。**禁止**依赖 PATH 的裸 `python` / `python3`（Windows 上被商店别名劫持，bash 里常不存在）与 `py`
+- **禁止内联 `-c` 传中文**：需要脚本校验/处理含中文的文件时，先 Write 临时 `.py`（UTF-8）再执行——控制台 GBK 编码会把 `-c` 字符串里的中文路径与内容打烂
+- 本技能脚本已内置 UTF-8 stdout 重配置，可直接在 GBK 控制台运行；校验器对损坏 JSON 会输出单行友好报错（位置+上下文），不会倾倒 Traceback
 
 ### 质量四条铁律（两模式通用，提交前自检）
 

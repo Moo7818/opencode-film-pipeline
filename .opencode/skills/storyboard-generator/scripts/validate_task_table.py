@@ -1102,7 +1102,30 @@ def main():
         sys.exit(1)
 
     with open(check_path, "r", encoding="utf-8-sig") as f:
-        data = json.load(f)
+        raw = f.read()
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        # 友好报错：指名位置 + 上下文片段，不再倾倒 Traceback
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+        print(f"[ERROR] 任务表 JSON 损坏: {check_path} — 第 {e.lineno} 行第 {e.colno} 列: {e.msg}")
+        lines = raw.splitlines()
+        if 0 < e.lineno <= len(lines):
+            line = lines[e.lineno - 1]
+            c = max(0, e.colno - 1)
+            print(f"  上下文: ...{line[max(0, c - 100):c + 100]}...")
+        # 常见事故：TEXT POLICY 精确文字用 ASCII 双引号包裹（未转义 \"）
+        if re.search(r'(?:Exact|readable) text:\s*"(?![^"]*\\)', raw):
+            print(
+                "  [HINT] 检测到 Exact text / readable text 后的裸 ASCII 双引号："
+                "prompt 内包裹精确文字请改用全角引号「」（无需 JSON 转义），"
+                "或将其转义为 \\\"（见 phase-2-common.md「引号铁律」）"
+            )
+        sys.exit(1)
 
     errors = validate_task_table(data, verbose=args.verbose, table_type=args.mode)
     warnings = check_meta_residuals(data)
