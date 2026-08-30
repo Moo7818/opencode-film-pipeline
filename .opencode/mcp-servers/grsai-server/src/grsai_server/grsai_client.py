@@ -209,7 +209,8 @@ async def submit_image(prompt, model, aspect_ratio=None, image_size=None,
     if oss_id:
         headers["oss-id"] = oss_id
     if oss_path:
-        headers["oss-path"] = oss_path
+        # header 仅允许 ASCII；中文等非 ASCII 需 percent-encode（保留 / 分隔符）
+        headers["oss-path"] = urllib.parse.quote(oss_path, safe="/")
 
     data = {"model": model, "prompt": prompt, "replyType": "async"}
 

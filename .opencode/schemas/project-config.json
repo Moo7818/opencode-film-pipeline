@@ -83,6 +83,12 @@
       "type": "boolean",
       "description": "是否永久禁止 video-director 执行视频生成（group --run）。为 true 时 video-director 只做节点创建和建组，永不执行 --run，即使用户要求运行也拒绝",
       "default": false
+    },
+    "video_prompt_mode": {
+      "type": "string",
+      "enum": ["optimized", "raw"],
+      "description": "视频提示词模式。optimized（默认）：video-director 加载 seedance-prompt-optimizer 技能，将分镜组文件适配为 Seedance 工程型指令提示词后再拼装投递；raw：原样拷贝组文件内容作为提示词（旧行为，不经过优化适配）",
+      "default": "optimized"
     }
   },
   "additionalProperties": true

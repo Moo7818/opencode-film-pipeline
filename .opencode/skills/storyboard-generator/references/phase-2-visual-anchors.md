@@ -1,22 +1,22 @@
 # 阶段二：episode_storyboard_images — 视觉锚点图绘制（visual_anchor 模式）
 
-**默认阶段（当 `project_config.json` 中 `reference_image_mode=visual_anchor` 或未设置时执行）**：此阶段在 `episode_storyboard_script`、`episode_character_ref`、`episode_prop_ref`、`episode_scene_ref` 之后执行，为每场生成一张视觉锚点图。`reference_image_mode=none` 时跳过此阶段，video-director 仅以角色/场景/道具参考图为参考素材。
+**默认阶段（当 `project_config.json` 中 `reference_image_mode=visual_anchor` 或未设置时执行）**：此阶段在 `episode_storyboard_script`、`episode_character_ref`、`episode_prop_ref`、`episode_scene_ref` 之后执行，按角色阶段为每场生成视觉锚点图。`reference_image_mode=none` 时跳过此阶段，video-director 仅以角色/场景/道具参考图为参考素材。
 
 > **独立 Agent session 执行**：本文档的所有工作必须在 fresh context 中完成。不得继承阶段一（分镜脚本创作）的对话上下文——阶段一的多轮创作思考会稀释对 prompt 模板格式的注意力。Agent 仅从磁盘读取：组{N}.json/md、project_config.json、参考图目录。
 >
 > **两种模式均支持视觉锚点绘制**。详细模式从 `组{N}.json` 读取，精简模式从 `组{N}.md` 读取。
 >
-> **生成方式：批量模式（Batch）** — 每场一张锚点图，场间无依赖，可并行生成。
+> **生成方式：sequential 模式** — 场内阶段串行（同场角色阶段按 `depends_on` 链串行，前阶段输出作为后阶段空间参考），场间并行。当一场中无具名角色入场/离场时，该场仅一张锚点图（等价于无阶段拆分）。
 >
-> 目标是为每场锁定**场景空间、氛围基调、人物站位与关键动作神态**，使同场各组在后续视频生成阶段共享该锚点作为空间与视觉一致性参考。锚点图不是「帧级分镜」，而是「场级视觉定调」——但仍须保持影视级静帧质感，包含完整的角色动作与神态描述。
+> 目标是为每个角色阶段锁定**场景空间、氛围基调、人物站位与关键动作神态**，使该阶段覆盖的镜头在后续视频生成阶段共享该锚点作为空间与视觉一致性参考。锚点图不是「帧级分镜」，而是「阶段级视觉定调」——但仍须保持影视级静帧质感，包含完整的角色动作与神态描述。
 >
 > | 规则 | 说明 |
 > |------|------|
-> | mode | `"batch"`，各锚点图独立生成 |
+> | mode | `"sequential"`，场内阶段串行，场间并行 |
 > | 场 | = 物理空间连续单元（与分镜脚本 `场号` 一致） |
-> | 数量 | 每场一张锚点图（不论该场有多少组/镜） |
-> | 依赖 | 场间无依赖，全部可并行 |
-> | 共享 | 同场各组在视频生成阶段引用同一张锚点图 |
+> | 数量 | 每个角色阶段一张锚点图；无具名角色入场/离场时每场一张 |
+> | 依赖 | 同场阶段间 `depends_on` 串行（前阶段输出→后阶段空间参考）；场间无依赖，可并行 |
+> | 共享 | 同阶段覆盖的镜头在视频生成阶段引用同一张锚点图 |
 >
 > **目标模型**：`nano-banana-2`，2K 分辨率。画面比例固定 `16:9`。Prompt 使用 **English control shell + 中文 content layer**：英文只负责模型控制，中文保留分镜与设定的内容事实。
 
@@ -54,21 +54,23 @@ Prompt 不是“整体英文翻译”，而是用英文结构包裹中文叙事�
 
 ---
 
-## 参考图排序优先级（批量模式）
+## 参考图排序优先级（sequential 模式）
 
 `images` 数组顺序决定模型注意力权重。视觉锚点采用：
 
-1. **Highest priority — Referenced character identity images**：每个有参考图的出场角色一张，按 `cast` 顺序排列
-2. **Second priority — Environment anchor**：本场物理空间的场景参考图，通常一张
-3. **Third priority — Prop detail anchors**：每个重要道具一张
-4. **Fourth priority — Visual style anchor**：一张，始终最后
+1. **Highest priority — Referenced character identity images**：该阶段锚点时刻在场的每个有参考图角色一张，按 `cast` 顺序排列
+2. **Previous Phase Anchor**（仅非首阶段）：`{{PREV_OUTPUT}}` 占位符，排在角色参考之后、场景参考之前。对应同场前一阶段锚点图的输出，作为后阶段的空间连续参考
+3. **Second priority — Environment anchor**：本场物理空间的场景参考图，通常一张
+4. **Third priority — Prop detail anchors**：每个重要道具一张
+5. **Fourth priority — Visual style anchor**：一张，始终最后
 
-> 锚点图无前帧参考（场间无依赖），不需要 `{{PREV_OUTPUT}}`。
+> 首阶段锚点无 `{{PREV_OUTPUT}}`（同场第一个阶段无前序阶段输出）。非首阶段锚点的 `images` 数组中必须包含 `{{PREV_OUTPUT}}`，排在角色参考之后、场景参考之前。
 >
-> **映射契约**：`images[N-1]`、提示词中的 `Reference Image N`、`Image N:` 映射块必须指向同一张图。角色身份锁在提示词最前；场景、道具和风格只能在身份锁之后构建画面。
+> **映射契约**：`images[N-1]`、提示词中的 `Reference Image N`、`Image N:` 映射块必须指向同一张图。角色身份锁在提示词最前；前阶段空间参考、场景、道具和风格只能在身份锁之后构建画面。
 
 **硬约束**：
 - 角色参考必须在风格之前（锁脸优先于锁风格）
+- `{{PREV_OUTPUT}}`（非首阶段）必须在角色参考之后、场景参考之前
 - 禁止省略场景参考图（锚点图的核心职责之一就是锁定场景空间）
 
 ---
@@ -86,11 +88,12 @@ Prompt 不是“整体英文翻译”，而是用英文结构包裹中文叙事�
 ## 出场角色引用铁律
 
 > **根因**：旧规则写「按需引用 / 未登场不引」，Agent 常只给**焦点角色**挂参考图。
-> 视觉锚点图要的是**该场全角色的空间站位定调**，不是「只锁主角」。
+> 视觉锚点图要的是**该阶段锚点时刻在场角色的空间站位定调**，不是「只锁主角」或「全场角色大杂烩」。
+> 角色阶段拆分的核心目的：避免不应出现在某些镜头中的角色被画进锚点图，串场到下游视频生成。
 
-### 何谓「本场出场」（必须挂参考）
+### 何谓「锚点时刻在场」（必须挂参考）
 
-扫描该场全部组的 `场景描述`、`站位/调度`、`表演/微表情`、`台词` 后，下列任一成立即算出场：
+扫描该阶段**锚点镜头**的 `场景描述`、`站位/调度`、`表演/微表情`、`台词` 后，下列任一成立即算该锚点时刻在场：
 
 | 信号 | 示例 | 是否必须 `images` 含其角色参考 |
 |------|------|-------------------------------|
@@ -103,12 +106,13 @@ Prompt 不是“整体英文翻译”，而是用英文结构包裹中文叙事�
 
 **禁止**：只按「焦点角色/说话人」引参考；禁止因「只露手/背影」而省略角色参考。
 
-### 场内在场角色引用
+### 阶段内在场角色引用
 
-1. 编写任务表前，先为**每一场**列出 `场在场表`：本场所有组全部镜头中曾出场的、且目录中有参考图的具名角色。
-2. 对每一场锚点图：取「本场出场集合」= 全组扫描结果。
-3. 本场出场集合中**每一个**有参考图的角色，都必须进入该 task 的 `images`（角色段）+ `cast` 字段 + Character Identity Anchor。
-4. 仅当该角已明确离场（出画且站位不再提及）才可从锚点图去掉其参考。
+1. 编写任务表前，先为**每个角色阶段**确定锚点镜头，再列出该阶段的 `阶段在场表`：锚点镜头中在场的、且目录中有参考图的具名角色。
+2. 对每个阶段锚点图：取「阶段出场集合」= **锚点镜头在场角色**（非全组扫描）。
+3. 阶段出场集合中**每一个**有参考图的角色，都必须进入该 task 的 `images`（角色段）+ `cast` 字段 + Character Identity Anchor。
+4. **cast 严格等于锚点镜头在场角色**：不在该锚点镜头中的角色不进 `cast`，即使该角色在该阶段的其他镜头中出场。
+5. 仅当该角在该锚点镜头中明确在场（含局部/背影/站位点名）才计入 cast。
 
 ### `cast` 字段（任务表必填）
 
@@ -118,7 +122,7 @@ Prompt 不是“整体英文翻译”，而是用英文结构包裹中文叙事�
 "cast": ["掌柜", "小二"]
 ```
 
-- 这里只列**有对应角色参考图的具名角色**；无参考背景人物不列入
+- 这里只列**该阶段锚点镜头在场的、且有对应角色参考图的具名角色**；无参考背景人物不列入
 - 中文名，与角色参考图文件名可匹配（文件名含该名，如 `掌柜_默认妆造.png`）
 - `cast` 顺序 = `images` 中角色参考顺序 = REFERENCE IMAGE MAPPING 中 Character Identity Anchor 顺序
 - 校验器会核对：`cast` 非空（有人在场时）、每个名字能在 `images` 角色路径中找到、Character Anchor 数量 = 角色图数量
@@ -160,13 +164,13 @@ OPENING 只负责单帧画布声明；TEXT POLICY 只负责烧字/字幕策略�
 
 Agent 使用 Write 工具直接编写 `视觉锚点_任务表.json`，保存到 `project/{项目名}/{剧集号}/分镜/视觉锚点_任务表.json`。
 
-### 2.1 读取分镜内容并提取场清单
+### 2.1 读取分镜内容并提取场清单与角色阶段
 
 读取 `{剧集号}/分镜/分组/` 目录下的组文件，提取**场清单**：
 - **详细模式**：`组{N}.json` — 从 `场号`、`场名称` 获取场信息，从 `通用设定`、`镜头列表` 获取该场的角色站位、关键动作、氛围信息
 - **精简模式**：`组{N}.md` — 从正文获取叙事概述和分镜描述
 
-> **场号 = 物理空间标识**：从组文件读取 `场号` → 每个唯一场号生成一张锚点图。同一场号的多个组共享同一张锚点图。
+> **场号 = 物理空间标识**：从组文件读取 `场号` → 每个唯一场号对应一个物理空间。同一场号的多个组属于同一场。
 
 #### 场清单提取规则
 
@@ -178,12 +182,41 @@ Agent 使用 Write 工具直接编写 `视觉锚点_任务表.json`，保存到 
    - **关键动作与神态**：该场中最具代表性的角色动作与表情（选取能体现该场戏核的瞬间）
    - **氛围基调**：光线、色温、情绪氛围
    - **重要道具**：该场中出现的所有重要道具
-3. 每场产出一条锚点图任务
+3. 每场产出一条或多条锚点图任务（取决于角色阶段拆分结果）
 
-> **锚点时刻选择**：锚点图应选取该场中**最能体现戏核、角色站位最清晰**的时刻。通常选取：
-> - 该场第一个全景/建立镜头的时刻（锁定空间全貌）
-> - 或该场角色站位最完整、互动最关键的时刻
-> - 不是该场的第一个镜头，而是该场视觉信息最丰富的瞬间
+#### 角色阶段拆分（关键步骤）
+
+对每场执行角色阶段拆分，确定该场需要几张锚点图：
+
+**扫描范围**：该场全部组全部镜头，按播放顺序逐镜头扫描。
+
+**拆分条件**（满足任一即在角色变化点拆分新阶段）：
+- 有具名角色（有角色参考图的具名角色）从「不在画面」变为「在画面」（角色入场）
+- 有具名角色从「在画面」变为「离开」（角色离场）
+
+**不拆分的情况**：
+- 无名背景人物增减（茶客来去、路人经过）— 不触发新阶段
+- 同一组角色只换站位/动作 — 不触发新阶段
+- 角色短暂出画又入画（如转身取物）— 不触发新阶段
+
+**阶段编号**：同场阶段按播放顺序编号 A、B、C...（如场1拆分为 1A、1B；无拆分时仍为场1，不带字母后缀）。
+
+**每个阶段选定一个锚点镜头**：
+- 锚点镜头 = 该阶段中**戏核最匹配、站位最完整**的单个镜头
+- 优先选取能体现该阶段戏剧核心的瞬间
+- 站位最完整 = 该阶段在场角色在该镜头中位置关系最清晰
+- 不是该阶段的第一个镜头，而是该阶段视觉信息最丰富的瞬间
+
+**阶段间依赖**：
+- 同场阶段按播放顺序串行：阶段 A → 阶段 B → 阶段 C...
+- 非首阶段锚点的 `images` 中增加 `{{PREV_OUTPUT}}`，引用前一阶段锚点图输出作为空间参考
+- 首阶段锚点无 `{{PREV_OUTPUT}}`
+- 不同场的锚点图之间无依赖，可并行
+
+> **锚点时刻选择**：锚点图应选取该阶段中**最能体现戏核、角色站位最清晰**的时刻。通常选取：
+> - 该阶段第一个全景/建立镜头的时刻（锁定空间全貌）
+> - 或该阶段角色站位最完整、互动最关键的时刻
+> - 不是该阶段的第一个镜头，而是该阶段视觉信息最丰富的瞬间
 
 ### 2.2 风格匹配
 
@@ -658,19 +691,21 @@ prompt 中 REFERENCE IMAGE MAPPING 与 `images` **一一对应**；Character Ide
 
 ### 2.6 任务表 JSON 格式
 
-任务表使用 batch 模式，每场一个 task：
+任务表使用 sequential 模式，场内阶段串行、场间并行。一场一个或多个 task（取决于角色阶段拆分结果）：
 
 ```json
 {
-  "mode": "batch",
+  "mode": "sequential",
   "model": "nano-banana-2",
   "output_path": "project/{项目名}/{剧集号}/分镜/视觉锚点",
   "tasks": [
     {
-      "id": "anchor-{场号}",
-      "scene": "{场号}",
+      "id": "anchor-1A",
+      "scene": "1",
+      "group": "1A",
       "scene_name": "{场名称}",
-      "filename": "锚点_场{场号}_{场景名}.png",
+      "shot_range": "1-3",
+      "filename": "锚点_场1A_{阶段名}.png",
       "cast": ["角色A", "角色B"],
       "prompt": "...",
       "aspectRatio": "16:9",
@@ -683,6 +718,25 @@ prompt 中 REFERENCE IMAGE MAPPING 与 `images` **一一对应**；Character Ide
         "project/.../道具参考图/道具B.png",
         "project/.../风格/风格参考.png"
       ]
+    },
+    {
+      "id": "anchor-1B",
+      "scene": "1",
+      "group": "1B",
+      "scene_name": "{场名称}",
+      "shot_range": "4-7",
+      "depends_on": "anchor-1A",
+      "filename": "锚点_场1B_{阶段名}.png",
+      "cast": ["角色A"],
+      "prompt": "...",
+      "aspectRatio": "16:9",
+      "imageSize": "2K",
+      "images": [
+        "project/.../角色参考图/角色A_默认妆造.png",
+        "{{PREV_OUTPUT}}",
+        "project/.../场景参考图/场景.png",
+        "project/.../风格/风格参考.png"
+      ]
     }
   ]
 }
@@ -690,41 +744,47 @@ prompt 中 REFERENCE IMAGE MAPPING 与 `images` **一一对应**；Character Ide
 
 | 字段 | 必填 | 说明 |
 |------|------|------|
-| `mode` | 是 | 固定 `"batch"`（批量模式） |
+| `mode` | 是 | 固定 `"sequential"`（场内阶段串行、场间并行） |
 | `model` | 是 | 固定 `"nano-banana-2"` |
 | `output_path` | 是 | 输出目录 |
-| `tasks[].id` | 是 | `"anchor-{场号}"`，如 `"anchor-1"`、`"anchor-2"` |
+| `tasks[].id` | 是 | `"anchor-{场号}{阶段}"`，如 `"anchor-1A"`、`"anchor-1B"`、`"anchor-2"` |
 | `tasks[].scene` | 是 | **物理场**号字符串 |
+| `tasks[].group` | 是 | 阶段标识：同场阶段按播放顺序编号 A、B、C...（如 `"1A"`、`"1B"`）；无阶段拆分时等于场号（如 `"2"`） |
 | `tasks[].scene_name` | 是 | 场名称（中文，用于文件名和记录） |
-| `tasks[].filename` | 是 | `"锚点_场{场号}_{场景名}.png"` |
-| `tasks[].cast` | 是* | 本场在场且有角色参考图的具名角色中文名列表（*纯空镜/无角色帧可为 `[]`）；顺序=角色参考顺序 |
+| `tasks[].shot_range` | 是 | 该阶段锚点覆盖的镜头范围，如 `"1-3"`；同场各阶段范围不得重叠、按播放顺序递增 |
+| `tasks[].depends_on` | 否* | 同场前一阶段任务 id（*首阶段无；非首阶段必填），如 `"anchor-1A"`。运行时其成图 URL 替换本任务 `images` 中的 `{{PREV_OUTPUT}}` |
+| `tasks[].filename` | 是 | `"锚点_场{场号}{阶段}_{阶段名/场景名}.png"`，如 `"锚点_场1A_断供报信.png"`；无阶段拆分时如 `"锚点_场2_茶肆门口.png"` |
+| `tasks[].cast` | 是* | 本阶段锚点镜头在场且有角色参考图的具名角色中文名列表（*纯空镜/无角色帧可为 `[]`）；顺序=角色参考顺序 |
 | `tasks[].prompt` | 是 | 7 段单帧 prompt：English control shell + 中文角色/关系/场景/动作/站位/神态/道具/时代/剧情内容；OPENING 第一项为 actor continuity `IDENTITY LOCK`，随后才是场景/动作；含单帧画布声明、禁字幕 TEXT POLICY、精简 AVOID |
 | `tasks[].aspectRatio` | 是 | 固定 `"16:9"` |
 | `tasks[].imageSize` | 是 | `"2K"` |
-| `tasks[].images` | 是 | 见排序规则；顺序为 Highest priority 角色→Second 场景→Third 道具→Fourth 风格 |
+| `tasks[].images` | 是 | 见排序规则；顺序为 Highest priority 角色→Previous Phase Anchor（仅非首阶段，`{{PREV_OUTPUT}}`）→Second 场景→Third 道具→Fourth 风格 |
 
 > **场级锚点图完整规则**：
-> 1. 每个唯一 `场号` 生成一条 task
-> 2. 场间无依赖，全部可并行提交
-> 3. 同场多组共享同一张锚点图（视频生成阶段引用）
+> 1. 每场按角色阶段拆分生成一条或多条 task（阶段拆分见上文「角色阶段拆分」）
+> 2. 同场阶段按播放顺序 `depends_on` 串行：非首阶段 `images` 含 `{{PREV_OUTPUT}}`，运行时替换为前一阶段锚点图成图 URL；首阶段无 `depends_on`、无 `{{PREV_OUTPUT}}`
+> 3. 场间无依赖，可并行提交
+> 4. 无阶段拆分时该场仅一个 task（等价于旧 batch 的单场一张锚点图，向后兼容）
 
 ---
 
 ### 2.7 完整示例
 
-以下为 2 场（各 1 张锚点图）的任务表示例（LiveAction 风格，16:9）：
+以下为 2 场任务表示例（LiveAction 风格，16:9）：场1 拆分为双阶段（1A、1B，经 `depends_on` 串行，非首阶段 `images` 含 `{{PREV_OUTPUT}}`），场2 无阶段拆分（单阶段，等价旧 batch 单场一张）：
 
 ```json
 {
-  "mode": "batch",
+  "mode": "sequential",
   "model": "nano-banana-2",
   "output_path": "project/荼荼茶业-古装/EP04/分镜/视觉锚点",
   "tasks": [
     {
-      "id": "anchor-1",
+      "id": "anchor-1A",
       "scene": "1",
+      "group": "1A",
       "scene_name": "春生茶肆·日/内",
-      "filename": "锚点_场1_春生茶肆.png",
+      "shot_range": "1-3",
+      "filename": "锚点_场1A_断供报信.png",
       "cast": ["掌柜", "茶客"],
       "prompt": "<双语 7 段 prompt：English control shell + 中文内容；须包含 actor continuity lock 与下方示例的绑定式角色写法>",
       "aspectRatio": "16:9",
@@ -739,9 +799,30 @@ prompt 中 REFERENCE IMAGE MAPPING 与 `images` **一一对应**；Character Ide
       ]
     },
     {
+      "id": "anchor-1B",
+      "scene": "1",
+      "group": "1B",
+      "scene_name": "春生茶肆·日/内",
+      "shot_range": "4-7",
+      "depends_on": "anchor-1A",
+      "filename": "锚点_场1B_立规交锋.png",
+      "cast": ["掌柜"],
+      "prompt": "<双语 7 段 prompt：先锁 Reference Image 1 character（掌柜角色），再写中文场景/动作/神态；SCENE CONTINUITY 说明空间继承自前一阶段锚点>",
+      "aspectRatio": "16:9",
+      "imageSize": "2K",
+      "images": [
+        "project/荼荼茶业-古装/全局依赖/角色设定/角色参考图/掌柜_默认妆造.png",
+        "{{PREV_OUTPUT}}",
+        "project/荼荼茶业-古装/EP04/场景参考图/茶馆.png",
+        "project/荼荼茶业-古装/前期采样/风格/风格参考-繁花.png"
+      ]
+    },
+    {
       "id": "anchor-2",
       "scene": "2",
+      "group": "2",
       "scene_name": "春生茶肆门口·日/外",
+      "shot_range": "1-2",
       "filename": "锚点_场2_茶肆门口.png",
       "cast": ["掌柜"],
       "prompt": "<双语 7 段 prompt：先锁 Reference Image 1 character（掌柜角色），再写中文场景/动作/神态>",
@@ -829,9 +910,11 @@ No empty or lifeless character poses; every referenced character needs a source-
 ```
 
 > **示例要点说明**：
-> - **场1（茶肆内）**：2 角色 + 场景 + 2 道具 + 风格，无 `depends_on`，无 `{{PREV_OUTPUT}}`
-> - **场2（茶肆门口）**：1 角色 + 场景 + 风格，无道具
-> - **场间无依赖**：anchor-1 和 anchor-2 可并行提交
+> - **场1 阶段 1A（断供报信，shot_range 1-3）**：2 角色 + 场景 + 2 道具 + 风格，无 `depends_on`，无 `{{PREV_OUTPUT}}`（首阶段）
+> - **场1 阶段 1B（立规交锋，shot_range 4-7）**：1 角色 + 场景 + 风格，`depends_on: "anchor-1A"`，`images` 在角色之后、场景之前含 `{{PREV_OUTPUT}}`（引用前一阶段锚点成图作为空间连续参考）
+> - **场2（茶肆门口，shot_range 1-2）**：单阶段（无角色入场/离场拆分），1 角色 + 场景 + 风格，无 `depends_on`
+> - **阶段链**：同场 1A → 1B 按 `depends_on` 串行（后阶段等前阶段成图后再提交）；不同场（场1 与场2）无依赖可并行
+> - **shot_range 同场不重叠**：场1 两阶段范围 `1-3` / `4-7` 连续不重叠
 > - **cast 长度 = 角色图数 = Character Identity Anchor 数**
 > - **Action/Performance 段必须为每个角色写明动作与神态**——这是影视级静帧质感的必要条件
 
@@ -839,16 +922,17 @@ No empty or lifeless character poses; every referenced character needs a source-
 
 ## Step 3：执行视觉锚点图生成
 
-任务表编写完成后，加载 art-director 技能，以 batch 模式执行：
+任务表编写完成后，加载 art-director 技能，以 sequential 模式执行：
 
 1. **校验**：运行 `python validate_task_table.py --check "视觉锚点_任务表.json"`
 2. **路径解析**：任务表中的 `images` 路径为相对路径，Agent 调用 MCP tool 前必须解析为绝对路径（MCP server 的 CWD 与 Agent 不同，相对路径无法解析）
-3. **执行（批量模式）**：按 art-director batch 执行
-   - 全部锚点图可并行提交（场间无依赖）
+3. **执行（sequential 模式）**：按 art-director sequential 执行
+   - 场内阶段串行：同场非首阶段锚点在 `depends_on` 指向的前一阶段成图后提交，其 `{{PREV_OUTPUT}}` 由运行时替换为前阶段成图 URL（空间连续参考）
+   - 场间并行：不同场的锚点图无依赖，可并行提交
    - 任一帧 `failed`：不影响其他场，记录事件
 4. **下载**：每帧完成后下载到 `output_path`，文件名与 `filename` 一致
 
-> 详细策略见 art-director「执行模式 > 模式一：batch」。
+> 详细策略见 art-director「执行模式 > 模式二：sequential（场内阶段串行、场间并行）」。无阶段拆分的单阶段场（该场仅一个 task、无 `depends_on`）在 sequential 模式下等价于独立任务，可与其他场并行提交。
 
 ---
 
@@ -866,23 +950,24 @@ python .opencode/skills/storyboard-generator/scripts/validate_task_table.py \
 2. 模型必须为 `nano-banana-2`
 3. 分辨率必须为 `2K`
 4. 画面比例必须为 `16:9`
-5. `mode` 必须为 `batch`（批量模式）
-6. 每个任务 `id`、`scene`、`scene_name` 必填；`group` 不是视觉锚点字段
-7. **无 `depends_on`**：锚点图场间无依赖
-8. **无 `{{PREV_OUTPUT}}`**：`images` 中不得出现前帧引用
-9. 参考图顺序：Highest priority 角色→Second 场景→Third 道具→Fourth 风格
-10. images 为具体文件（不得含 `{{PREV_OUTPUT}}` 等占位符）
-11. Image N: 映射块数量与 images 一致
-12. 必需段落标题齐全
-13. FRAME DETAIL 含 Purpose 与 Feeling
-14. FRAME DETAIL 的 Action 段不得为空（每个 cast 角色须有动作描述）
-15. FRAME DETAIL 的 Performance 段不得为空（每个 cast 角色须有神态描述）
-16. 禁止焦距 / storyboard / frame N of M / 宫格·拼贴词 / 未解析 `{...}`
-17. **`cast` 必填**（可为 `[]`）；每个 cast 名必须出现在对应角色参考路径文件名中
-18. 角色参考图数量 = Character Identity Anchor 数量 = `cast` 长度
-19. prompt 必须含单帧画布声明（`single` + `fills the entire canvas` 或等价 `exactly one image` + 禁 multi-panel）
-20. TEXT POLICY 必须含禁字幕（`subtitle`/`No subtitles` 等）
-21. AVOID 保留 multi-panel/layout、时代错位、背景人物降权与 empty/lifeless pose 等必要禁令；字幕仅由 TEXT POLICY 检查，不要求 AVOID 重复
-22. AVOID 必须含 empty poses 禁令（`empty or lifeless character poses` 或等价表述）
-23. 有角色参考时，`IDENTITY LOCK — HIGHEST PRIORITY` 必须位于 `SCENE CONTINUITY` 之前，并逐一写明对应 `Reference Image N character（中文角色名/职责）` 是该角色的 `sole identity source` 与 actor continuity lock；必须包含脸部身份绝对优先、历史冲突只改 wardrobe/hairstyle/setting、同一 actor/person 和非替换人物语义；不得用 `ALL characters` 混合 referenced 与 unreferenced/background characters
-24. 每个 unreferenced/background character 除时代服化与中文来源动作/站位外，必须包含 `not a referenced character, background-only, smaller visual weight, secondary placement, not a main character, not a focal point, never become the visual focus`
+5. `mode` 必须为 `sequential`（场内阶段串行、场间并行）
+6. 每个任务 `id`、`scene`、`scene_name`、`group`（阶段标识）、`shot_range` 必填
+7. **`depends_on` 仅限同场阶段链**：非首阶段锚点 `depends_on` 必须指向同场前一阶段任务 id；首阶段无 `depends_on`
+8. **非首阶段 `images` 必须含 `{{PREV_OUTPUT}}`**（排在角色参考之后、场景参考之前）；首阶段不得含 `{{PREV_OUTPUT}}`
+9. **`shot_range` 必填且同场不重叠**：同场多阶段范围按播放顺序递增、禁止重叠（如场1 阶段 1A `1-3`、1B `4-7`）
+10. 参考图顺序：Highest priority 角色→Previous Phase Anchor（仅非首阶段）→Second 场景→Third 道具→Fourth 风格
+11. images 为具体文件（非目录）或 `{{PREV_OUTPUT}}`
+12. Image N: 映射块数量与 images 一致
+13. 必需段落标题齐全
+14. FRAME DETAIL 含 Purpose 与 Feeling
+15. FRAME DETAIL 的 Action 段不得为空（每个 cast 角色须有动作描述）
+16. FRAME DETAIL 的 Performance 段不得为空（每个 cast 角色须有神态描述）
+17. 禁止焦距 / storyboard / frame N of M / 宫格·拼贴词 / 未解析 `{...}`
+18. **`cast` 必填**（可为 `[]`）；每个 cast 名必须出现在对应角色参考路径文件名中
+19. 角色参考图数量 = Character Identity Anchor 数量 = `cast` 长度
+20. prompt 必须含单帧画布声明（`single` + `fills the entire canvas` 或等价 `exactly one image` + 禁 multi-panel）
+21. TEXT POLICY 必须含禁字幕（`subtitle`/`No subtitles` 等）
+22. AVOID 保留 multi-panel/layout、时代错位、背景人物降权与 empty/lifeless pose 等必要禁令；字幕仅由 TEXT POLICY 检查，不要求 AVOID 重复
+23. AVOID 必须含 empty poses 禁令（`empty or lifeless character poses` 或等价表述）
+24. 有角色参考时，`IDENTITY LOCK — HIGHEST PRIORITY` 必须位于 `SCENE CONTINUITY` 之前，并逐一写明对应 `Reference Image N character（中文角色名/职责）` 是该角色的 `sole identity source` 与 actor continuity lock；必须包含脸部身份绝对优先、历史冲突只改 wardrobe/hairstyle/setting、同一 actor/person 和非替换人物语义；不得用 `ALL characters` 混合 referenced 与 unreferenced/background characters
+25. 每个 unreferenced/background character 除时代服化与中文来源动作/站位外，必须包含 `not a referenced character, background-only, smaller visual weight, secondary placement, not a main character, not a focal point, never become the visual focus`
