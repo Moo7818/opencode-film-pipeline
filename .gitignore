@@ -28,5 +28,8 @@
 .opencode/mcp-servers/*/.venv/
 .opencode/mcp-storage/
 
+# 运行时缓存
+.opencode/cache/
+
 # macOS 系统文件
 **/.DS_Store

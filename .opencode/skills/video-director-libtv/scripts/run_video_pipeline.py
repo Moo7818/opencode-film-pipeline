@@ -46,7 +46,7 @@
     手动 libtv node <名> --left-rm <旧上游> 或删除节点重建
   - 状态缓存: 画布节点缓存落盘 .opencode/cache/video-director/<canvas_uuid>.json，
     重跑跳过已上传素材；--refresh-cache 强制重建缓存
-  - ⛔ 选角参考图（{角色名}_选角.png）自动过滤，禁止用于视频生成
+  - ! 选角参考图（{角色名}_选角.png）自动过滤，禁止用于视频生成
 """
 
 import argparse
@@ -185,7 +185,7 @@ def save_canvas_cache(canvas_uuid, nodes):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
     except OSError as e:
-        print(f"  ⚠ 缓存写入失败: {e}", file=sys.stderr)
+        print(f"  ! 缓存写入失败: {e}", file=sys.stderr)
 
 
 # ============================================================
@@ -200,13 +200,13 @@ def scan_project_refs(project_root, episode=None):
         if not os.path.isdir(dir_path):
             continue
         for f in sorted(os.listdir(dir_path)):
-            if not f.lower().endswith(".png"):
+            if not f.lower().endswith((".png", ".jpg", ".jpeg")):
                 continue
             name_without_ext = os.path.splitext(f)[0]
-            # ⛔ 选角参考图（{角色名}_选角.png）禁止用于视频生成
+            # ! 选角参考图（{角色名}_选角.png）禁止用于视频生成
             # 选角资产为白T恤+灰背景，仅用于角色面部特征确立，不适合作为视频画面参考
             if "_选角" in name_without_ext:
-                print(f"  ⛔ 跳过选角参考图: {f}（禁止用于视频生成）", file=sys.stderr)
+                print(f"  ! 跳过选角参考图: {f}（禁止用于视频生成）", file=sys.stderr)
                 continue
             # 新格式: {道具名}_{出现场合}_基准.png → 剥离 _{出现场合}_基准
             clean_name = re.sub(r"_(全剧|EP\d+)_基准$", "", name_without_ext, flags=re.IGNORECASE)
@@ -410,7 +410,7 @@ def parse_refs(refs_args):
     for ref_str in refs_args:
         parts = ref_str.split(":", 1)
         if len(parts) != 2:
-            print(f"  ⚠ --refs 格式错误: {ref_str}（应为 \"组N:类型_名,类型_名\"），跳过", file=sys.stderr)
+            print(f"  ! --refs 格式错误: {ref_str}（应为 \"组N:类型_名,类型_名\"），跳过", file=sys.stderr)
             continue
         group_key = parts[0].strip()
         refs = [r.strip() for r in parts[1].split(",") if r.strip()]
@@ -641,7 +641,7 @@ def upload_references(project_root, canvas_cache, needed_names, episode, max_wor
           f" | 缺失 {len(missing)}）")
     print("=" * 60)
     for name in missing:
-        print(f"  ⚠ {name}: 未找到本地素材文件，跳过", file=sys.stderr)
+        print(f"  ! {name}: 未找到本地素材文件，跳过", file=sys.stderr)
 
     project_root_abs = os.path.abspath(project_root)
 
@@ -672,7 +672,7 @@ def upload_voice_refs(project_root, role_names, canvas_cache, max_workers):
     print("=" * 60)
 
     if not os.path.isdir(voice_dir):
-        print(f"  ⚠ 音色参考目录不存在: {voice_dir}", file=sys.stderr)
+        print(f"  ! 音色参考目录不存在: {voice_dir}", file=sys.stderr)
         return voice_nodes
 
     for role_name in role_names:
@@ -686,7 +686,7 @@ def upload_voice_refs(project_root, role_names, canvas_cache, max_workers):
             continue
         file_path = find_voice_file(voice_dir, role_name)
         if file_path is None:
-            print(f"  ⚠ 未找到 {role_name} 的音色参考文件（目录: {voice_dir}）", file=sys.stderr)
+            print(f"  ! 未找到 {role_name} 的音色参考文件（目录: {voice_dir}）", file=sys.stderr)
             continue
         to_upload[node_name] = file_path
 
@@ -894,7 +894,7 @@ def plan_pipeline(args):
     loaded, missing = preload_groups(groups_dir, args.groups, args.storyboard_mode)
     for name in missing:
         ext = ".md" if args.storyboard_mode == "simplified" else ".json"
-        print(f"  ⚠ {name}{ext} 不存在（模式: {args.storyboard_mode}）", file=sys.stderr)
+        print(f"  ! {name}{ext} 不存在（模式: {args.storyboard_mode}）", file=sys.stderr)
 
     local_assets = scan_project_refs(project_root, episode=args.episode)
     candidates = set(local_assets)
@@ -961,7 +961,7 @@ def plan_pipeline(args):
         if row["voiceRefs"]:
             print(f"  音色建议: {', '.join(row['voiceRefs'])}")
         for w in row["warnings"]:
-            print(f"  ⚠ {w}")
+            print(f"  ! {w}")
 
     # ===== 可直接复制的构建参数建议 =====
     refs_args = [f"{r['group']}:{','.join(r['refs'])}" for r in plan_rows if r.get("refs")]
@@ -1010,7 +1010,7 @@ def build_pipeline(args):
     loaded, missing = preload_groups(groups_dir, args.groups, args.storyboard_mode)
     for name in missing:
         ext = ".md" if args.storyboard_mode == "simplified" else ".json"
-        print(f"  ⚠ {name}{ext} 不存在（模式: {args.storyboard_mode}），跳过", file=sys.stderr)
+        print(f"  ! {name}{ext} 不存在（模式: {args.storyboard_mode}），跳过", file=sys.stderr)
     if not loaded:
         print("❌ 未找到任何分组文件")
         return 1
@@ -1140,7 +1140,7 @@ def build_pipeline(args):
         else:
             print(f"  ❌ {name} 创建失败: {res.get('error', '')}", file=sys.stderr)
         for w in meta["warnings"]:
-            print(f"    ⚠ {w}", file=sys.stderr)
+            print(f"    ! {w}", file=sys.stderr)
 
     node_results = run_concurrent(tasks, args.max_workers, on_done=on_node_done)
     succeeded = [f"组{g}" for g in args.groups
@@ -1150,7 +1150,7 @@ def build_pipeline(args):
         print("❌ 未创建任何节点")
         return 1
     if failed_nodes:
-        print(f"  ⚠ {len(failed_nodes)} 个节点失败，已从分组中排除: {', '.join(failed_nodes)}", file=sys.stderr)
+        print(f"  ! {len(failed_nodes)} 个节点失败，已从分组中排除: {', '.join(failed_nodes)}", file=sys.stderr)
 
     # 步骤7: 幂等建组（默认子命令：有则绑定、无则新建）
     if args.no_group:
@@ -1179,7 +1179,7 @@ def build_pipeline(args):
     print("\n" + "=" * 60)
     print(f"🎉 构建完成: {len(succeeded)}/{len(node_results)} 个节点，分组 {group_name}")
     if failed_nodes:
-        print(f"⚠️  {len(failed_nodes)} 个节点失败")
+        print(f"!️  {len(failed_nodes)} 个节点失败")
     script = os.path.abspath(sys.argv[0])
     print(f"下一步（运行 + 下载，单独调用）:")
     print(f'  python "{script}" --run --project "{args.project}" --episode {args.episode} '
@@ -1262,7 +1262,7 @@ def run_pipeline(args):
 
     if not args.download:
         if failed:
-            print(f"\n⚠️  {len(failed)} 个节点无产物: {', '.join(failed)}")
+            print(f"\n!️  {len(failed)} 个节点无产物: {', '.join(failed)}")
             return 1
         print("\n🎉 运行完成（未指定 --download，跳过下载）")
         return 0
@@ -1314,7 +1314,7 @@ def run_pipeline(args):
     if dl_failed == 0:
         print(f"🎉 全部完成: {len(downloaded)}/{len(node_names)}")
     else:
-        print(f"⚠️  完成（{dl_failed} 个组失败）")
+        print(f"!️  完成（{dl_failed} 个组失败）")
     print("=" * 60)
     return 1 if dl_failed else 0
 
